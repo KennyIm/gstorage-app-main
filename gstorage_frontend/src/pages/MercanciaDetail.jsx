@@ -223,7 +223,7 @@ export default function MercanciaDetail() {
                     <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
                       {mercancia.id_usuario_creacion}
                     </div>
-                    <span className="text-gray-900">Usuario ID {mercancia.id_usuario_creacion}</span>
+                    <span className="text-gray-900">ID: {mercancia.id_usuario_creacion_id}</span>
                   </div>
                 </div>
                 <div>

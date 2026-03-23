@@ -55,7 +55,7 @@ class MercanciaWriteSerializer(serializers.ModelSerializer):
             'id_cliente', 'descripcion_carga', 'cantidad_bultos', 
             'kg', 'm3', 'id_ubicacion_actual', 'id_destino',
             'estado', 'id_despacho', 
-            'motivo_baja', 'precio_total'
+            'motivo_baja', 'precio_total','id_usuario_creacion_id'
         ]
         read_only_fields = ['empresa']
 # Serializers para DESPACHO (Nuevo)
