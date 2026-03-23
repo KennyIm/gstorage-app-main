@@ -1,0 +1,38 @@
+{% extends 'inventario/base.html' %}
+{% block title %}Conductores{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center">
+        <h1>Listado de Conductores</h1>
+        <a href="{% url 'conductor-create' %}" class="btn btn-primary">Registrar Nuevo Conductor</a>
+    </div>
+    <hr>
+    
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Nombre Completo</th>
+                <th>RUT</th>
+                <th>N° Licencia</th>
+                <th>Teléfono</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for conductor in conductores %}
+            <tr>
+                <td>{{ conductor.nombre_completo }}</td>
+                <td>{{ conductor.rut_conductor }}</td>
+                <td>{{ conductor.numero_licencia }}</td>
+                <td>{{ conductor.telefono|default:"N/A" }}</td>
+                <td>
+                    <a href="{% url 'conductor-update' conductor.pk %}" class="btn btn-sm btn-warning">Editar</a>
+                    <a href="{% url 'conductor-delete' conductor.pk %}" class="btn btn-sm btn-danger">Eliminar</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center">No hay conductores registrados.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends 'inventario/base.html' %}
+{% block title %}Confirmar Eliminación{% endblock %}
+
+{% block content %}
+    <h1>Confirmar Eliminación</h1>
+    <hr>
+    
+    <div class="alert alert-danger">
+        <p>¿Estás seguro de que deseas eliminar la ubicación <strong>"{{ object }}"</strong>?</p>
+    </div>
+    
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Sí, Eliminar</button>
+        <a href="{% url 'ubicacion-list' %}" class="btn btn-secondary">Cancelar</a>
+    </form>
+{% endblock %}

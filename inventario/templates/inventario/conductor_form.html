@@ -1,0 +1,18 @@
+{% extends 'inventario/base.html' %}
+{% block title %}Formulario de Conductor{% endblock %}
+
+{% block content %}
+    {% if object %}
+        <h1>Editar Conductor</h1>
+    {% else %}
+        <h1>Registrar Nuevo Conductor</h1>
+    {% endif %}
+    <hr>
+    
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <a href="{% url 'conductor-list' %}" class="btn btn-secondary">Cancelar</a>
+    </form>
+{% endblock %}

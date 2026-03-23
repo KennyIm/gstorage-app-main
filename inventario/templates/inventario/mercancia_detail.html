@@ -1,0 +1,45 @@
+{% extends 'inventario/base.html' %}
+
+{% block title %}Detalle de Mercancía #{{ mercancia.id_mercancia }}{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center">
+        <h1>Detalle de Lote #{{ mercancia.id_mercancia }}</h1>
+        <div>
+            <a href="{% url 'mercancia-update' mercancia.pk %}" class="btn btn-warning">Editar</a>
+            <a href="{% url 'mercancia-delete' mercancia.pk %}" class="btn btn-danger">Eliminar</a>
+        </div>
+    </div>
+    <hr>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <h3>Datos del Lote</h3>
+            <p><strong>Cliente:</strong> {{ mercancia.id_cliente.nombre_cliente }}</p>
+            <p><strong>Descripción:</strong> {{ mercancia.descripcion_carga|default:"N/A" }}</p>
+            <p><strong>Cantidad de Bultos:</strong> {{ mercancia.cantidad_bultos }}</p>
+            <p><strong>Peso (Kg):</strong> {{ mercancia.kg|default:"N/A" }}</p>
+            <p><strong>Volumen (m³):</strong> {{ mercancia.m3|default:"N/A" }}</p>
+            <p><strong>Estado:</strong> {{ mercancia.estado }}</p>
+        </div>
+        <div class="col-md-6">
+            <h3>Datos de Logística</h3>
+            <p><strong>Fecha de Ingreso:</strong> {{ mercancia.fecha_ingreso }}</p>
+            <p><strong>Ubicación Actual:</strong> {{ mercancia.id_ubicacion_actual.codigo_ubicacion }}</p>
+            <p><strong>Destino:</strong> {{ mercancia.id_destino.nombre_ciudad }}</p>
+            <p><strong>Despacho Asignado:</strong> 
+                {% if mercancia.id_despacho %}
+                    <a href="{% url 'despacho-detail' mercancia.id_despacho.pk %}">
+                        Despacho #{{ mercancia.id_despacho.id_despacho }}
+                    </a>
+                {% else %}
+                    (Aún no asignado)
+                {% endif %}
+            </p>
+            <hr>
+            <h3>Auditoría</h3>
+            <p><strong>Registrado por:</strong> {{ mercancia.id_usuario_creacion.username }}</p>
+            <p><strong>Última Modificación por:</strong> {{ mercancia.id_usuario_ultima_modificacion.username|default:"N/A" }}</p>
+        </div>
+    </div>
+{% endblock %}

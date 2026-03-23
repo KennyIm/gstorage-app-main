@@ -1,0 +1,41 @@
+{% extends 'inventario/base.html' %}
+
+{% block title %}Detalle de Despacho #{{ despacho.id_despacho }}{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center">
+        <h1>Detalle de Despacho #{{ despacho.id_despacho }}</h1>
+        <div>
+            <a href="{% url 'despacho-update' despacho.pk %}" class="btn btn-warning">Editar</a>
+            <a href="{% url 'despacho-delete' despacho.pk %}" class="btn btn-danger">Eliminar</a>
+        </div>
+    </div>
+    <hr>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <h3>Datos del Viaje</h3>
+            <p><strong>Ruta:</strong> {{ despacho.id_ruta.nombre_ruta }}</p>
+            <p><strong>Camión:</strong> {{ despacho.id_camion.patente }} ({{ despacho.id_camion.marca }})</p>
+            <p><strong>Conductor:</strong> {{ despacho.id_conductor.nombre_completo }}</p>
+            <p><strong>Estado:</strong> {{ despacho.estado_despacho }}</p>
+            <p><strong>Fecha Programada:</strong> {{ despacho.fecha_programada|date:"d/m/Y" }}</p>
+            <p><strong>Fecha Salida Real:</strong> {{ despacho.fecha_salida_real|date:"d/m/Y H:i"|default:"N/A" }}</p>
+        </div>
+        <div class="col-md-6">
+            <h3>Mercancía Asignada</h3>
+            {% if mercancias_asignadas %}
+                <ul class="list-group">
+                {% for mercancia in mercancias_asignadas %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <a href="{% url 'mercancia-detail' mercancia.pk %}">Lote #{{ mercancia.id_mercancia }}</a>
+                        <span>({{ mercancia.id_cliente.nombre_cliente }})</span>
+                    </li>
+                {% endfor %}
+                </ul>
+            {% else %}
+                <div class="alert alert-secondary">No hay mercancía asignada a este despacho.</div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

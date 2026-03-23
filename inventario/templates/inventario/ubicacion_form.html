@@ -1,0 +1,46 @@
+{% extends 'inventario/base.html' %}
+{% block title %}Formulario de Ubicación{% endblock %}
+
+{% block content %}
+    {% if object %}
+        <h1>Editar Ubicación</h1>
+    {% else %}
+        <h1>Registrar Nueva Ubicación</h1>
+    {% endif %}
+    <hr>
+    
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="row">
+            <div class="col-md-4">{{ form.codigo_ubicacion.label_tag }} {{ form.codigo_ubicacion }}</div>
+            <div class="col-md-2">{{ form.pasillo.label_tag }} {{ form.pasillo }}</div>
+            <div class="col-md-2">{{ form.estanteria.label_tag }} {{ form.estanteria }}</div>
+            <div class="col-md-2">{{ form.nivel.label_tag }} {{ form.nivel }}</div>
+            <div class="col-md-2 pt-4">{{ form.estado_ocupado.label_tag }} {{ form.estado_ocupado }}</div>
+        </div>
+        
+        <h5 class="mt-4">Datos para 3D y Capacidad</h5>
+        <div class="row">
+            <div class="col-md-2">{{ form.pos_x.label_tag }} {{ form.pos_x }}</div>
+            <div class="col-md-2">{{ form.pos_y.label_tag }} {{ form.pos_y }}</div>
+            <div class="col-md-2">{{ form.pos_z.label_tag }} {{ form.pos_z }}</div>
+            <div class="col-md-3">{{ form.capacidad_max_kg.label_tag }} {{ form.capacidad_max_kg }}</div>
+            <div class="col-md-3">{{ form.capacidad_max_m3.label_tag }} {{ form.capacidad_max_m3 }}</div>
+        </div>
+        
+        <br>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <a href="{% url 'ubicacion-list' %}" class="btn btn-secondary">Cancelar</a>
+    </form>
+
+    <script>
+        document.querySelectorAll('input, select, textarea').forEach(el => {
+            el.classList.add('form-control');
+        });
+        document.querySelectorAll('input[type="checkbox"]').forEach(el => {
+            el.classList.remove('form-control');
+            el.classList.add('form-check-input');
+        });
+    </script>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends 'inventario/base.html' %}
+{% block title %}Ubicaciones{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center">
+        <h1>Listado de Ubicaciones</h1>
+        <a href="{% url 'ubicacion-create' %}" class="btn btn-primary">Registrar Nueva Ubicación</a>
+    </div>
+    <hr>
+    
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Pasillo</th>
+                <th>Estantería</th>
+                <th>Nivel</th>
+                <th>Ocupado</th>
+                <th>Pos (X,Y,Z)</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ubicacion in ubicaciones %}
+            <tr>
+                <td>{{ ubicacion.codigo_ubicacion }}</td>
+                <td>{{ ubicacion.pasillo }}</td>
+                <td>{{ ubicacion.estanteria }}</td>
+                <td>{{ ubicacion.nivel }}</td>
+                <td>{% if ubicacion.estado_ocupado %}Sí{% else %}No{% endif %}</td>
+                <td>({{ ubicacion.pos_x }}, {{ ubicacion.pos_y }}, {{ ubicacion.pos_z }})</td>
+                <td>
+                    <a href="{% url 'ubicacion-update' ubicacion.pk %}" class="btn btn-sm btn-warning">Editar</a>
+                    <a href="{% url 'ubicacion-delete' ubicacion.pk %}" class="btn btn-sm btn-danger">Eliminar</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center">No hay ubicaciones registradas.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

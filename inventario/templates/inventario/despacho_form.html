@@ -1,0 +1,20 @@
+{% extends 'inventario/base.html' %}
+{% block title %}Formulario de Despacho{% endblock %}
+
+{% block content %}
+    {% if object %}
+        <h1>Editar Despacho #{{ object.id_despacho }}</h1>
+    {% else %}
+        <h1>Crear Nuevo Despacho</h1>
+    {% endif %}
+    <hr>
+    
+    <form method="post">
+        {% csrf_token %}
+        
+        {{ form.as_p }}
+        
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <a href="{% url 'despacho-list' %}" class="btn btn-secondary">Cancelar</a>
+    </form>
+{% endblock %}

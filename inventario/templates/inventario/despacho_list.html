@@ -1,0 +1,43 @@
+{% extends 'inventario/base.html' %}
+{% block title %}Despachos{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center">
+        <h1>Listado de Despachos</h1>
+        <a href="{% url 'despacho-create' %}" class="btn btn-primary">Crear Nuevo Despacho</a>
+    </div>
+    <hr>
+    
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th># Despacho</th>
+                <th>Ruta</th>
+                <th>Camión</th>
+                <th>Conductor</th>
+                <th>Fecha Programada</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for despacho in despachos %}
+            <tr>
+                <td>{{ despacho.id_despacho }}</td>
+                <td>{{ despacho.id_ruta.nombre_ruta }}</td>
+                <td>{{ despacho.id_camion.patente }}</td>
+                <td>{{ despacho.id_conductor.nombre_completo }}</td>
+                <td>{{ despacho.fecha_programada|date:"d/m/Y" }}</td>
+                <td><span class="badge bg-warning">{{ despacho.estado_despacho }}</span></td>
+                <td>
+                    <a href="{% url 'despacho-detail' despacho.pk %}" class="btn btn-sm btn-info">Ver</a>
+                    <a href="{% url 'despacho-update' despacho.pk %}" class="btn btn-sm btn-warning">Editar</a>
+                    <a href="{% url 'despacho-delete' despacho.pk %}" class="btn btn-sm btn-danger">Eliminar</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center">No hay despachos programados.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

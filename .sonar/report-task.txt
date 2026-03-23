@@ -1,0 +1,6 @@
+projectKey=GStorage
+serverUrl=http://localhost:9000
+serverVersion=25.10.0.114319
+dashboardUrl=http://localhost:9000/dashboard?id=GStorage
+ceTaskId=a34be644-7f00-4681-a022-c8dad262e404
+ceTaskUrl=http://localhost:9000/api/ce/task?id=a34be644-7f00-4681-a022-c8dad262e404

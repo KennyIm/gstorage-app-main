@@ -1,0 +1,48 @@
+{% extends 'inventario/base.html' %}
+
+{% block title %}Panel de Control - GStorage{% endblock %}
+
+{% block content %}
+    <h1>Panel de Control</h1>
+    <hr>
+    
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-header">En Bodega</div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ total_en_bodega }}</h5>
+                    <p class="card-text">Lotes de mercancía actualmente en bodega.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning mb-3">
+                <div class="card-header">Despachos Programados</div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ despachos_programados }}</h5>
+                    <p class="card-text">Viajes listos para cargar y salir.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-dark bg-light mb-3">
+                <div class="card-header">Ubicaciones Libres</div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ ubicaciones_libres }}</h5>
+                    <p class="card-text">Espacios disponibles en el almacén.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-dark bg-info mb-3">
+                <div class="card-header">Clientes Activos</div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ total_clientes }}</h5>
+                    <p class="card-text">Total de clientes registrados.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% endblock %}

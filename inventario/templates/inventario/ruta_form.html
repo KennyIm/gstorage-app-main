@@ -1,0 +1,18 @@
+{% extends 'inventario/base.html' %}
+{% block title %}Formulario de Ruta{% endblock %}
+
+{% block content %}
+    {% if object %}
+        <h1>Editar Ruta</h1>
+    {% else %}
+        <h1>Registrar Nueva Ruta</h1>
+    {% endif %}
+    <hr>
+    
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <a href="{% url 'ruta-list' %}" class="btn btn-secondary">Cancelar</a>
+    </form>
+{% endblock %}
