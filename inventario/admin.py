@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     Cliente, Conductor, Camion, Ruta, Destino, 
-    Ubicacion, Despacho, Mercancia, Estanteria,AreaRestringida
+    Ubicacion, Despacho, Mercancia, Estanteria,AreaRestringida,Proveedor
 )
 
 # Registra todos los modelos para que aparezcan en el admin
@@ -13,6 +13,7 @@ admin.site.register(Destino)
 admin.site.register(Ubicacion)
 admin.site.register(Despacho)
 admin.site.register(Mercancia)
+admin.site.register(Proveedor)
 
 @admin.register(Estanteria)
 class EstanteriaAdmin(admin.ModelAdmin):

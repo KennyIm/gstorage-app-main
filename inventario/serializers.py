@@ -4,7 +4,7 @@ from datetime import timedelta
 from .models import (
     Mercancia, Cliente, Despacho, Conductor, 
     Camion, Ruta, Destino, Ubicacion, Estanteria, ReporteGenerado, HistorialMovimientos,
-    AreaRestringida
+    AreaRestringida, Proveedor
 )
 
 class MercanciaListSerializer(serializers.ModelSerializer):
@@ -14,7 +14,7 @@ class MercanciaListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Mercancia
-        fields = ['id_mercancia', 'id_cliente', 'id_ubicacion_actual', 'id_destino', 'estado', 'fecha_ingreso']
+        fields = ['id_mercancia', 'id_cliente', 'id_ubicacion_actual', 'id_destino', 'estado', 'fecha_ingreso','id_proveedor']
 
 class MercanciaCreateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -45,7 +45,9 @@ class MercanciaListSerializer(serializers.ModelSerializer):
             'motivo_baja',
             'kg', 
             'm3', 
-            'precio_total'                        
+            'precio_total',
+            'id_proveedor',
+            'factura'                        
         ]
 
 class MercanciaWriteSerializer(serializers.ModelSerializer):
@@ -55,7 +57,7 @@ class MercanciaWriteSerializer(serializers.ModelSerializer):
             'id_cliente', 'descripcion_carga', 'cantidad_bultos', 
             'kg', 'm3', 'id_ubicacion_actual', 'id_destino',
             'estado', 'id_despacho', 
-            'motivo_baja', 'precio_total','id_usuario_creacion_id'
+            'motivo_baja', 'precio_total','id_usuario_creacion_id','id_proveedor','factura'
         ]
         read_only_fields = ['empresa']
 # Serializers para DESPACHO (Nuevo)
@@ -63,20 +65,22 @@ class DespachoListSerializer(serializers.ModelSerializer):
     id_camion = serializers.StringRelatedField()
     id_conductor = serializers.StringRelatedField()
     id_ruta = serializers.StringRelatedField()
+    nombre_conductor = serializers.CharField(source='id_conductor.nombre_completo', read_only=True)
 
     class Meta:
         model = Despacho
         fields = [
             'id_despacho', 'fecha_programada', 'fecha_salida_real',
-            'id_camion', 'id_conductor', 'id_ruta', 'estado_despacho'
+            'id_camion', 'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor'
         ]
 
 class DespachoWriteSerializer(serializers.ModelSerializer):
+    nombre_conductor = serializers.CharField(source='id_conductor.nombre_completo', read_only=True)
     class Meta:
         model = Despacho
         fields = [
             'fecha_programada', 'fecha_salida_real', 'id_camion', 
-            'id_conductor', 'id_ruta', 'estado_despacho'
+            'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor'
         ]
         read_only_fields = ['empresa']
     
@@ -222,3 +226,9 @@ class AreaRestringidaSerializer(serializers.ModelSerializer):
         model = AreaRestringida
         fields = '__all__'
         read_only_fields = ['empresa']
+
+
+class ProveedorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Proveedor
+        fields = '__all__'

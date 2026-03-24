@@ -10,6 +10,7 @@ import DespachoList from './pages/DespachoList';
 import DespachoDetail from './pages/DespachoDetail';
 import DespachoCreate from './pages/DespachoCreate';
 import DespachoEdit from './pages/DespachoEdit';
+import OrdenEntregaPrint from './components/OrdenEntregaPrint'
 
 import ClienteList from './pages/catalogos/ClienteList';
 import ClienteCreate from './pages/catalogos/ClienteCreate';
@@ -58,6 +59,8 @@ import HistorialView from './pages/Historial';
 
 import CatalogsView from './pages/CatalogsView';
 
+import Proveedores from './pages/catalogos/ProveedorList'
+
 function App() {
   return (
     <Routes>
@@ -76,6 +79,7 @@ function App() {
         <Route path="despachos/nuevo" element={<DespachoCreate />} />
         <Route path="despachos/:id" element={<DespachoDetail />} />
         <Route path="despachos/:id/editar" element={<DespachoEdit />} />
+        <Route path="/despachos/:id/imprimir-plantilla" element={<OrdenEntregaPrint />} />
 
         <Route path="clientes" element={<ClienteList />} />
         <Route path="clientes/nuevo" element={<ClienteCreate />} />
@@ -116,6 +120,8 @@ function App() {
 
         <Route path="historial" element={<HistorialView />} />
         <Route path="catalogos" element={<CatalogsView />} />
+
+        <Route path="/proveedores" element={<Proveedores />} />
       </Route>
       </Route>
     </Routes>

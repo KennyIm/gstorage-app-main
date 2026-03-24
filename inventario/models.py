@@ -46,6 +46,24 @@ class EstanteriaManager(models.Manager):
     def get_queryset(self):
         return super().get_queryset().filter(activo=True)
     
+class ProveedorManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(activo=True)
+    
+
+class Proveedor(models.Model):
+    rut = models.CharField(max_length=20, primary_key=True, verbose_name="RUT del Proveedor")
+    nombre_proveedor = models.CharField(max_length=150, verbose_name="Nombre / Razón Social")
+    contacto = models.CharField(max_length=100, blank=True, null=True, verbose_name="Persona de Contacto")
+    correo = models.EmailField(blank=True, null=True)
+    telefono = models.CharField(max_length=20, blank=True, null=True)
+    activo = models.BooleanField(default=True)
+    objects = models.Manager() 
+    activos = ProveedorManager()
+
+    def __str__(self):
+        return f"{self.nombre_proveedor} ({self.rut})"
+    
 class Cliente(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="clientes")
     id_cliente = models.AutoField(primary_key=True)
@@ -243,11 +261,13 @@ class Mercancia(models.Model):
     kg = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Peso (Kg)")
     m3 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Volumen (m³)")
     precio_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.0, verbose_name="Precio Calculado")
+    factura = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número de Factura")
     
     id_cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, verbose_name="Cliente")
     id_ubicacion_actual = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='mercancias_en_ubicacion')
     id_destino = models.ForeignKey(Destino, on_delete=models.PROTECT, verbose_name="Destino")
     id_despacho = models.ForeignKey(Despacho, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Despacho Asignado")
+    id_proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True, related_name='mercancias', verbose_name="Proveedor de Origen")
     
     fecha_ingreso = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Ingreso")
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='En Bodega', verbose_name="Estado")

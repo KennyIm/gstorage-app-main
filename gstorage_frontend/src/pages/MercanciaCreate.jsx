@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'; // Descomentar en producci
 import apiClient from '../services/api'; // Descomentar en producción
 import { useAuth } from '../context/AuthContext'; // Descomentar en producción
 import {
-  Save, X, User, MapPin, Map, Package, Scale, Box, FileText, AlertCircle, Loader2, ArrowLeft
+  Save, X, User, MapPin, Map, Package, Scale, Box, FileText, AlertCircle, Loader2, ArrowLeft, Truck
 } from 'lucide-react';
 
 
@@ -17,13 +17,16 @@ export default function MercanciaCreate() {
     kg: '',
     m3: '',
     precio_total: '',
-    descripcion_carga: ''
+    rut_proveedor: '',
+    descripcion_carga: '',
+    factura: ''
   });
 
   const { logoutUser } = useAuth();
 
   const [clientes, setClientes] = useState([]);
   const [destinos, setDestinos] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -39,14 +42,15 @@ export default function MercanciaCreate() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Solo pedimos Clientes y Destinos. ¡Mucho más rápido!
-        const [clientesRes, destinosRes] = await Promise.all([
+        const [clientesRes, destinosRes, provRes] = await Promise.all([
           apiClient.get('/api/inventario/clientes/'),
-          apiClient.get('/api/inventario/destinos/')
+          apiClient.get('/api/inventario/destinos/'),
+          apiClient.get('/api/inventario/proveedores/')
         ]);
 
         setClientes(clientesRes.data);
         setDestinos(destinosRes.data);
+        setProveedores(provRes.data)
         setLoading(false);
       } catch (err) {
         if (err.response && err.response.status === 401) {
@@ -58,20 +62,14 @@ export default function MercanciaCreate() {
         setLoading(false);
       }
     };
-    
+
     fetchData();
   }, [logoutUser]);
 
-  // --- CÁLCULO DE PRECIO EN VIVO (Modo Detective) ---
+  // --- CÁLCULO DE PRECIO EN VIVO ---
   useEffect(() => {
-    if (formData.id_cliente && formData.kg && formData.m3) {
-      
-      console.log("1. Buscando al cliente con ID:", formData.id_cliente);
-      console.log("2. Lista de clientes disponibles:", clientes);
-
+    if (formData && formData.id_cliente && formData.kg && formData.m3) {
       const clienteSeleccionado = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente));
-
-      console.log("3. Resultado de la búsqueda:", clienteSeleccionado);
 
       if (clienteSeleccionado) {
         const pesoLimpio = String(formData.kg).replace(',', '.');
@@ -79,23 +77,22 @@ export default function MercanciaCreate() {
 
         const peso = parseFloat(pesoLimpio) || 0;
         const volumen = parseFloat(volumenLimpio) || 0;
-        
+
         const precioKg = parseFloat(clienteSeleccionado.precio_kg) || 0;
         const precioM3 = parseFloat(clienteSeleccionado.precio_m3) || 0;
 
-        console.log(`4. MATEMÁTICA: (${peso} kg * $${precioKg}) + (${volumen} m3 * $${precioM3})`);
+        const costoPorPeso = peso * precioKg;
+        const costoPorVolumen = volumen * precioM3;
 
-        const totalCalculado = (peso * precioKg) + (volumen * precioM3);
+        const totalCalculado = Math.max(costoPorPeso, costoPorVolumen);
 
         setFormData(prev => ({
           ...prev,
-          precio_total: totalCalculado.toFixed(2)
+          precio_total: totalCalculado.toFixed(0)
         }));
-      } else {
-        console.warn("⚠️ ERROR: No pude encontrar al cliente.");
       }
     }
-  }, [formData.kg, formData.m3, formData.id_cliente, clientes]);
+  }, [formData?.kg, formData?.m3, formData?.id_cliente, clientes]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -114,19 +111,22 @@ export default function MercanciaCreate() {
       ...formData,
       id_cliente: formData.id_cliente ? parseInt(formData.id_cliente.toString()) : null,
       id_destino: formData.id_destino ? parseInt(formData.id_destino.toString()) : null,
-      id_ubicacion_actual: null, 
-      
+      id_ubicacion_actual: null,
+
       cantidad_bultos: parseInt(formData.cantidad_bultos?.toString()) || 1,
       kg: formData.kg ? parseFloat(formData.kg.toString()) : 0,
       m3: formData.m3 ? parseFloat(formData.m3.toString()) : 0,
-      
+
+      id_proveedor: formData.id_proveedor || null,
+
       precio_total: formData.precio_total ? parseFloat(formData.precio_total.toString()) : 0,
+      factura: formData.factura || null,
     };
 
     try {
       await apiClient.post('/api/inventario/mercancias/', payload);
       setSubmitting(false);
-      navigate('/mercancias'); 
+      navigate('/mercancias');
     } catch (err) {
       console.error(err);
       setError('Error al guardar la mercancía. Revisa los campos e intenta nuevamente.');
@@ -181,7 +181,7 @@ export default function MercanciaCreate() {
                 <div className="relative">
                   <label htmlFor="id_cliente" className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400 pointer-events-none" />
                     <select
                       id="id_cliente"
                       name="id_cliente"
@@ -201,7 +201,7 @@ export default function MercanciaCreate() {
                 <div className="relative">
                   <label htmlFor="id_destino" className="block text-sm font-medium text-gray-700 mb-1">Destino *</label>
                   <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400 pointer-events-none" />
                     <select
                       id="id_destino"
                       name="id_destino"
@@ -217,6 +217,27 @@ export default function MercanciaCreate() {
                     </select>
                   </div>
                 </div>
+                <div>
+                  <label htmlFor="rut_proveedor" className="block text-sm font-medium text-gray-700 mb-1">
+                    Proveedor
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400 pointer-events-none" />
+                    <select
+                      name="id_proveedor"
+                      value={formData.id_proveedor}
+                      onChange={handleChange}
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
+                    >
+                      <option value="">Selecciona un proveedor...</option>
+                      {proveedores.map(prov => (
+                        <option key={prov.rut} value={prov.rut}>
+                          {prov.nombre_proveedor} (RUT: {prov.rut})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -228,9 +249,25 @@ export default function MercanciaCreate() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    N° de Factura
+                  </label>
+                  <div className="relative">
+                    <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-700 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="factura"
+                      value={formData.factura}
+                      onChange={handleChange}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                      placeholder="Ej: 10293"
+                    />
+                  </div>
+                </div>
+                <div>
                   <label htmlFor="cantidad_bultos" className="block text-sm font-medium text-gray-700 mb-1">Cantidad Bultos *</label>
                   <div className="relative">
-                    <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
                     <input
                       type="number"
                       id="cantidad_bultos"
@@ -247,7 +284,7 @@ export default function MercanciaCreate() {
                 <div>
                   <label htmlFor="kg" className="block text-sm font-medium text-gray-700 mb-1">Peso Total (Kg)</label>
                   <div className="relative">
-                    <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
                     <input
                       type="number"
                       id="kg"
@@ -264,7 +301,7 @@ export default function MercanciaCreate() {
                 <div>
                   <label htmlFor="m3" className="block text-sm font-medium text-gray-700 mb-1">Volumen (m³)</label>
                   <div className="relative">
-                    <Box className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <Box className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
                     <input
                       type="number"
                       id="m3"

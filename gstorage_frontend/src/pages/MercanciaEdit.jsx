@@ -21,6 +21,7 @@ export default function MercanciaEdit() {
   const [destinos, setDestinos] = useState([]);
   const [ubicaciones, setUbicaciones] = useState([]);
   const [despachos, setDespachos] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -36,15 +37,18 @@ export default function MercanciaEdit() {
 
         const peso = parseFloat(pesoLimpio) || 0;
         const volumen = parseFloat(volumenLimpio) || 0;
-        
+
         const precioKg = parseFloat(clienteSeleccionado.precio_kg) || 0;
         const precioM3 = parseFloat(clienteSeleccionado.precio_m3) || 0;
 
-        const totalCalculado = (peso * precioKg) + (volumen * precioM3);
+        const costoPorPeso = peso * precioKg;
+        const costoPorVolumen = volumen * precioM3;
+
+        const totalCalculado = Math.max(costoPorPeso, costoPorVolumen);
 
         setFormData(prev => ({
           ...prev,
-          precio_total: totalCalculado.toFixed(2)
+          precio_total: totalCalculado.toFixed(0)
         }));
       }
     }
@@ -54,21 +58,16 @@ export default function MercanciaEdit() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // 1. Busca los datos para los <select> en paralelo
-        const [clientesRes, destinosRes, ubicacionesRes, despachosRes] = await Promise.all([
+        const [clientesRes, destinosRes, ubicacionesRes, despachosRes, provRes] = await Promise.all([
           apiClient.get('/api/inventario/clientes/'),
           apiClient.get('/api/inventario/destinos/'),
-          apiClient.get('/api/inventario/ubicaciones/'), // Traemos todas y filtramos en JS
-          apiClient.get('/api/inventario/despachos/')
+          apiClient.get('/api/inventario/ubicaciones/'),
+          apiClient.get('/api/inventario/despachos/'),
+          apiClient.get('/api/inventario/proveedores/')
         ]);
-
-        // 2. Busca los datos de la mercancía actual
         const mercanciaRes = await apiClient.get(`/api/inventario/mercancias/${id}/`);
         const currentData = mercanciaRes.data;
 
-        // 3. LOGICA DE FILTRADO DE UBICACIONES
-        // Solo mostramos ubicaciones que estén libres (estado_ocupado === false)
-        // O que sean la ubicación actual de ESTA mercancía (para no perder la selección actual)
         const ubicacionesFiltradas = ubicacionesRes.data.filter(u =>
           !u.estado_ocupado || u.id_ubicacion === currentData.id_ubicacion_actual
         );
@@ -77,8 +76,8 @@ export default function MercanciaEdit() {
         setDestinos(destinosRes.data);
         setUbicaciones(ubicacionesFiltradas);
         setDespachos(despachosRes.data);
+        setProveedores(provRes.data);
 
-        // 4. Rellena el formulario con los datos existentes
         setFormData({
           id_cliente: currentData.id_cliente,
           id_destino: currentData.id_destino,
@@ -89,7 +88,9 @@ export default function MercanciaEdit() {
           precio_total: currentData.precio_total || '',
           descripcion_carga: currentData.descripcion_carga || '',
           estado: currentData.estado,
-          id_despacho: currentData.id_despacho || ''
+          id_despacho: currentData.id_despacho || '',
+          id_proveedor: currentData.id_proveedor || '',
+          factura: currentData.factura || '',
         });
 
         setLoading(false);
@@ -130,6 +131,8 @@ export default function MercanciaEdit() {
       m3: formData.m3 ? parseFloat(formData.m3) : null,
       precio_total: formData.precio_total ? parseFloat(formData.precio_total) : 0,
       id_despacho: formData.id_despacho ? parseInt(formData.id_despacho) : null,
+      id_proveedor: formData.id_proveedor || null,
+      factura: formData.factura || null,
     };
 
     try {
@@ -199,7 +202,7 @@ export default function MercanciaEdit() {
                 <div>
                   <label htmlFor="id_cliente" className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400 pointer-events-none" />
                     <select
                       name="id_cliente"
                       className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
@@ -218,7 +221,7 @@ export default function MercanciaEdit() {
                 <div>
                   <label htmlFor="id_destino" className="block text-sm font-medium text-gray-700 mb-1">Destino</label>
                   <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400 pointer-events-none" />
                     <select
                       name="id_destino"
                       className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
@@ -229,6 +232,25 @@ export default function MercanciaEdit() {
                       <option value="">Seleccionar destino...</option>
                       {destinos.map(d => (
                         <option key={d.id_destino} value={d.id_destino}>{d.nombre_ciudad}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="mt-6">
+                  <label htmlFor="id_proveedor" className="block text-sm font-medium text-gray-700 mb-1">
+                    Proveedor
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400 pointer-events-none" />
+                    <select
+                      name="id_proveedor"
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
+                      value={formData.id_proveedor}
+                      onChange={handleChange}
+                    >
+                      <option value="">Selecciona un proveedor...</option>
+                      {proveedores.map(p => (
+                        <option key={p.rut} value={p.rut}>{p.nombre_proveedor} (RUT: {p.rut})</option>
                       ))}
                     </select>
                   </div>
@@ -277,9 +299,25 @@ export default function MercanciaEdit() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    N° de Factura
+                  </label>
+                  <div className="relative">
+                    <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-700 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="factura"
+                      value={formData.factura}
+                      onChange={handleChange}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                      placeholder="Ej: 10293"
+                    />
+                  </div>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Bultos</label>
                   <div className="relative">
-                    <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
                     <input
                       type="number"
                       name="cantidad_bultos"
@@ -295,7 +333,7 @@ export default function MercanciaEdit() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Peso (Kg)</label>
                   <div className="relative">
-                    <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
                     <input
                       type="number"
                       name="kg"
@@ -310,7 +348,7 @@ export default function MercanciaEdit() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Volumen (m³)</label>
                   <div className="relative">
-                    <Box className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <Box className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
                     <input
                       type="number"
                       name="m3"

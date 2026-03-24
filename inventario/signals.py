@@ -105,7 +105,6 @@ def calcular_precio_mercancia(sender, instance, **kwargs):
     """
     Calcula el precio SOLO si no se ha ingresado uno manualmente.
     """
-    # Si el cliente existe Y el precio_total está vacío o es 0
     if instance.id_cliente and not instance.precio_total:
         peso = Decimal(str(instance.kg or 0.00))
         volumen = Decimal(str(instance.m3 or 0.00))
@@ -116,4 +115,4 @@ def calcular_precio_mercancia(sender, instance, **kwargs):
         costo_por_peso = peso * precio_k
         costo_por_volumen = volumen * precio_v
         
-        instance.precio_total = costo_por_peso + costo_por_volumen
+        instance.precio_total = max(costo_por_peso,costo_por_volumen)

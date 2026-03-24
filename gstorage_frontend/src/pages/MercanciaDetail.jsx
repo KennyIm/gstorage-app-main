@@ -123,7 +123,7 @@ export default function MercanciaDetail() {
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-gray-900">Lote #{mercancia.id_mercancia}</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Lote #{mercancia.id_mercancia || mercancia.id || id}</h1>
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${mercancia.estado === 'ALMACENADO' ? 'bg-green-50 text-green-700 border-green-200' :
                     mercancia.estado === 'DESPACHADO' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                       'bg-gray-100 text-gray-600 border-gray-200'
@@ -194,9 +194,23 @@ export default function MercanciaDetail() {
                   <div className="p-4 border border-emerald-100 rounded-lg text-center hover:border-emerald-200 transition bg-emerald-50">
                     <DollarSign className="w-5 h-5 text-emerald-500 mx-auto mb-2" />
                     <span className="block text-xl font-bold text-emerald-700">
-                      ${parseFloat(mercancia.precio_total || 0).toFixed(2)}
+                      ${parseFloat(mercancia.precio_total || 0).toFixed(0)}
                     </span>
                     <span className="text-xs text-emerald-600 font-medium">Valor Total</span>
+                  </div>
+                  <div className="p-4 border border-emerald-100 rounded-lg text-center hover:border-emerald-200 transition bg-blue-50">
+                    <User className="w-5 h-5 text-blue-500 mx-auto mb-2" />
+                    <span className="block text-sm font-bold text-gray-600">
+                      {mercancia.id_proveedor || "Sin Asignar"}
+                    </span>
+                    <span className="text-xs text-blue-600 font-medium">Proveedor</span>
+                  </div>
+                  <div className="p-4 border border-emerald-100 rounded-lg text-center hover:border-emerald-200 transition bg-amber-50">
+                    <FileText className="w-5 h-5 text-amber-500 mx-auto mb-2" />
+                    <span className="block text-sm font-bold text-gray-600">
+                      {mercancia.factura || "Sin Asignar"}
+                    </span>
+                    <span className="text-xs text-amber-600 font-medium">Factura</span>
                   </div>
                 </div>
 

@@ -228,13 +228,13 @@ export default function ClientsCatalog() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`text-sm font-semibold ${precioKg === 0 ? 'text-red-600 bg-red-50 px-2 py-1 rounded' : 'text-gray-900'}`}>
-                        ${precioKg.toFixed(2)}
+                        ${precioKg.toFixed(0)}
                       </span>
                     </td>
 
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`text-sm font-semibold ${precioM3 === 0 ? 'text-red-600 bg-red-50 px-2 py-1 rounded' : 'text-gray-900'}`}>
-                        ${precioM3.toFixed(2)}
+                        ${precioM3.toFixed(0)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

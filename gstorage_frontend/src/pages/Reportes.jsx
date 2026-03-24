@@ -40,24 +40,17 @@ export default function ReportsView() {
         fecha_inicio: config.dateRange === 'custom' ? config.startDate : null,
         fecha_fin: config.dateRange === 'custom' ? config.endDate : null,
       });
-
-      // La respuesta anterior era un JSON con la URL del archivo.
-      // Ahora debemos descargar ESE archivo con 'responseType: blob'.
       
       const fileUrl = res.data.archivo;
       
-      // Hacemos una SEGUNDA petición GET a la URL del archivo
-      // IMPORTANTE: Aquí pedimos el BLOB
       const downloadRes = await apiClient.get(fileUrl, {
         responseType: 'blob', 
       });
 
-      // Crear un enlace temporal para descargar el BLOB
       const href = URL.createObjectURL(downloadRes.data);
       const link = document.createElement('a');
       link.href = href;
       
-      // Extraer el nombre del archivo de la URL
       const filename = fileUrl.split('/').pop();
       link.setAttribute('download', filename);
       

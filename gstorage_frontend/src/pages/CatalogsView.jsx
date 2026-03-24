@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Truck, Users, UserCircle, MapPin, Archive, Route, Map } from 'lucide-react';
+import { Truck, Users, UserCircle, MapPin, Archive, Route, Map, icons } from 'lucide-react';
 
 export default function CatalogsView() {
   const navigate = useNavigate();
@@ -21,6 +21,14 @@ export default function CatalogsView() {
       icon: Users,
       color: 'bg-green-500',
       hoverColor: 'hover:bg-green-600',
+    },
+    {
+      id:'proveedores',
+      title:'Proveedores',
+      description:'Administrar proveedores y su información',
+      icon: Users,
+      color: 'bg-red-800',
+      hoverColor: 'hover:bg-red-700',
     },
     {
       id: 'conductores', // Ruta: /conductores

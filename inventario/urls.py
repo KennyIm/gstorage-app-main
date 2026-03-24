@@ -50,6 +50,9 @@ urlpatterns = [
     path('areas-restringidas/', views.AreaRestringidaListCreateAPI.as_view(), name='api-areas-list'),
     path('areas-restringidas/<int:pk>/', views.AreaRestringidaDetailAPI.as_view(), name='api-areas-detail'),
 
+    path('proveedores/', views.ProveedorListCreateAPI.as_view(), name='api-proveedor-list-create'),
+    path('proveedores/<str:pk>/', views.ProveedorRetrieveUpdateDestroyAPI.as_view(), name='api-proveedor-detail'),
+
 
 
     # DJANGO VERSION VANILLA

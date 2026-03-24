@@ -22,7 +22,7 @@ from django.views.generic import (
 from .models import (
     Mercancia, Cliente, Despacho, Conductor, 
     Camion, Ruta, Destino, Ubicacion, HistorialMovimientos, Estanteria,
-    AreaRestringida
+    AreaRestringida, Proveedor
 )
 
 from .serializers import (
@@ -34,7 +34,8 @@ from .serializers import (
     ClienteSerializer, ConductorSerializer, CamionSerializer, 
     RutaSerializer, DestinoSerializer, UbicacionSerializer, EstanteriaSerializer,
     HistorialSerializer,
-    AreaRestringidaSerializer
+    AreaRestringidaSerializer,
+    ProveedorSerializer
 )
 from usuarios.permissions import IsAdminEmpresa, IsJefeDeBodega, IsOperario
 
@@ -882,6 +883,14 @@ class AreaRestringidaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         empresa = get_empresa_from_user(self.request)
         return AreaRestringida.objects.filter(empresa=empresa)
 
+#Proveedores
+class ProveedorListCreateAPI(generics.ListCreateAPIView):
+    queryset = Proveedor.activos.all()
+    serializer_class = ProveedorSerializer
+
+class ProveedorRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Proveedor.objects.all()
+    serializer_class = ProveedorSerializer
 
 #DJANGO METODO SIN REACT (FUNCIONAL)
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../services/api';
-import { Search, Filter, Package, Plus, Eye, Trash2, Truck, MapPin, Check, X } from 'lucide-react';
+import { Search, Filter, Package, Plus, Eye, Trash2, Truck, MapPin, Check, X, FileText } from 'lucide-react';
 import MermaModal from '../components/MermaModal';
 
 export default function MercanciaList() {
@@ -30,7 +30,7 @@ export default function MercanciaList() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [mercRes, despRes, ubicRes] = await Promise.all([
+        const [mercRes, despRes, ubicRes, provRes] = await Promise.all([
           apiClient.get('/api/inventario/mercancias/'),
           apiClient.get('/api/inventario/despachos/'),
           apiClient.get('/api/inventario/ubicaciones/')
@@ -89,7 +89,9 @@ export default function MercanciaList() {
     const cliente = item.cliente_nombre?.toLowerCase() || '';
     const descripcion = item.descripcion_carga?.toLowerCase() || '';
     const id = item.id_mercancia ? String(item.id_mercancia) : '';
-    const matchesSearch = cliente.includes(term) || descripcion.includes(term) || id.includes(term);
+    const factura = item.factura?.toLowerCase() || '';
+    const rutproveedor = item.rut_proveedor?.toLowerCase() || '';
+    const matchesSearch = cliente.includes(term) || descripcion.includes(term) || id.includes(term) || factura.includes(term) || rutproveedor.includes(term);
     const matchesStatus = statusFilter === 'TODOS' || item.estado === statusFilter;
 
     return matchesSearch && matchesStatus;
@@ -177,6 +179,7 @@ export default function MercanciaList() {
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Lote #</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Cliente / Descripción</th>
+                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">RUT del Proveedor</th>
                 {/*<th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Ubicación</th>*/}
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Valor</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Despacho</th>
@@ -197,9 +200,22 @@ export default function MercanciaList() {
                         <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600 mt-1">
                           <Package className="w-4 h-4" />
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{item.cliente_nombre}</p>
-                          <p className="text-xs text-gray-500 line-clamp-1">{item.descripcion_carga || 'Sin descripción'}</p>
+                        <div className="flex flex-col">
+                          <p className="font-semibold text-gray-900">{item.cliente_nombre}</p>
+
+                          {/* Descripción y Factura */}
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="text-xs text-gray-500 line-clamp-1 max-w-[200px]" title={item.descripcion_carga}>
+                              {item.descripcion_carga || 'Sin descripción'}
+                            </span>
+
+                            {/* Factura */}
+                            {item.factura && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                                <FileText className="w-3 h-3" /> {item.factura}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -224,8 +240,14 @@ export default function MercanciaList() {
                   </td>
                   */}
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm font-bold text-blue-700 px-2 py-1">
+                        {item.id_proveedor}
+                      </span>
+                    </td>
+
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
-                        ${parseFloat(item.precio_total || 0).toFixed(2)}
+                        ${parseFloat(item.precio_total || 0).toFixed(0)}
                       </span>
                     </td>
 
