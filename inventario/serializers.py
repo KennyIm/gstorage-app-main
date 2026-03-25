@@ -71,7 +71,8 @@ class DespachoListSerializer(serializers.ModelSerializer):
         model = Despacho
         fields = [
             'id_despacho', 'fecha_programada', 'fecha_salida_real',
-            'id_camion', 'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor'
+            'id_camion', 'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor',
+            'origen','destino','codigo_documento'
         ]
 
 class DespachoWriteSerializer(serializers.ModelSerializer):
@@ -79,8 +80,10 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Despacho
         fields = [
+            'id_despacho',
             'fecha_programada', 'fecha_salida_real', 'id_camion', 
-            'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor'
+            'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor',
+            'origen','destino','codigo_documento'
         ]
         read_only_fields = ['empresa']
     

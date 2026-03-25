@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom'; 
-import apiClient from '../services/api'; 
-import { useAuth } from '../context/AuthContext'; 
-import { 
-  Save, ArrowLeft, Calendar, Truck, User, Map, 
-  Activity, Loader2, AlertCircle, CheckCircle 
+import { useNavigate, Link } from 'react-router-dom';
+import apiClient from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import {
+  Save, ArrowLeft, Calendar, Truck, User, Map,
+  Activity, Loader2, AlertCircle, CheckCircle
 } from 'lucide-react';
 
 export default function DespachoCreate() {
@@ -13,19 +13,27 @@ export default function DespachoCreate() {
     id_camion: '',
     id_conductor: '',
     id_ruta: '',
-    estado_despacho: 'Programado' 
+    estado_despacho: 'Programado',
+    origen: '',
+    destino: '',
+    numero_correlativo: '',
   });
 
   const [camiones, setCamiones] = useState([]);
   const [conductores, setConductores] = useState([]);
   const [rutas, setRutas] = useState([]);
-  
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
-  
+
   const navigate = useNavigate();
   const { logoutUser } = useAuth();
+
+  const inicialOrigen = formData.origen ? formData.origen.charAt(0).toUpperCase() : '_';
+  const inicialDestino = formData.destino ? formData.destino.charAt(0).toUpperCase() : '_';
+  const numero = formData.numero_correlativo || '___';
+  const codigoGenerado = `${inicialOrigen}${numero}${inicialDestino}`;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -36,7 +44,7 @@ export default function DespachoCreate() {
           apiClient.get('/api/inventario/conductores/'),
           apiClient.get('/api/inventario/rutas/')
         ]);
-        
+
         setCamiones(camionesRes.data);
         setConductores(conductoresRes.data);
         setRutas(rutasRes.data);
@@ -69,6 +77,7 @@ export default function DespachoCreate() {
       id_camion: formData.id_camion ? parseInt(formData.id_camion) : null,
       id_conductor: formData.id_conductor ? parseInt(formData.id_conductor) : null,
       id_ruta: formData.id_ruta ? parseInt(formData.id_ruta) : null,
+      codigo_documento: codigoGenerado
     };
 
     try {
@@ -77,22 +86,22 @@ export default function DespachoCreate() {
       navigate('/despachos');
     } catch (err) {
       console.error(err);
-      
+
       // --- MANEJO DE ERRORES ---
       if (err.response?.data) {
-          const serverErrors = err.response.data;
-          if (serverErrors.id_camion) {
-              setError(serverErrors.id_camion[0]); 
-          } else if (serverErrors.id_conductor) {
-              setError(serverErrors.id_conductor[0]);
-          } else {
-              const firstError = Object.values(serverErrors)[0];
-              setError(Array.isArray(firstError) ? firstError[0] : "Error en los datos enviados.");
-          }
+        const serverErrors = err.response.data;
+        if (serverErrors.id_camion) {
+          setError(serverErrors.id_camion[0]);
+        } else if (serverErrors.id_conductor) {
+          setError(serverErrors.id_conductor[0]);
+        } else {
+          const firstError = Object.values(serverErrors)[0];
+          setError(Array.isArray(firstError) ? firstError[0] : "Error en los datos enviados.");
+        }
       } else {
-          setError('Error al crear el despacho. Intente nuevamente.');
+        setError('Error al crear el despacho. Intente nuevamente.');
       }
-      
+
       setSubmitting(false);
     }
   };
@@ -107,11 +116,20 @@ export default function DespachoCreate() {
       </div>
     );
   }
+  const UBICACIONES = [
+    'Santiago',
+    'Iquique',
+    'Antofagasta',
+    'Calama',
+    'Copiapó',
+    'Tocopilla',
+    'Mejillones'
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-4xl mx-auto">
-        
+
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -125,7 +143,7 @@ export default function DespachoCreate() {
 
         {/* Formulario */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-          
+
           {error && (
             <div className="bg-red-50 border-l-4 border-red-500 p-4 m-6 mb-0 flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -137,14 +155,14 @@ export default function DespachoCreate() {
           )}
 
           <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-8">
-            
+
             {/* SECCIÓN 1: PLANIFICACIÓN */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
                 <Calendar className="w-5 h-5 text-indigo-600" />
                 Planificación
               </h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label htmlFor="fecha_programada" className="block text-sm font-medium text-gray-700 mb-1">Fecha Programada *</label>
@@ -188,7 +206,7 @@ export default function DespachoCreate() {
                 <Map className="w-5 h-5 text-indigo-600" />
                 Ruta
               </h3>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
                   <label htmlFor="id_ruta" className="block text-sm font-medium text-gray-700 mb-1">Ruta Asignada *</label>
@@ -207,6 +225,66 @@ export default function DespachoCreate() {
                         <option key={r.id_ruta} value={r.id_ruta}>{r.nombre_ruta}</option>
                       ))}
                     </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                    Ciudad de Origen
+                  </label>
+                  <select
+                    name="origen"
+                    value={formData.origen || ''}
+                    onChange={handleChange}
+                    required
+                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  >
+                    <option value="" disabled>Seleccione el origen...</option>
+                    {UBICACIONES.map((ciudad) => (
+                      <option key={`origen-${ciudad}`} value={ciudad}>
+                        {ciudad}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* --- CAMPO DESTINO --- */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                    Ciudad de Destino
+                  </label>
+                  <select
+                    name="destino"
+                    value={formData.destino || ''}
+                    onChange={handleChange}
+                    required
+                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  >
+                    <option value="" disabled>Seleccione el destino...</option>
+                    {UBICACIONES.map((ciudad) => (
+                      <option key={`destino-${ciudad}`} value={ciudad}>
+                        {ciudad}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                    Número de Documento
+                  </label>
+                  <input
+                    type="number"
+                    name="numero_correlativo"
+                    value={formData.numero_correlativo}
+                    onChange={handleChange}
+                    placeholder="Ej: 832"
+                    required
+                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  />
+
+                  {/* Vista previa del código generado para el usuario */}
+                  <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-500">Código a generar:</span>
+                    <span className="text-sm font-black text-indigo-600 tracking-widest">{codigoGenerado}</span>
                   </div>
                 </div>
               </div>
@@ -264,13 +342,13 @@ export default function DespachoCreate() {
 
             {/* Acciones */}
             <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-100">
-              <Link 
-                to="/despachos" 
+              <Link
+                to="/despachos"
                 className="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition focus:ring-2 focus:ring-gray-200"
               >
                 Cancelar
               </Link>
-              
+
               <button
                 type="submit"
                 disabled={submitting}

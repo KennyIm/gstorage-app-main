@@ -1,24 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom'; 
-import apiClient from '../services/api'; 
-import { useAuth } from '../context/AuthContext'; 
-import { 
-  ArrowLeft, Edit, Trash2, Truck, MapPin, User, Calendar, 
-  Clock, Package, CheckCircle, AlertCircle, Loader2, Map 
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import apiClient from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import {
+  ArrowLeft, Edit, Trash2, Truck, MapPin, User, Calendar,
+  Clock, Package, CheckCircle, AlertCircle, Loader2, Map, Printer
 } from 'lucide-react';
 
 export default function DespachoDetail() {
   const [despacho, setDespacho] = useState(null);
   const [mercancias, setMercancias] = useState([]);
-  
+
   // Estados para catálogos (Diccionarios)
   const [rutas, setRutas] = useState([]);
   const [camiones, setCamiones] = useState([]);
   const [conductores, setConductores] = useState([]);
+  const [clientes, setClientes] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   const { id } = useParams();
   const navigate = useNavigate();
   const { logoutUser } = useAuth();
@@ -28,21 +29,24 @@ export default function DespachoDetail() {
       setLoading(true);
       try {
         // Carga paralela de TODO lo necesario para mostrar nombres en lugar de IDs
-        const [despachoRes, mercanciasRes, rutasRes, camionesRes, conductoresRes] = await Promise.all([
+        const [despachoRes, mercanciasRes, rutasRes, camionesRes, conductoresRes, clientesRes] = await Promise.all([
           apiClient.get(`/api/inventario/despachos/${id}/`),
           apiClient.get(`/api/inventario/mercancias/?id_despacho=${id}`),
           apiClient.get('/api/inventario/rutas/'),
           apiClient.get('/api/inventario/camiones/'),
-          apiClient.get('/api/inventario/conductores/')
+          apiClient.get('/api/inventario/conductores/'),
+          apiClient.get('/api/inventario/clientes/'),
         ]);
-        
+
         setDespacho(despachoRes.data);
         setMercancias(mercanciasRes.data);
         setRutas(rutasRes.data);
         setCamiones(camionesRes.data);
         setConductores(conductoresRes.data);
-        
+        setClientes(clientesRes.data);
+
         setLoading(false);
+        console.log("Datos que llegaron de Django:", despachoRes.data)
       } catch (err) {
         if (err.response && err.response.status === 401) {
           logoutUser();
@@ -71,7 +75,17 @@ export default function DespachoDetail() {
     const found = conductores.find(c => c.id_conductor === id);
     return found ? found.nombre_completo : `Conductor ID: ${id}`;
   };
-  
+
+  const getNombreCliente = (id) => {
+    const found = clientes.find(c => String(c.id_cliente) === String(id));
+    return found ? found.nombre_cliente : `Cliente Desconocido`;
+  };
+
+  const getDireccionCliente = (id) => {
+    const found = clientes.find(c => String(c.id_cliente) === String(id));
+    return found ? found.direccion : `Dirección no registrada`;
+  };
+
 
   const handleDelete = async () => {
     if (window.confirm(`¿Estás seguro de que deseas eliminar el Despacho #${id}? Esto puede desasignar mercancías.`)) {
@@ -128,7 +142,7 @@ export default function DespachoDetail() {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-6xl mx-auto">
-        
+
         {/* Header de Navegación */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -137,7 +151,7 @@ export default function DespachoDetail() {
             </Link>
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-gray-900">Despacho #{despacho.id_despacho}</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Despacho #{id}</h1>
                 <span className={`px-3 py-0.5 rounded-full text-xs font-medium border ${getStatusStyle(despacho.estado_despacho)}`}>
                   {despacho.estado_despacho}
                 </span>
@@ -147,26 +161,33 @@ export default function DespachoDetail() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link 
-              to={`/despachos/${id}/editar`} 
+            <Link
+              to={`/despachos/${id}/editar`}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition shadow-sm"
             >
               <Edit className="w-4 h-4" /> Editar
             </Link>
-            <button 
+            <button
               onClick={handleDelete}
               className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 text-red-700 font-medium rounded-lg hover:bg-red-100 transition shadow-sm"
             >
               <Trash2 className="w-4 h-4" /> Eliminar
             </button>
+            <button
+              onClick={() => navigate(`/despachos/${id}/imprimir-plantilla`)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 font-medium rounded-lg hover:bg-blue-100 transition shadow-sm"
+            >
+              <Printer className="w-5 h-5" />
+              Imprimir Órdenes
+            </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
+
           {/* COLUMNA IZQUIERDA: INFORMACIÓN PRINCIPAL */}
           <div className="lg:col-span-2 space-y-6">
-            
+
             {/* Tarjeta de Ruta y Tiempos */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2 bg-gray-50/50">
@@ -181,7 +202,7 @@ export default function DespachoDetail() {
                     {getNombreRuta(despacho.id_ruta)}
                   </div>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Fecha Programada</label>
@@ -190,7 +211,7 @@ export default function DespachoDetail() {
                       {despacho.fecha_programada || 'Sin definir'}
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Salida Real</label>
                     {despacho.fecha_salida_real ? (
@@ -254,45 +275,70 @@ export default function DespachoDetail() {
                   {mercancias.length}
                 </span>
               </div>
-              
+
               <div className="p-4 flex-1 overflow-y-auto max-h-[500px]">
                 {mercancias.length > 0 ? (
                   <div className="space-y-3">
                     {mercancias.map(m => (
                       <div key={m.id_mercancia} className="group relative bg-white border border-gray-200 rounded-lg p-3 hover:border-indigo-300 hover:shadow-sm transition-all">
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="text-xs font-bold text-indigo-600">Lote #{m.id_mercancia}</span>
-                          <Link to={`/mercancias/${m.id_mercancia}`} className="text-gray-400 hover:text-indigo-600">
+
+                        {/* ENCABEZADO DE LA TARJETA: Lote y Factura */}
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-black text-indigo-600">Lote #{m.id_mercancia}</span>
+                            {/* 👇 AQUÍ AGREGAMOS LA FACTURA 👇 */}
+                            <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">
+                              Factura: {m.factura || 'S/N'}
+                            </span>
+                          </div>
+
+                          <Link to={`/mercancias/${m.id_mercancia}`} className="text-gray-400 hover:text-indigo-600 bg-gray-50 p-1 rounded-md transition-colors">
                             <ArrowLeft className="w-4 h-4 rotate-180" />
                           </Link>
                         </div>
-                        <h4 className="text-sm font-medium text-gray-900 line-clamp-1">Cliente ID: {m.id_cliente}</h4>
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{m.descripcion_carga || 'Sin descripción'}</p>
-                        <div className="mt-2 flex items-center gap-2 text-xs text-gray-400">
-                          <Package className="w-3 h-3" /> {m.cantidad_bultos} bultos
+
+                        <h4 className="text-sm font-bold text-gray-900 line-clamp-1 truncate">
+                          {getNombreCliente(m.id_cliente)}
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-1 flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
+                          <span className="truncate">{getDireccionCliente(m.id_cliente)}</span>
+                        </p>
+
+                        <p className="text-xs text-gray-600 mt-2 bg-gray-50 p-2 rounded line-clamp-2 italic border border-gray-100">
+                          "{m.descripcion_carga || 'Sin descripción'}"
+                        </p>
+
+                        {/* PIE DE LA TARJETA: Bultos */}
+                        <div className="mt-2 flex items-center justify-between text-xs font-semibold text-gray-600 pt-2 border-t border-gray-100">
+                          <div className="flex items-center gap-1.5">
+                            <Package className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>{m.cantidad_bultos} bultos</span>
+                          </div>
+                          <span>{m.kg} kg / {m.m3} m³</span> 
                         </div>
+
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-center p-6 text-gray-400">
                     <Package className="w-12 h-12 mb-2 opacity-20" />
-                    <p className="text-sm">No hay mercancía asignada a este despacho.</p>
+                    <p className="text-sm font-medium">No hay mercancía asignada a este despacho.</p>
                   </div>
                 )}
               </div>
-              
+
               <div className="p-4 border-t border-gray-100 bg-gray-50">
-                <Link 
-                  to="/mercancias" 
-                  className="block w-full py-2 text-center text-sm text-indigo-600 font-medium hover:bg-indigo-50 rounded-lg border border-dashed border-indigo-200 transition"
+                <Link
+                  to="/mercancias"
+                  className="block w-full py-2.5 text-center text-sm text-indigo-600 font-bold hover:bg-indigo-50 rounded-lg border border-dashed border-indigo-300 hover:border-indigo-400 transition"
                 >
-                  + Asignar más carga
+                  Asignar más carga
                 </Link>
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>

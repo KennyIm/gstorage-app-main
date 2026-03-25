@@ -218,6 +218,15 @@ class Despacho(models.Model):
         ('En Tránsito', 'En Tránsito'),
         ('Finalizado', 'Finalizado'),
     ]
+
+    UBICACIONES_CHOICES = [
+    ('Santiago', 'Santiago'),
+    ('Iquique', 'Iquique'),
+    ('Antofagasta', 'Antofagasta'),
+    ('Copiapo', 'Copiapo'),
+    ('Mejillones','Mejillones'),
+    ('Tocopilla', 'Tocopilla')
+    ]
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="despachos")
     id_despacho = models.AutoField(primary_key=True)
     fecha_programada = models.DateField(verbose_name="Fecha Programada")
@@ -233,6 +242,11 @@ class Despacho(models.Model):
     # Auditoría
     id_usuario_creacion = models.ForeignKey(User, related_name='despachos_creados', on_delete=models.PROTECT, verbose_name="Usuario Creación", null=True, blank=True)
     id_usuario_ultima_modificacion = models.ForeignKey(User, related_name='despachos_modificados', on_delete=models.PROTECT, null=True, blank=True, verbose_name="Usuario Modificación")
+
+    #Destinos
+    origen = models.CharField(max_length=50, null=True, blank=True, choices=UBICACIONES_CHOICES, default='Santiago')
+    destino = models.CharField(max_length=50, null=True, blank=True, choices=UBICACIONES_CHOICES, default='Santiago')
+    codigo_documento = models.CharField(max_length=50, null=True, blank=True, unique=True)
 
     activo = models.BooleanField(default=True)
     objects = models.Manager()

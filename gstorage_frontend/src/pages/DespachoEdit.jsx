@@ -42,8 +42,6 @@ export default function DespachoEdit() {
         setCamiones(camionesRes.data);
         setConductores(conductoresRes.data);
         setRutas(rutasRes.data);
-
-        // Fetch current Despacho data AFTER dropdown data is loaded
         const despachoRes = await apiClient.get(`/api/inventario/despachos/${id}/`);
 
         setFormData({
@@ -81,11 +79,9 @@ export default function DespachoEdit() {
 
     const dataToSubmit = {
       ...formData,
-      // Convertir a entero IDs si vienen como string del select
       id_camion: formData.id_camion ? parseInt(formData.id_camion) : null,
       id_conductor: formData.id_conductor ? parseInt(formData.id_conductor) : null,
       id_ruta: formData.id_ruta ? parseInt(formData.id_ruta) : null,
-      // Manejo de fecha nula
       fecha_salida_real: formData.fecha_salida_real || null
     };
 
@@ -95,19 +91,29 @@ export default function DespachoEdit() {
       navigate(`/despachos/${id}`);
     } catch (err) {
       if (err.response?.data) {
-          const serverErrors = err.response.data;
-          if (serverErrors.id_camion) {
-              setError(serverErrors.id_camion[0]); 
-          } else {
-              const firstError = Object.values(serverErrors)[0];
-              setError(Array.isArray(firstError) ? firstError[0] : "Error en los datos enviados.");
-          }
+        const serverErrors = err.response.data;
+        if (serverErrors.id_camion) {
+          setError(serverErrors.id_camion[0]);
+        } else {
+          const firstError = Object.values(serverErrors)[0];
+          setError(Array.isArray(firstError) ? firstError[0] : "Error en los datos enviados.");
+        }
       } else {
-          setError('Error al crear el despacho. Intente nuevamente.');
+        setError('Error al crear el despacho. Intente nuevamente.');
       }
       setSubmitting(false);
     }
   };
+
+  const UBICACIONES = [
+    'Santiago',
+    'Iquique',
+    'Antofagasta',
+    'Calama',
+    'Copiapó',
+    'Tocopilla',
+    'Mejillones'
+  ];
 
   // --- RENDERIZADO ---
 
@@ -240,6 +246,46 @@ export default function DespachoEdit() {
                       <option value="Finalizado">Finalizado</option>
                     </select>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                    Ciudad de Origen
+                  </label>
+                  <select
+                    name="origen"
+                    value={formData.origen || ''}
+                    onChange={handleChange}
+                    required
+                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  >
+                    <option value="" disabled>Seleccione el origen...</option>
+                    {UBICACIONES.map((ciudad) => (
+                      <option key={`origen-${ciudad}`} value={ciudad}>
+                        {ciudad}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* --- CAMPO DESTINO --- */}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                    Ciudad de Destino
+                  </label>
+                  <select
+                    name="destino"
+                    value={formData.destino || ''}
+                    onChange={handleChange}
+                    required
+                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  >
+                    <option value="" disabled>Seleccione el destino...</option>
+                    {UBICACIONES.map((ciudad) => (
+                      <option key={`destino-${ciudad}`} value={ciudad}>
+                        {ciudad}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
