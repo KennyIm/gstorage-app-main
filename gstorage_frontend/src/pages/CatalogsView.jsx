@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Truck, Users, UserCircle, MapPin, Archive, Route, Map, icons } from 'lucide-react';
+import { Truck, Users, UserCircle, MapPin, Archive, Route, Map, icons, PencilRuler } from 'lucide-react';
 
 export default function CatalogsView() {
   const navigate = useNavigate();
@@ -15,6 +15,14 @@ export default function CatalogsView() {
       hoverColor: 'hover:bg-blue-600',
     },
     {
+      id:'ramplas', // Ruta: /ramplas
+      title:'Ramplas',
+      description:'Administrar ramplas y su información',
+      icon: PencilRuler,
+      color: 'bg-red-800',
+      hoverColor: 'hover:bg-red-700',
+    },
+    {
       id: 'clientes', // Ruta: /clientes
       title: 'Clientes',
       description: 'Administra la información de clientes',
@@ -23,7 +31,7 @@ export default function CatalogsView() {
       hoverColor: 'hover:bg-green-600',
     },
     {
-      id:'proveedores',
+      id:'proveedores', // Ruta: /proveedores
       title:'Proveedores',
       description:'Administrar proveedores y su información',
       icon: Users,

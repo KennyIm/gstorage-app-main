@@ -4,7 +4,7 @@ import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   Save, ArrowLeft, Calendar, Clock, Truck, User, Map,
-  Activity, Loader2, AlertCircle, CheckCircle
+  Activity, Loader2, AlertCircle, CheckCircle, PencilRuler
 } from 'lucide-react';
 
 export default function DespachoEdit() {
@@ -16,6 +16,7 @@ export default function DespachoEdit() {
   const [camiones, setCamiones] = useState([]);
   const [conductores, setConductores] = useState([]);
   const [rutas, setRutas] = useState([]);
+  const [ramplas, setRamplas] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -33,15 +34,17 @@ export default function DespachoEdit() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [camionesRes, conductoresRes, rutasRes] = await Promise.all([
+        const [camionesRes, conductoresRes, rutasRes, ramplasRes] = await Promise.all([
           apiClient.get('/api/inventario/camiones/'),
           apiClient.get('/api/inventario/conductores/'),
-          apiClient.get('/api/inventario/rutas/')
+          apiClient.get('/api/inventario/rutas/'),
+          apiClient.get('/api/inventario/ramplas/')
         ]);
 
         setCamiones(camionesRes.data);
         setConductores(conductoresRes.data);
         setRutas(rutasRes.data);
+        setRamplas(ramplasRes.data);
         const despachoRes = await apiClient.get(`/api/inventario/despachos/${id}/`);
 
         setFormData({
@@ -49,7 +52,10 @@ export default function DespachoEdit() {
           fecha_salida_real: formatDateForInput(despachoRes.data.fecha_salida_real),
           id_camion: despachoRes.data.id_camion,
           id_conductor: despachoRes.data.id_conductor,
+          id_rampla: despachoRes.data.id_rampla,
           id_ruta: despachoRes.data.id_ruta,
+          origen: despachoRes.data.origen,
+          destino: despachoRes.data.destino,
           estado_despacho: despachoRes.data.estado_despacho
         });
 
@@ -81,6 +87,7 @@ export default function DespachoEdit() {
       ...formData,
       id_camion: formData.id_camion ? parseInt(formData.id_camion) : null,
       id_conductor: formData.id_conductor ? parseInt(formData.id_conductor) : null,
+      id_rampla: formData.id_rampla ? parseInt(formData.id_rampla) : null,
       id_ruta: formData.id_ruta ? parseInt(formData.id_ruta) : null,
       fecha_salida_real: formData.fecha_salida_real || null
     };
@@ -317,7 +324,25 @@ export default function DespachoEdit() {
                     </select>
                   </div>
                 </div>
-
+                <div>
+                  <label htmlFor="id_rampla" className="block text-sm font-medium text-gray-700 mb-1">Rampla *</label>
+                  <div className="relative">
+                    <PencilRuler className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <select
+                      id="id_rampla"
+                      name="id_rampla"
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                      value={formData.id_rampla}
+                      onChange={handleChange}
+                      required
+                    >
+                      <option value="">Seleccionar rampla...</option>
+                      {ramplas.map(c => (
+                        <option key={c.id_rampla} value={c.id_rampla}>{c.patente} ({c.modelo})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
                 <div>
                   <label htmlFor="id_conductor" className="block text-sm font-medium text-gray-700 mb-1">Conductor</label>
                   <div className="relative">

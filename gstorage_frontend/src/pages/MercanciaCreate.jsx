@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom'; // Descomentar en producción
-import apiClient from '../services/api'; // Descomentar en producción
-import { useAuth } from '../context/AuthContext'; // Descomentar en producción
+import { useNavigate, Link } from 'react-router-dom'; 
+import apiClient from '../services/api'; 
+import { useAuth } from '../context/AuthContext'; 
 import {
-  Save, X, User, MapPin, Map, Package, Scale, Box, FileText, AlertCircle, Loader2, ArrowLeft, Truck
+  Save, X, NotebookPen, User, MapPin, Map, Package, Scale, Box, FileText, AlertCircle, Loader2, ArrowLeft, Truck
 } from 'lucide-react';
 
 
@@ -19,7 +19,10 @@ export default function MercanciaCreate() {
     precio_total: '',
     rut_proveedor: '',
     descripcion_carga: '',
-    factura: ''
+    factura: '',
+    tipo: '',
+    codigo_interno: '',
+    paga_proveedor: false
   });
 
   const { logoutUser } = useAuth();
@@ -95,10 +98,10 @@ export default function MercanciaCreate() {
   }, [formData?.kg, formData?.m3, formData?.id_cliente, clientes]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData(prevData => ({
       ...prevData,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }));
   };
 
@@ -121,6 +124,9 @@ export default function MercanciaCreate() {
 
       precio_total: formData.precio_total ? parseFloat(formData.precio_total.toString()) : 0,
       factura: formData.factura || null,
+      tipo: formData.tipo || null,
+      paga_proveedor: formData.paga_proveedor || false,
+      codigo_interno: formData.codigo_interno || null
     };
 
     try {
@@ -265,6 +271,22 @@ export default function MercanciaCreate() {
                   </div>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tipo de carga
+                  </label>
+                  <div className="relative">
+                    <NotebookPen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-700 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="factura"
+                      value={formData.tipo}
+                      onChange={handleChange}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                      placeholder="Ej: Perfil"
+                    />
+                  </div>
+                </div>
+                <div>
                   <label htmlFor="cantidad_bultos" className="block text-sm font-medium text-gray-700 mb-1">Cantidad Bultos *</label>
                   <div className="relative">
                     <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
@@ -293,7 +315,7 @@ export default function MercanciaCreate() {
                       value={formData.kg}
                       onChange={handleChange}
                       step="0.01"
-                      placeholder="0.00"
+                      placeholder="0.0"
                     />
                   </div>
                 </div>
@@ -314,6 +336,21 @@ export default function MercanciaCreate() {
                     />
                   </div>
                 </div>
+                <div>
+                  <label htmlFor="codigo_interno" className="block text-sm font-medium text-gray-700 mb-1">Código Interno</label>
+                  <div className="relative">
+                    <NotebookPen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-900 pointer-events-none" />
+                    <input
+                      type="text"
+                      id="codigo_interno"
+                      name="codigo_interno"
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                      value={formData.codigo_interno}
+                      onChange={handleChange}
+                      placeholder="Código Interno de Bodega"
+                    />
+                  </div>
+                </div>
                 {/* PRECIO TOTAL */}
                 <div className="col-span-1 md:col-span-2">
                   <label className="block text-sm font-bold text-emerald-700 mb-1">
@@ -323,18 +360,30 @@ export default function MercanciaCreate() {
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       name="precio_total"
                       value={formData.precio_total}
                       onChange={(e) => setFormData({ ...formData, precio_total: e.target.value })}
                       className="w-full pl-8 pr-4 py-2 bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-colors"
-                      placeholder="0.00"
+                      placeholder="0"
                       required
                     />
                   </div>
                   <p className="mt-1 text-xs text-gray-500 italic">
                     * Se calcula automáticamente según las tarifas del cliente, pero puedes editarlo manualmente.
                   </p>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="checkbox"
+                    name="paga_proveedor"
+                    checked={formData.paga_proveedor} 
+                    onChange={handleChange}
+                    className="w-4 h-4 text-indigo-600 rounded"
+                  />
+                  <label htmlFor="paga_proveedor" className="text-sm font-semibold text-slate-700">
+                    El cobro de este bulto lo paga el Proveedor
+                  </label>
                 </div>
               </div>
 

@@ -17,6 +17,8 @@ export default function OrdenEntregaPlantilla() {
     const [clientes, setClientes] = useState([]);
     const [proveedores, setProveedores] = useState([]);
     const [paginas, setPaginas] = useState([]);
+    const [camiones, setCamiones] = useState([]);
+    const [ramplas, setRamplas] = useState([]);
 
     const TASA_IVA = 0.19;
     const ITEMS_POR_PAGINA = 10;
@@ -25,50 +27,76 @@ export default function OrdenEntregaPlantilla() {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const [despachoRes, mercanciasRes, clientesRes, proveedoresRes] = await Promise.all([
+                const [despachoRes, mercanciasRes, clientesRes, proveedoresRes, camionesRes, ramplasRes] = await Promise.all([
                     apiClient.get(`/api/inventario/despachos/${id}/`),
                     apiClient.get('/api/inventario/mercancias/'),
                     apiClient.get('/api/inventario/clientes/'),
-                    apiClient.get('/api/inventario/proveedores/')
+                    apiClient.get('/api/inventario/proveedores/'),
+                    apiClient.get('/api/inventario/camiones/'),
+                    apiClient.get('/api/inventario/ramplas/')
                 ]);
 
-                setDespacho(despachoRes.data);
+                const despachoActual = despachoRes.data;
+                setDespacho(despachoActual);
                 const clientesData = clientesRes.data;
                 setClientes(clientesData);
                 setProveedores(proveedoresRes.data);
+                setCamiones(camionesRes.data);
+                setRamplas(ramplasRes.data);
 
-                const mercanciasDelDespacho = mercanciasRes.data.filter(m => String(m.id_despacho) === String(id));
+                const mercanciasDelViaje = mercanciasRes.data.filter(carga =>
+                    String(carga.despacho) === String(id) || String(carga.id_despacho) === String(id)
+                );
 
-                const gruposPorCliente = mercanciasDelDespacho.reduce((acumulador, item) => {
-                    const nombreCliente = item.cliente_nombre || 'Cliente Desconocido';
-                    if (!acumulador[nombreCliente]) acumulador[nombreCliente] = [];
-                    acumulador[nombreCliente].push(item);
-                    return acumulador;
+                const gruposPorClienteYDestino = mercanciasDelViaje.reduce((acc, carga) => {
+                    const nombreCliente = carga.cliente_nombre || 'Sin Cliente';
+                    const nombreDestino = carga.destino_nombre || 'No especificado';
+                    const claveGrupo = `${nombreCliente}_${nombreDestino}`;
+
+                    if (!acc[claveGrupo]) acc[claveGrupo] = [];
+                    acc[claveGrupo].push(carga);
+                    return acc;
                 }, {});
-
                 const paginasCalculadas = [];
+                let ordenIncremental = 1;
 
-                Object.keys(gruposPorCliente).forEach(clienteNombre => {
-                    const cargasDelCliente = gruposPorCliente[clienteNombre];
-                    const totalNetoCliente = cargasDelCliente.reduce((sum, c) => sum + (parseFloat(c.precio_total) || 0), 0);
-                    const ivaCliente = totalNetoCliente * TASA_IVA;
-                    const totalBrutoCliente = totalNetoCliente + ivaCliente;
+                Object.keys(gruposPorClienteYDestino).forEach(claveGrupo => {
+                    const cargasTotales = gruposPorClienteYDestino[claveGrupo];
+                    const cargasCliente = cargasTotales.filter(c => !c.paga_proveedor);
+                    const cargasProveedor = cargasTotales.filter(c => c.paga_proveedor);
 
-                    const clienteObj = clientesData.find(c => String(c.id_cliente) === String(cargasDelCliente[0].id_cliente)) || {};
-                    const destino = cargasDelCliente[0].destino_nombre || 'No especificado';
+                    const clienteObj = clientesData.find(c => String(c.id_cliente) === String(cargasTotales[0].id_cliente)) || {};
+                    const clienteNombre = cargasTotales[0].cliente_nombre || 'Sin Cliente';
+                    const destino = cargasTotales[0].destino_nombre || 'No especificado';
+                    const procesarChunks = (cargas, esPagaProveedor) => {
+                        if (cargas.length === 0) return;
 
-                    for (let i = 0; i < cargasDelCliente.length; i += ITEMS_POR_PAGINA) {
-                        const chunkCargas = cargasDelCliente.slice(i, i + ITEMS_POR_PAGINA);
-                        const numPaginaActual = Math.floor(i / ITEMS_POR_PAGINA) + 1;
-                        const totalPaginasDelCliente = Math.ceil(cargasDelCliente.length / ITEMS_POR_PAGINA);
+                        const totalNeto = cargas.reduce((sum, c) => sum + (parseFloat(c.precio_total) || 0), 0);
+                        const iva = totalNeto * TASA_IVA;
+                        const totalBruto = totalNeto + iva;
 
-                        paginasCalculadas.push({
-                            clienteNombre, clienteObj, destino, cargas: chunkCargas,
-                            totalNeto: totalNetoCliente, iva: ivaCliente, totalBruto: totalBrutoCliente,
-                            paginaActual: numPaginaActual, totalPaginas: totalPaginasDelCliente,
-                            esUltimaPaginaDelCliente: numPaginaActual === totalPaginasDelCliente
-                        });
-                    }
+                        for (let i = 0; i < cargas.length; i += ITEMS_POR_PAGINA) {
+                            const chunkCargas = cargas.slice(i, i + ITEMS_POR_PAGINA);
+                            const numPaginaActual = Math.floor(i / ITEMS_POR_PAGINA) + 1;
+                            const totalPaginas = Math.ceil(cargas.length / ITEMS_POR_PAGINA);
+
+                            paginasCalculadas.push({
+                                clienteNombre, clienteObj, destino,
+                                cargas: chunkCargas,
+                                totalNeto: totalNeto,
+                                iva: iva,
+                                totalBruto: totalBruto,
+                                paginaActual: numPaginaActual,
+                                totalPaginas: totalPaginas,
+                                esUltimaPaginaDelCliente: numPaginaActual === totalPaginas,
+                                ordenIndex: ordenIncremental,
+                                esPagaProveedor: esPagaProveedor
+                            });
+                        }
+                    };
+                    procesarChunks(cargasCliente, false);
+                    procesarChunks(cargasProveedor, true);
+                    ordenIncremental++;
                 });
 
                 setPaginas(paginasCalculadas);
@@ -95,13 +123,45 @@ export default function OrdenEntregaPlantilla() {
 
     const formatoDinero = (valor) => Math.round(parseFloat(valor || 0)).toLocaleString('es-CL');
 
+    const formatoFecha = (fechaHora) => {
+        if (!fechaHora) return '___/___/____';
+        const soloFecha = fechaHora.split('T')[0];
+        const partes = soloFecha.split('-');
+        if (partes.length !== 3) return soloFecha;
+        return `${partes[2]}/${partes[1]}/${partes[0]}`;
+    };
+
+    const getPatenteCamion = (id_camion) => {
+        if (!id_camion) return 'Sin Camión';
+        const camionEncontrado = camiones.find(c => String(c.id_camion) === String(id_camion));
+        return camionEncontrado ? camionEncontrado.patente : 'Camión Desconocido';
+    };
+
+    const getPatenteRampla = (id_rampla) => {
+        if (!id_rampla) return '';
+        const ramplaEncontrada = ramplas.find(r => String(r.id_rampla) === String(id_rampla));
+        return ramplaEncontrada ? ` | Rampla: ${ramplaEncontrada.patente}` : '';
+    };
+
     const generarPDF = useReactToPrint({
         contentRef: componenteRef,
         documentTitle: `Orden_Entrega_Ruta_${id}`,
         pageStyle: `
             @page { size: 210mm 275mm; margin: 0; }
             @media print { 
-                body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                body { 
+                    -webkit-print-color-adjust: exact; 
+                    print-color-adjust: exact; 
+                }
+                .hoja-pdf {
+                    margin-bottom: 0 !important;
+                    box-shadow: none !important;
+                    border: none !important;
+                    page-break-after: always;
+                }
+                .saltopagina {
+                    display: none !important; 
+                }
             }
         `
     });
@@ -130,176 +190,195 @@ export default function OrdenEntregaPlantilla() {
                     const isLastPageGlobal = index === paginas.length - 1;
                     const inicialOrigen = (despacho?.origen || 'Santiago').charAt(0).toUpperCase();
                     const inicialDestino = (pagina.destino || 'Iquique').charAt(0).toUpperCase();
-                    
-                    const numeroRuta = despacho?.numero_correlativo || id; 
-                    
-                    const idMercanciaBase = pagina.cargas[0].id_mercancia;
-
-                    const codigoOrden = `${inicialOrigen}${numeroRuta}-${idMercanciaBase}${inicialDestino}`;
+                    const numeroRuta = despacho?.numero_correlativo || id;
+                    const sufijo = pagina.esPagaProveedor ? '-P' : '';
+                    let codigoOrden = '';
+                    if (pagina.totalPaginas > 1) {
+                        codigoOrden = `${inicialOrigen}${numeroRuta}-${pagina.ordenIndex}-${pagina.paginaActual}${inicialDestino}${sufijo}`;
+                    } else {
+                        codigoOrden = `${inicialOrigen}${numeroRuta}-${pagina.ordenIndex}${inicialDestino}${sufijo}`;
+                    }
 
                     return (
-                        <div
-                            key={`pagina-${index}`}
-                            className={`w-[210mm] h-[285mm] flex flex-col bg-white px-8 py-6 box-border mx-auto print:shadow-none print:m-0 ${!isLastPageGlobal ? 'border-b-4 border-dashed border-slate-200 print:border-none print:break-after-page' : ''} break-inside-avoid shadow-lg mb-8`}
-                        >
+                        <React.Fragment key={`pagina-wrapper-${index}`}>
+                            {index > 0 && <div className="saltopagina" style={{ pageBreakBefore: 'always' }}></div>}
 
-                            {/* --- ENCABEZADO PRINCIPAL --- */}
-                            <div className="flex justify-between items-start w-full border-b-2 border-slate-100 pb-4 mb-4 shrink-0">
-                                <div className="flex flex-col gap-4 w-[65%]">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-20 h-20 flex items-center justify-center shrink-0">
-                                            <img src={logomedalla} alt="Logo GStorage" className="max-h-full max-w-full object-contain" />
+                            <div
+                                className={`hoja-pdf w-[210mm] h-[275mm] flex flex-col bg-white px-8 py-6 box-border mx-auto print:shadow-none print:m-0 break-inside-avoid shadow-lg mb-8`}
+                            >
+
+                                {/* --- ENCABEZADO PRINCIPAL --- */}
+                                <div className="flex justify-between items-start w-full border-b-2 border-slate-100 pb-4 mb-4 shrink-0">
+                                    <div className="flex flex-col gap-4 w-[65%]">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-20 h-20 flex items-center justify-center shrink-0">
+                                                <img src={logomedalla} alt="Logo GStorage" className="max-h-full max-w-full object-contain" />
+                                            </div>
+                                            <div>
+                                                <h2 className="text-[10px] font-black text-slate-900 uppercase tracking-tight text-center">SERVICIO DE LOGISTICAS Y TRANSPORTES MEDALLA'S SPA</h2>
+                                                <p className="mt-0.5 text-[8px] sm:text-[9px] text-slate-900 font-medium leading-tight m-0 p-0 text-center">
+                                                    RUT: 77.797.573-0 <br />
+                                                    VIA UNO KILOMETRO 8 MANZANA 2J BAJO MOLLE, IQUIQUE. FONO 5725233535 CEL 988086461<br />
+                                                    AGUAS CALIENTES 13572 / AV. H. DE LA CONCEPCION. CEL 944934271<br />
+                                                    AV. LO ESPEJO 01565 CALLE 10 BODEGA 1011-1013 MERSAN STGO. CEL 944934272-944934273
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h2 className="text-[10px] font-black text-slate-900 uppercase tracking-tight text-center">SERVICIO DE LOGISTICAS Y TRANSPORTES MEDALLA'S SPA</h2>
-                                            <p className="mt-0.5 text-[8px] sm:text-[9px] text-slate-900 font-medium leading-tight m-0 p-0 text-center">
-                                                RUT: 77.797.573-0 <br />
-                                                VIA UNO KILOMETRO 8 MANZANA 2J BAJO MOLLE, IQUIQUE. FONO 5725233535 CEL 988086461<br />
-                                                AGUAS CALIENTES 13572 / AV. H. DE LA CONCEPCION. CEL 944934271<br />
-                                                AV. LO ESPEJO 01565 CALLE 10 BODEGA 1011-1013 MERSAN STGO. CEL 944934272-944934273
+                                        <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Orden de Entrega</h1>
+                                    </div>
+
+                                    <div className="flex flex-col items-end text-right w-[35%]">
+                                        <div className="p-1 w-full">
+                                            {pagina.totalPaginas > 1 && (
+                                                <div className="text-[10px] font-bold text-slate-400 mb-2">
+                                                    Hoja {pagina.paginaActual} de {pagina.totalPaginas}
+                                                </div>
+                                            )}
+                                            <div className="flex items-center justify-end gap-2 text-xs font-semibold text-slate-700 mb-1">
+                                                <span className="text-slate-900 font-medium">Ruta N°</span>
+                                                <span className="text-slate-900">{id}</span>
+                                            </div>
+                                            <div className="flex items-center justify-end gap-2 text-xs font-semibold text-slate-700 mb-1">
+                                                <span className="text-slate-900 font-medium">N°</span>
+                                                <input
+                                                    type="text"
+                                                    defaultValue={codigoOrden}
+                                                    placeholder="N/R"
+                                                    className="w-16 h-6 bg-white border border-slate-300 rounded text-center focus:outline-none text-[11px] font-bold text-slate-900"
+                                                />
+                                            </div>
+                                            <div className="flex items-center justify-end gap-1.5 text-xs font-semibold text-slate-900 pt-1 mt-1">
+                                                <User className="w-3.5 h-3.5 text-slate-900 shrink-0" />
+                                                <span className="text-slate-900">{despacho?.nombre_conductor || 'No asignado'}</span>
+                                            </div>
+                                            <div className="flex items-center justify-end gap-1.5 text-[10px] font-semibold text-slate-700 mt-1">
+                                                <Truck className="w-3.5 h-3.5 text-slate-900 shrink-0" />
+                                                <span className="text-slate-900">
+                                                    {getPatenteCamion(despacho?.id_camion)}
+                                                    {getPatenteRampla(despacho?.id_rampla)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* --- TARJETA DEL CLIENTE --- */}
+                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 mb-3 flex justify-between items-start shrink-0 print:bg-slate-50 print:border-slate-200 print:text-black">
+                                    <div className="w-3/4 pr-2">
+                                        <div className="flex flex-wrap items-baseline gap-x-2 mb-1">
+                                            <h2 className="text-base font-black text-slate-900 leading-tight break-words">{pagina.clienteNombre}</h2>
+                                            <span className="text-[10px] font-semibold text-slate-900 whitespace-nowrap">RUT: {pagina.clienteObj.rut_cliente || 'N/R'}</span>
+                                            <span className="text-[10px] font-semibold text-slate-900 whitespace-nowrap">Tel: {pagina.clienteObj.telefono_contacto || pagina.clienteObj.celular || 'N/R'}</span>
+                                        </div>
+                                        <div className="flex flex-wrap items-start gap-x-4 gap-y-1 text-[10px] font-medium text-slate-600">
+                                            <p className="flex items-start gap-1 flex-1 min-w-[50%]">
+                                                <MapPin className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                                                <span className='text-slate-900 font-bold leading-tight break-words'>
+                                                    {pagina.clienteObj.direccion ? `${pagina.clienteObj.direccion}, ` : ''}{pagina.clienteObj.ciudad}
+                                                </span>
                                             </p>
                                         </div>
                                     </div>
-                                    <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Orden de Entrega</h1>
-                                </div>
-
-                                <div className="flex flex-col items-end text-right w-[35%]">
-                                    <div className="p-1 w-full">
-                                        {pagina.totalPaginas > 1 && (
-                                            <div className="text-[10px] font-bold text-slate-400 mb-2">
-                                                Hoja {pagina.paginaActual} de {pagina.totalPaginas}
-                                            </div>
-                                        )}
-                                        <div className="flex items-center justify-end gap-2 text-xs font-semibold text-slate-700 mb-1">
-                                            <span className="text-slate-900 font-medium">Ruta N°</span>
-                                            <span className="text-slate-900">{id}</span>
-                                        </div>
-                                        <div className="flex items-center justify-end gap-2 text-xs font-semibold text-slate-700 mb-1">
-                                            <span className="text-slate-900 font-medium">N°</span>
-                                            <input
-                                                type="text"
-                                                defaultValue={codigoOrden}
-                                                placeholder="N/R"
-                                                className="w-16 h-6 bg-white border border-slate-300 rounded text-center focus:outline-none text-[11px] font-bold text-slate-900"
-                                            />
-                                        </div>
-                                        <div className="flex items-center justify-end gap-1.5 text-xs font-semibold text-slate-900 pt-1 mt-1">
-                                            <User className="w-3.5 h-3.5 text-slate-900 shrink-0" />
-                                            <span className="text-slate-900">{despacho?.nombre_conductor || 'No asignado'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* --- TARJETA DEL CLIENTE --- */}
-                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 mb-3 flex justify-between items-start shrink-0 print:bg-slate-50 print:border-slate-200 print:text-black">
-                                <div className="w-3/4 pr-2">
-                                    <div className="flex flex-wrap items-baseline gap-x-2 mb-1">
-                                        <h2 className="text-base font-black text-slate-900 leading-tight break-words">{pagina.clienteNombre}</h2>
-                                        <span className="text-[10px] font-semibold text-slate-900 whitespace-nowrap">RUT: {pagina.clienteObj.rut_cliente || 'N/R'}</span>
-                                        <span className="text-[10px] font-semibold text-slate-900 whitespace-nowrap">Tel: {pagina.clienteObj.telefono_contacto || pagina.clienteObj.celular || 'N/R'}</span>
-                                    </div>
-                                    <div className="flex flex-wrap items-start gap-x-4 gap-y-1 text-[10px] font-medium text-slate-600">
-                                        <p className="flex items-start gap-1 flex-1 min-w-[50%]">
-                                            <MapPin className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
-                                            <span className='text-slate-900 font-bold leading-tight break-words'>
-                                                {pagina.clienteObj.direccion ? `${pagina.clienteObj.direccion}, ` : ''}{pagina.destino}
-                                            </span>
+                                    <div className="w-1/4 text-right shrink-0">
+                                        <p className="text-[8px] font-bold text-slate-900 uppercase tracking-widest mb-0.5">Fecha</p>
+                                        <p className="text-xs font-bold text-slate-900 flex items-center justify-end gap-1">
+                                            <Calendar className="w-3.5 h-3.5 text-slate-900" />
+                                            {formatoFecha(despacho?.fecha_salida_real)}
                                         </p>
                                     </div>
                                 </div>
-                                <div className="w-1/4 text-right shrink-0">
-                                    <p className="text-[8px] font-bold text-slate-900 uppercase tracking-widest mb-0.5">Fecha</p>
-                                    <p className="text-xs font-bold text-slate-900 flex items-center justify-end gap-1">
-                                        <Calendar className="w-3.5 h-3.5 text-slate-900" />
-                                        {despacho?.fecha_programada || '___/___/____'}
-                                    </p>
+
+                                {/* --- TABLA DE MERCANCÍAS --- */}
+                                <div className="flex-grow overflow-hidden">
+                                    <table className="w-full text-[10px]">
+                                        <thead>
+                                            <tr className="border-y border-slate-300 bg-slate-50/50 print:bg-slate-50">
+                                                <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[4%]">Cantidad</th>
+                                                <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[4%]">Tipo</th>
+                                                <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[35%]">Proveedor</th>
+                                                <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[12%]">Paga Prov</th>
+                                                <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[15%]">Factura</th>
+                                                <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[15%]">Medidas</th>
+                                                <th className="py-1.5 px-1 text-right font-bold text-slate-900 uppercase tracking-wider w-[15%]">Valor Neto</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {pagina.cargas.map((carga) => {
+                                                const peso = parseFloat(carga.kg || 0);
+                                                const volumen = parseFloat(carga.m3 || 0);
+                                                const precioKg = parseFloat(pagina.clienteObj.precio_kg || 0);
+                                                const precioM3 = parseFloat(pagina.clienteObj.precio_m3 || 0);
+                                                const costoPorPeso = peso * precioKg;
+                                                const costoPorVolumen = volumen * precioM3;
+                                                const cobroPorM3 = costoPorVolumen > costoPorPeso;
+
+                                                return (
+                                                    <tr key={carga.id_mercancia} className="align-top hover:bg-slate-50/30 break-inside-avoid">
+                                                        <td className="py-1.5 px-1 text-center font-semibold text-slate-800 align-middle">{carga.cantidad_bultos}</td>
+                                                        <td className="py-1.5 px-1 text-center font-semibold text-slate-800 align-middle">{carga.tipo}</td>
+                                                        <td className="py-1.5 px-1 text-center leading-tight break-words">
+                                                            <p className="text-[10px] text-slate-900 font-bold ">{getNombreProveedor(carga.id_proveedor)}</p>
+                                                            {carga.id_proveedor && <p className="text-[9px] font-medium text-slate-700 mt-0.5">RUT: {carga.id_proveedor}</p>}
+                                                            <p className="text-[9px] font-medium text-slate-700 break-all">{getCorreoProveedor(carga.id_proveedor)}</p>
+                                                        </td>
+                                                        <td className="py-1.5 px-1 text-center align-middle">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="w-3.5 h-3.5 text-indigo-600 rounded"
+                                                                checked={carga.paga_proveedor || false}
+                                                                readOnly
+                                                            />
+                                                        </td>
+                                                        <td className="py-1.5 px-1 text-center font-medium text-slate-700 align-middle">{carga.factura || '-'}</td>
+                                                        <td className="py-1.5 px-1 text-center leading-tight align-middle">
+                                                            {cobroPorM3 ? (
+                                                                <>
+                                                                    <p className="text-[11px] font-black text-slate-900">{volumen.toFixed(2)} m³</p>
+                                                                    <p className="text-[9px] font-medium text-slate-900">{peso.toFixed(1)} Kg</p>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <p className="text-[11px] font-black text-slate-900">{peso.toFixed(1)} Kg</p>
+                                                                    <p className="text-[9px] font-medium text-slate-900">{volumen.toFixed(2)} m³</p>
+                                                                </>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-1.5 px-1 text-right font-bold text-slate-900 align-middle">${formatoDinero(carga.precio_total)}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
                                 </div>
-                            </div>
 
-                            {/* --- TABLA DE MERCANCÍAS --- */}
-                            <div className="flex-grow overflow-hidden">
-                                <table className="w-full text-[10px]">
-                                    <thead>
-                                        <tr className="border-y border-slate-300 bg-slate-50/50 print:bg-slate-50">
-                                            <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[8%]">Cantidad</th>
-                                            <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[35%]">Proveedor</th>
-                                            <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[12%]">Paga Prov</th>
-                                            <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[15%]">Factura</th>
-                                            <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[15%]">Medidas</th>
-                                            <th className="py-1.5 px-1 text-right font-bold text-slate-900 uppercase tracking-wider w-[15%]">Valor Neto</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                        {pagina.cargas.map((carga) => {
-                                            const peso = parseFloat(carga.kg || 0);
-                                            const volumen = parseFloat(carga.m3 || 0);
-                                            const precioKg = parseFloat(pagina.clienteObj.precio_kg || 0);
-                                            const precioM3 = parseFloat(pagina.clienteObj.precio_m3 || 0);
-                                            const costoPorPeso = peso * precioKg;
-                                            const costoPorVolumen = volumen * precioM3;
-                                            const cobroPorM3 = costoPorVolumen > costoPorPeso;
-
-                                            return (
-                                                <tr key={carga.id_mercancia} className="align-top hover:bg-slate-50/30 break-inside-avoid">
-                                                    <td className="py-1.5 px-1 text-center font-semibold text-slate-800 align-middle">{carga.cantidad_bultos}</td>
-                                                    <td className="py-1.5 px-1 text-center leading-tight break-words">
-                                                        <p className="text-[10px] text-slate-900 font-bold ">{getNombreProveedor(carga.id_proveedor)}</p>
-                                                        {carga.id_proveedor && <p className="text-[9px] font-medium text-slate-700 mt-0.5">RUT: {carga.id_proveedor}</p>}
-                                                        <p className="text-[9px] font-medium text-slate-700 break-all">{getCorreoProveedor(carga.id_proveedor)}</p>
-                                                    </td>
-                                                    <td className="py-1.5 px-1 text-center align-middle">
-                                                        <input type="checkbox" className="w-3.5 h-3.5" />
-                                                    </td>
-                                                    <td className="py-1.5 px-1 text-center font-medium text-slate-700 align-middle">{carga.factura || '-'}</td>
-                                                    <td className="py-1.5 px-1 text-center leading-tight align-middle">
-                                                        {cobroPorM3 ? (
-                                                            <>
-                                                                <p className="text-[11px] font-black text-slate-900">{volumen.toFixed(2)} m³</p>
-                                                                <p className="text-[9px] font-medium text-slate-900">{peso.toFixed(0)} Kg</p>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <p className="text-[11px] font-black text-slate-900">{peso.toFixed(0)} Kg</p>
-                                                                <p className="text-[9px] font-medium text-slate-900">{volumen.toFixed(2)} m³</p>
-                                                            </>
-                                                        )}
-                                                    </td>
-                                                    <td className="py-1.5 px-1 text-right font-bold text-slate-900 align-middle">${formatoDinero(carga.precio_total)}</td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* --- TOTALES Y FIRMAS --- */}
-                            {pagina.esUltimaPaginaDelCliente ? (
-                                <div className="flex justify-between items-end mt-auto shrink-0 w-full pt-4">
-                                    <div className="text-center w-72 mb-1 break-inside-avoid">
-                                        <div className="border-t-2 border-slate-400 pt-1.5 flex flex-col items-center">
-                                            <p className="font-bold text-[10px] text-slate-900 uppercase tracking-tight">Recibe Conforme, Nombre, RUT, Firma y Fecha</p>
+                                {/* --- TOTALES Y FIRMAS --- */}
+                                {pagina.esUltimaPaginaDelCliente ? (
+                                    <div className="flex justify-between items-end mt-auto shrink-0 w-full pt-4">
+                                        <div className="text-center w-72 mb-1 break-inside-avoid">
+                                            <div className="border-t-2 border-slate-400 pt-1.5 flex flex-col items-center">
+                                                <p className="font-bold text-[10px] text-slate-900 uppercase tracking-tight">Recibe Conforme, Nombre, RUT, Firma y Fecha</p>
+                                            </div>
+                                        </div>
+                                        <div className="w-48 border-t border-slate-200 pt-2 break-inside-avoid">
+                                            <div className="flex justify-between items-center mb-0.5 text-[10px] font-semibold text-slate-600">
+                                                <span>Subtotal Neto</span><span className="text-slate-900">${formatoDinero(pagina.totalNeto)}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center mb-1 text-[10px] font-semibold text-slate-600">
+                                                <span>IVA (19%)</span><span className="text-slate-900">${formatoDinero(pagina.iva)}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center pt-1 border-t border-slate-900 font-black text-sm text-slate-900">
+                                                <span>TOTAL</span><span>${formatoDinero(pagina.totalBruto)}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="w-48 border-t border-slate-200 pt-2 break-inside-avoid">
-                                        <div className="flex justify-between items-center mb-0.5 text-[10px] font-semibold text-slate-600">
-                                            <span>Subtotal Neto</span><span className="text-slate-900">${formatoDinero(pagina.totalNeto)}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center mb-1 text-[10px] font-semibold text-slate-600">
-                                            <span>IVA (19%)</span><span className="text-slate-900">${formatoDinero(pagina.iva)}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center pt-1 border-t border-slate-900 font-black text-sm text-slate-900">
-                                            <span>TOTAL</span><span>${formatoDinero(pagina.totalBruto)}</span>
-                                        </div>
+                                ) : (
+                                    <div className="mt-auto text-center text-xs font-semibold text-slate-400 pt-4 pb-2 break-inside-avoid">
+                                        Continúa en la siguiente hoja...
                                     </div>
-                                </div>
-                            ) : (
-                                <div className="mt-auto text-center text-xs font-semibold text-slate-400 pt-4 pb-2 break-inside-avoid">
-                                    Continúa en la siguiente hoja...
-                                </div>
-                            )}
+                                )}
 
-                        </div>
+                            </div>
+                        </React.Fragment>
                     );
                 })}
             </div>

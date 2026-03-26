@@ -139,17 +139,6 @@ function LoginForm({ onForgotPassword, onPricing }) {
             </button>
           </div>
         </form>
-        <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl p-4 text-center border border-indigo-100">
-          <div className="flex items-center justify-center gap-2 mb-1 text-indigo-900 font-semibold text-sm">
-            <Star className="w-4 h-4 text-indigo-600 fill-indigo-600" /> 
-          </div>
-          <button
-            onClick={onPricing}
-            className="text-indigo-600 hover:text-indigo-800 font-bold text-sm transition hover:underline"
-          >
-            Contratar Servicio
-          </button>
-        </div>
       </div>
     </div>
   );

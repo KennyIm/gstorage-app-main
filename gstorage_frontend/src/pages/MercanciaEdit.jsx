@@ -4,7 +4,7 @@ import apiClient from '../services/api'; // Descomentar en producción
 import { useAuth } from '../context/AuthContext'; // Descomentar en producción
 import {
   Save, ArrowLeft, User, MapPin, Map, Package, Scale, Box, FileText,
-  Truck, Activity, Loader2, AlertCircle, CheckCircle
+  Truck, Activity, Loader2, AlertCircle, CheckCircle,NotebookPen
 } from 'lucide-react';
 
 
@@ -15,6 +15,7 @@ export default function MercanciaEdit() {
 
   // Estado para el formulario
   const [formData, setFormData] = useState(null);
+  const [precioSugerido, setPrecioSugerido] = useState(null);
 
   // Estados para los menús desplegables
   const [clientes, setClientes] = useState([]);
@@ -28,7 +29,7 @@ export default function MercanciaEdit() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (formData && formData.id_cliente && formData.kg && formData.m3) {
+    if (formData && formData.id_cliente && formData.kg && formData.m3 && (!formData.precio_total || parseFloat(formData.precio_total) === 0)) {
       const clienteSeleccionado = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente));
 
       if (clienteSeleccionado) {
@@ -46,13 +47,14 @@ export default function MercanciaEdit() {
 
         const totalCalculado = Math.max(costoPorPeso, costoPorVolumen);
 
+        setPrecioSugerido(totalCalculado.toFixed(0));
         setFormData(prev => ({
           ...prev,
           precio_total: totalCalculado.toFixed(0)
         }));
       }
     }
-  }, [formData?.kg, formData?.m3, formData?.id_cliente, clientes]);
+  }, [formData?.kg, formData?.m3, formData?.id_cliente, formData?.precio_total, clientes]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -91,6 +93,9 @@ export default function MercanciaEdit() {
           id_despacho: currentData.id_despacho || '',
           id_proveedor: currentData.id_proveedor || '',
           factura: currentData.factura || '',
+          tipo: currentData.tipo || '',
+          paga_proveedor: currentData.paga_proveedor || false,
+          codigo_interno: currentData.codigo_interno || ''
         });
 
         setLoading(false);
@@ -108,10 +113,10 @@ export default function MercanciaEdit() {
   }, [id]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
     setFormData(prevData => ({
       ...prevData,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }));
   };
 
@@ -133,6 +138,9 @@ export default function MercanciaEdit() {
       id_despacho: formData.id_despacho ? parseInt(formData.id_despacho) : null,
       id_proveedor: formData.id_proveedor || null,
       factura: formData.factura || null,
+      tipo: formData.tipo || null,
+      paga_proveedor: formData.paga_proveedor || false,
+      codigo_interno: formData.codigo_interno || null
     };
 
     try {
@@ -143,6 +151,7 @@ export default function MercanciaEdit() {
       console.error(err);
       setError('Error al actualizar la mercancía. Por favor revisa los datos.');
       setSubmitting(false);
+      console.log("Motivo del rechazo de Django:", err.response?.data);
     }
   };
 
@@ -315,6 +324,22 @@ export default function MercanciaEdit() {
                   </div>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tipo de carga
+                  </label>
+                  <div className="relative">
+                    <NotebookPen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-700 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="tipo"
+                      value={formData.tipo}
+                      onChange={handleChange}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                      placeholder="Ej: Perfil"
+                    />
+                  </div>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Bultos</label>
                   <div className="relative">
                     <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
@@ -360,20 +385,46 @@ export default function MercanciaEdit() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-emerald-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Volumen (m³)</label>
+                  <div className="relative">
+                    <NotebookPen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-900 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="codigo_interno"
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                      value={formData.codigo_interno}
+                      onChange={handleChange}
+                      placeholder="Código Interno de Bodega"
+                    />
+                  </div>
+                </div>
+                <div className="col-span-1 md:col-span-2">
+                  <label className="block text-sm font-bold text-emerald-700 mb-1">
                     Precio Total ($)
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
                     <input
                       type="number"
-                      step="0.01"
+                      step="1"
                       name="precio_total"
                       value={formData.precio_total}
                       onChange={handleChange}
-                      className="w-full pl-8 pr-4 py-2 bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
+                      className="w-full pl-8 pr-4 py-2 bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-colors"
                     />
                   </div>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="checkbox"
+                    name="paga_proveedor"
+                    checked={formData.paga_proveedor}
+                    onChange={handleChange}
+                    className="w-4 h-4 text-indigo-600 rounded"
+                  />
+                  <label htmlFor="paga_proveedor" className="text-sm font-semibold text-slate-700">
+                    El cobro de este bulto lo paga el Proveedor
+                  </label>
                 </div>
               </div>
 
@@ -407,9 +458,11 @@ export default function MercanciaEdit() {
                     <select
                       name="estado"
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                      value={formData.estado}
+                      value={formData.estado || ''} 
                       onChange={handleChange}
                     >
+                      <option value="" disabled hidden>Seleccione estado...</option>
+                      
                       <option value="En Bodega">En Bodega</option>
                       <option value="Asignado">Asignado a Despacho</option>
                       <option value="En Tránsito">En Tránsito</option>

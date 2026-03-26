@@ -88,7 +88,7 @@ export default function MercanciaList() {
     const term = searchTerm.toLowerCase();
     const cliente = item.cliente_nombre?.toLowerCase() || '';
     const descripcion = item.descripcion_carga?.toLowerCase() || '';
-    const id = item.id_mercancia ? String(item.id_mercancia) : '';
+    const id = item.codigo_interno ? String(item.codigo_interno) : '';
     const factura = item.factura?.toLowerCase() || '';
     const rutproveedor = item.rut_proveedor?.toLowerCase() || '';
     const matchesSearch = cliente.includes(term) || descripcion.includes(term) || id.includes(term) || factura.includes(term) || rutproveedor.includes(term);
@@ -177,7 +177,7 @@ export default function MercanciaList() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Lote #</th>
+                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Código</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Cliente / Descripción</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">RUT del Proveedor</th>
                 {/*<th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Ubicación</th>*/}
@@ -193,7 +193,7 @@ export default function MercanciaList() {
                 return (
                   <tr key={item.id_mercancia} className="hover:bg-gray-50 transition group">
 
-                    <td className="py-4 px-4 font-medium text-gray-900">#{item.id_mercancia}</td>
+                    <td className="py-4 px-4 font-medium text-gray-900 text-[15px]">{item.codigo_interno}</td>
 
                     <td className="py-4 px-4">
                       <div className="flex items-start gap-3">

@@ -22,20 +22,18 @@ from django.views.generic import (
 from .models import (
     Mercancia, Cliente, Despacho, Conductor, 
     Camion, Ruta, Destino, Ubicacion, HistorialMovimientos, Estanteria,
-    AreaRestringida, Proveedor
+    AreaRestringida, Proveedor, Rampla
 )
 
 from .serializers import (
-    # Mercancia
     MercanciaListSerializer, MercanciaWriteSerializer,
-    # Despacho
     DespachoListSerializer, DespachoWriteSerializer,
-    # Catalogos
     ClienteSerializer, ConductorSerializer, CamionSerializer, 
     RutaSerializer, DestinoSerializer, UbicacionSerializer, EstanteriaSerializer,
     HistorialSerializer,
     AreaRestringidaSerializer,
-    ProveedorSerializer
+    ProveedorSerializer,
+    RamplaSerializer
 )
 from usuarios.permissions import IsAdminEmpresa, IsJefeDeBodega, IsOperario
 
@@ -891,6 +889,63 @@ class ProveedorListCreateAPI(generics.ListCreateAPIView):
 class ProveedorRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
     queryset = Proveedor.objects.all()
     serializer_class = ProveedorSerializer
+
+class RamplaListCreateAPI(generics.ListCreateAPIView):
+    queryset = Rampla.activos.all()
+    serializer_class = RamplaSerializer
+
+class RamplaRetrieverUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Rampla.activos.all()
+    serializer_class = RamplaSerializer
+
+class RamplaListCreateAPI(generics.ListCreateAPIView):
+    serializer_class = RamplaSerializer 
+    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    
+    def get_queryset(self):
+        empresa = get_empresa_from_user(self.request)
+        return Rampla.objects.filter(empresa=empresa, activo=True)
+    
+    def perform_create(self, serializer):
+        empresa = get_empresa_from_user(self.request)
+        instance = serializer.save(empresa=empresa, activo=True)
+        registrar_auditoria(
+            empresa=empresa,
+            usuario=self.request.user,
+            modelo="Rampla",
+            accion="Creación",
+            descripcion=f"Se creó la rampla: {instance.patente}"
+        )
+
+class RamplaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Rampla.objects.all() 
+    serializer_class = RamplaSerializer
+    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+
+    def get_queryset(self):
+        empresa = get_empresa_from_user(self.request)
+        return Rampla.objects.filter(empresa=empresa)
+    
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        registrar_auditoria(
+            empresa=instance.empresa,
+            usuario=self.request.user,
+            modelo="Rampla",
+            accion="Edición",
+            descripcion=f"Se actualizaron datos de la rampla: {instance.patente}"
+        )
+    
+    def perform_destroy(self, instance):
+        instance.activo = False
+        instance.save()
+        registrar_auditoria(
+            empresa=instance.empresa,
+            usuario=self.request.user,
+            modelo="Rampla",
+            accion="Eliminación",
+            descripcion=f"Se eliminó la rampla: {instance.patente}"
+        )
 
 #DJANGO METODO SIN REACT (FUNCIONAL)
 

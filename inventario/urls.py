@@ -53,6 +53,9 @@ urlpatterns = [
     path('proveedores/', views.ProveedorListCreateAPI.as_view(), name='api-proveedor-list-create'),
     path('proveedores/<str:pk>/', views.ProveedorRetrieveUpdateDestroyAPI.as_view(), name='api-proveedor-detail'),
 
+    path('ramplas/', views.RamplaListCreateAPI.as_view(), name='api-ramplas-lista'),
+    path('ramplas/<int:pk>', views.RamplaRetrieverUpdateDestroyAPI.as_view(), name='api-ramplas-detail')
+
 
 
     # DJANGO VERSION VANILLA

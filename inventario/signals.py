@@ -91,14 +91,13 @@ def actualizar_estado_por_despacho(sender, instance, **kwargs):
         if estado_del_camion == 'Programado':
             instance.estado = 'Asignado'
         elif estado_del_camion == 'En Tránsito':
-            instance.estado = 'Despachado'
+            instance.estado = 'En Tránsito'
         elif estado_del_camion == 'Entregado':
             instance.estado = 'Entregado'
             
     else:
-        # Solo la devolvemos a bodega si no es una merma o algo especial
-        if instance.estado in ['Asignado', 'Despachado', 'Entregado']:
-            instance.estado = 'En Bodega'      
+        if instance.estado in ['Asignado', 'En Tránsito', 'Entregado']: 
+            instance.estado = 'En Bodega'     
 
 @receiver(pre_save, sender=Mercancia)
 def calcular_precio_mercancia(sender, instance, **kwargs):

@@ -4,7 +4,7 @@ from datetime import timedelta
 from .models import (
     Mercancia, Cliente, Despacho, Conductor, 
     Camion, Ruta, Destino, Ubicacion, Estanteria, ReporteGenerado, HistorialMovimientos,
-    AreaRestringida, Proveedor
+    AreaRestringida, Proveedor, Rampla
 )
 
 class MercanciaListSerializer(serializers.ModelSerializer):
@@ -21,7 +21,7 @@ class MercanciaCreateSerializer(serializers.ModelSerializer):
         model = Mercancia
         fields = [
             'id_cliente', 'descripcion_carga', 'cantidad_bultos', 
-            'kg', 'm3', 'id_ubicacion_actual', 'id_destino'
+            'kg', 'm3', 'id_ubicacion_actual', 'id_destino','tipo'
         ]
 
 class MercanciaListSerializer(serializers.ModelSerializer):
@@ -44,10 +44,13 @@ class MercanciaListSerializer(serializers.ModelSerializer):
             'cantidad_bultos',
             'motivo_baja',
             'kg', 
-            'm3', 
+            'm3',
+            'codigo_interno',
             'precio_total',
             'id_proveedor',
-            'factura'                        
+            'factura',
+            'tipo',
+            'paga_proveedor',                
         ]
 
 class MercanciaWriteSerializer(serializers.ModelSerializer):
@@ -57,7 +60,8 @@ class MercanciaWriteSerializer(serializers.ModelSerializer):
             'id_cliente', 'descripcion_carga', 'cantidad_bultos', 
             'kg', 'm3', 'id_ubicacion_actual', 'id_destino',
             'estado', 'id_despacho', 
-            'motivo_baja', 'precio_total','id_usuario_creacion_id','id_proveedor','factura'
+            'motivo_baja', 'precio_total','id_usuario_creacion_id','id_proveedor','factura','tipo'
+            ,'paga_proveedor','codigo_interno'
         ]
         read_only_fields = ['empresa']
 # Serializers para DESPACHO (Nuevo)
@@ -72,7 +76,7 @@ class DespachoListSerializer(serializers.ModelSerializer):
         fields = [
             'id_despacho', 'fecha_programada', 'fecha_salida_real',
             'id_camion', 'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor',
-            'origen','destino','codigo_documento'
+            'origen','destino','id_rampla'
         ]
 
 class DespachoWriteSerializer(serializers.ModelSerializer):
@@ -83,7 +87,7 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
             'id_despacho',
             'fecha_programada', 'fecha_salida_real', 'id_camion', 
             'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor',
-            'origen','destino','codigo_documento'
+            'origen','destino','id_rampla'
         ]
         read_only_fields = ['empresa']
     
@@ -235,3 +239,9 @@ class ProveedorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Proveedor
         fields = '__all__'
+
+class RamplaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Rampla
+        fields = '__all__'
+        read_only_fields = ['empresa', 'activo']

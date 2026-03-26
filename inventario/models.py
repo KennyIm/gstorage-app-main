@@ -50,6 +50,10 @@ class ProveedorManager(models.Manager):
     def get_queryset(self):
         return super().get_queryset().filter(activo=True)
     
+class RamplaManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(activo=True)
+    
 
 class Proveedor(models.Model):
     rut = models.CharField(max_length=20, primary_key=True, verbose_name="RUT del Proveedor")
@@ -69,8 +73,8 @@ class Cliente(models.Model):
     id_cliente = models.AutoField(primary_key=True)
     nombre_cliente = models.CharField(max_length=150, verbose_name="Nombre o Razón Social")
     rut_cliente = models.CharField(max_length=12, unique=True, null=True, blank=True, verbose_name="RUT")
-    precio_kg= models.DecimalField(max_digits=10, decimal_places=2, default=0.0, verbose_name="Precio por Kg")
-    precio_m3= models.DecimalField(max_digits=10, decimal_places=2, default=0.0, verbose_name="Precio por m3")
+    precio_kg= models.DecimalField(max_digits=10, decimal_places=0, default=0.0, verbose_name="Precio por Kg")
+    precio_m3= models.DecimalField(max_digits=10, decimal_places=0, default=0.0, verbose_name="Precio por m3")
     telefono_contacto = models.CharField(max_length=20, null=True, blank=True, verbose_name="Teléfono")
     email_contacto = models.EmailField(max_length=100, null=True, blank=True, verbose_name="Email")
     nombre_contacto = models.CharField(max_length=100, blank=True, null=True, verbose_name="Persona de Contacto")
@@ -103,21 +107,49 @@ class Camion(models.Model):
         ('EN_USO', 'En Uso'),
         ('MANTENIMIENTO', 'Mantenimiento'),
     ]
+    
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="camiones")
     id_camion = models.AutoField(primary_key=True)
     patente = models.CharField(max_length=10, unique=True, verbose_name="Patente")
     marca = models.CharField(max_length=50, null=True, blank=True)
     modelo = models.CharField(max_length=50, null=True, blank=True)
-    capacidad_max_kg = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Capacidad Máx (Kg)")
-    capacidad_max_m3 = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Capacidad Máx (m³)")
+    
     activo = models.BooleanField(default=True)
     anio = models.IntegerField(null=True, blank=True, verbose_name="Año")
     estado_camion = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DISPONIBLE', verbose_name="Estado")
+    
     objects = models.Manager()
     activos = CamionManager()
 
     def __str__(self):
-        return f"{self.patente} ({self.marca} {self.modelo})"
+        return f"Camión {self.patente} ({self.marca})"
+    
+class Rampla(models.Model):
+    STATUS_CHOICES = [
+        ('DISPONIBLE', 'Disponible'),
+        ('EN_USO', 'En Uso'),
+        ('MANTENIMIENTO', 'Mantenimiento'),
+    ]
+    
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="ramplas")
+    id_rampla = models.AutoField(primary_key=True)
+    patente = models.CharField(max_length=10, unique=True, verbose_name="Patente Rampla")
+    marca = models.CharField(max_length=50, null=True, blank=True)
+    modelo = models.CharField(max_length=50, null=True, blank=True)
+
+    capacidad_max_kg = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Capacidad Máx (Kg)")
+    capacidad_max_m3 = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Capacidad Máx (m³)")
+    
+    activo = models.BooleanField(default=True)
+    anio = models.IntegerField(null=True, blank=True, verbose_name="Año")
+    estado_rampla = models.CharField(max_length=20, choices=STATUS_CHOICES, default='DISPONIBLE', verbose_name="Estado")
+    
+    objects = models.Manager()
+    activos = RamplaManager()
+
+    def __str__(self):
+        return f"Rampla {self.patente} - {self.capacidad_max_kg}Kg"
+
 
 class Ruta(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="rutas")
@@ -234,6 +266,7 @@ class Despacho(models.Model):
     
     # Relaciones
     id_camion = models.ForeignKey(Camion, on_delete=models.PROTECT, verbose_name="Camión")
+    id_rampla = models.ForeignKey(Rampla, on_delete=models.SET_NULL, null=True, blank=True, related_name="despachos")
     id_conductor = models.ForeignKey(Conductor, on_delete=models.PROTECT, verbose_name="Conductor")
     id_ruta = models.ForeignKey(Ruta, on_delete=models.PROTECT, verbose_name="Ruta")
     
@@ -246,7 +279,6 @@ class Despacho(models.Model):
     #Destinos
     origen = models.CharField(max_length=50, null=True, blank=True, choices=UBICACIONES_CHOICES, default='Santiago')
     destino = models.CharField(max_length=50, null=True, blank=True, choices=UBICACIONES_CHOICES, default='Santiago')
-    codigo_documento = models.CharField(max_length=50, null=True, blank=True, unique=True)
 
     activo = models.BooleanField(default=True)
     objects = models.Manager()
@@ -274,8 +306,10 @@ class Mercancia(models.Model):
     cantidad_bultos = models.IntegerField(default=1, verbose_name="Cantidad de Bultos")
     kg = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Peso (Kg)")
     m3 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Volumen (m³)")
-    precio_total = models.DecimalField(max_digits=12, decimal_places=2, default=0.0, verbose_name="Precio Calculado")
+    precio_total = models.DecimalField(max_digits=12, decimal_places=0, default=0.0, verbose_name="Precio Calculado")
     factura = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número de Factura")
+    tipo = models.CharField(max_length=50, blank=True, null=True, verbose_name="Tipo de carga")
+    codigo_interno= models.CharField(max_length=50,  blank=True, null=True, verbose_name="Código Interno Bodega")
     
     id_cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, verbose_name="Cliente")
     id_ubicacion_actual = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='mercancias_en_ubicacion')
@@ -286,6 +320,7 @@ class Mercancia(models.Model):
     fecha_ingreso = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de Ingreso")
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='En Bodega', verbose_name="Estado")
     motivo_baja = models.TextField(null=True, blank=True, verbose_name="Motivo de Baja/Merma")
+    paga_proveedor = models.BooleanField(default=False, verbose_name="¿Paga Proveedor?")
 
     id_usuario_creacion = models.ForeignKey(User, related_name='mercancias_creadas', on_delete=models.PROTECT, verbose_name="Usuario Creación", null=True, blank=True)
     id_usuario_ultima_modificacion = models.ForeignKey(User, related_name='mercancias_modificadas', on_delete=models.PROTECT, null=True, blank=True, verbose_name="Usuario Modificación")

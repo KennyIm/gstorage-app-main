@@ -61,6 +61,8 @@ import CatalogsView from './pages/CatalogsView';
 
 import Proveedores from './pages/catalogos/ProveedorList'
 
+import RamplasManager from './pages/catalogos/RamplasManager'
+
 function App() {
   return (
     <Routes>
@@ -122,6 +124,8 @@ function App() {
         <Route path="catalogos" element={<CatalogsView />} />
 
         <Route path="/proveedores" element={<Proveedores />} />
+
+        <Route path="/ramplas" element={<RamplasManager />} />
       </Route>
       </Route>
     </Routes>

@@ -4,24 +4,25 @@ import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   Save, ArrowLeft, Calendar, Truck, User, Map,
-  Activity, Loader2, AlertCircle, CheckCircle
+  Activity, Loader2, AlertCircle, CheckCircle, PencilRuler
 } from 'lucide-react';
 
 export default function DespachoCreate() {
   const [formData, setFormData] = useState({
     fecha_programada: '',
     id_camion: '',
+    id_rampla: '',
     id_conductor: '',
     id_ruta: '',
     estado_despacho: 'Programado',
     origen: '',
     destino: '',
-    numero_correlativo: '',
   });
 
   const [camiones, setCamiones] = useState([]);
   const [conductores, setConductores] = useState([]);
   const [rutas, setRutas] = useState([]);
+  const [ramplas, setRamplas] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -30,24 +31,21 @@ export default function DespachoCreate() {
   const navigate = useNavigate();
   const { logoutUser } = useAuth();
 
-  const inicialOrigen = formData.origen ? formData.origen.charAt(0).toUpperCase() : '_';
-  const inicialDestino = formData.destino ? formData.destino.charAt(0).toUpperCase() : '_';
-  const numero = formData.numero_correlativo || '___';
-  const codigoGenerado = `${inicialOrigen}${numero}${inicialDestino}`;
-
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [camionesRes, conductoresRes, rutasRes] = await Promise.all([
+        const [camionesRes, conductoresRes, rutasRes, ramplasRes] = await Promise.all([
           apiClient.get('/api/inventario/camiones/'),
           apiClient.get('/api/inventario/conductores/'),
-          apiClient.get('/api/inventario/rutas/')
+          apiClient.get('/api/inventario/rutas/'),
+          apiClient.get('/api/inventario/ramplas/')
         ]);
 
         setCamiones(camionesRes.data);
         setConductores(conductoresRes.data);
         setRutas(rutasRes.data);
+        setRamplas(ramplasRes.data);
         setLoading(false);
       } catch (err) {
         if (err.response && err.response.status === 401) {
@@ -76,8 +74,8 @@ export default function DespachoCreate() {
       ...formData,
       id_camion: formData.id_camion ? parseInt(formData.id_camion) : null,
       id_conductor: formData.id_conductor ? parseInt(formData.id_conductor) : null,
+      id_rampla: formData.id_rampla ? parseInt(formData.id_rampla) : null,
       id_ruta: formData.id_ruta ? parseInt(formData.id_ruta) : null,
-      codigo_documento: codigoGenerado
     };
 
     try {
@@ -190,7 +188,7 @@ export default function DespachoCreate() {
                       className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition cursor-not-allowed opacity-75"
                       value={formData.estado_despacho}
                       onChange={handleChange}
-                      disabled // Se crea siempre como Programado por defecto, o editable si se requiere
+                      disabled
                     >
                       <option value="Programado">Programado</option>
                       <option value="En Carga">En Carga</option>
@@ -267,26 +265,6 @@ export default function DespachoCreate() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">
-                    Número de Documento
-                  </label>
-                  <input
-                    type="number"
-                    name="numero_correlativo"
-                    value={formData.numero_correlativo}
-                    onChange={handleChange}
-                    placeholder="Ej: 832"
-                    required
-                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  />
-
-                  {/* Vista previa del código generado para el usuario */}
-                  <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-500">Código a generar:</span>
-                    <span className="text-sm font-black text-indigo-600 tracking-widest">{codigoGenerado}</span>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -313,6 +291,27 @@ export default function DespachoCreate() {
                       <option value="">Seleccionar camión...</option>
                       {camiones.map(c => (
                         <option key={c.id_camion} value={c.id_camion}>{c.patente} ({c.marca})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="id_rampla" className="block text-sm font-medium text-gray-700 mb-1">Rampla *</label>
+                  <div className="relative">
+                    <PencilRuler className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <select
+                      id="id_rampla"
+                      name="id_rampla"
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                      value={formData.id_rampla}
+                      onChange={handleChange}
+                      required
+                    >
+                      <option value="">Seleccionar rampla...</option>
+                      {ramplas.map(r => (
+                        <option key={r.id_rampla} value={r.id_rampla}>
+                          {r.patente} ({r.modelo})
+                        </option>
                       ))}
                     </select>
                   </div>
