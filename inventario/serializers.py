@@ -50,7 +50,9 @@ class MercanciaListSerializer(serializers.ModelSerializer):
             'id_proveedor',
             'factura',
             'tipo',
-            'paga_proveedor',                
+            'paga_proveedor',
+            'sucursal_id',
+            'numero_orden_entrega'                
         ]
 
 class MercanciaWriteSerializer(serializers.ModelSerializer):
@@ -61,7 +63,7 @@ class MercanciaWriteSerializer(serializers.ModelSerializer):
             'kg', 'm3', 'id_ubicacion_actual', 'id_destino',
             'estado', 'id_despacho', 
             'motivo_baja', 'precio_total','id_usuario_creacion_id','id_proveedor','factura','tipo'
-            ,'paga_proveedor','codigo_interno'
+            ,'paga_proveedor','codigo_interno','sucursal_id','numero_orden_entrega'
         ]
         read_only_fields = ['empresa']
 # Serializers para DESPACHO (Nuevo)
@@ -70,13 +72,14 @@ class DespachoListSerializer(serializers.ModelSerializer):
     id_conductor = serializers.StringRelatedField()
     id_ruta = serializers.StringRelatedField()
     nombre_conductor = serializers.CharField(source='id_conductor.nombre_completo', read_only=True)
+    nombre_sucursal = serializers.CharField(source='sucursal_id.nombre', read_only=True)
 
     class Meta:
         model = Despacho
         fields = [
             'id_despacho', 'fecha_programada', 'fecha_salida_real',
             'id_camion', 'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor',
-            'origen','destino','id_rampla'
+            'origen','destino','id_rampla','sucursal_id','nombre_sucursal'
         ]
 
 class DespachoWriteSerializer(serializers.ModelSerializer):
@@ -87,7 +90,7 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
             'id_despacho',
             'fecha_programada', 'fecha_salida_real', 'id_camion', 
             'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor',
-            'origen','destino','id_rampla'
+            'origen','destino','id_rampla','sucursal_id'
         ]
         read_only_fields = ['empresa']
     
@@ -174,7 +177,7 @@ class RutaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ruta
         fields = '__all__'
-        read_only_fields = ['empresa']
+        read_only_fields = ['empresa', 'sucursal', 'activo']
 
 class DestinoSerializer(serializers.ModelSerializer):
     class Meta:

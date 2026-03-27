@@ -25,6 +25,14 @@ class Empresa(models.Model):
     def __str__(self):
         return self.nombre_empresa
 
+class Sucursal(models.Model):
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
+    nombre = models.CharField(max_length=100)
+    ciudad = models.CharField(max_length=100)
+
+    def __str__(self):
+        return f"{self.nombre}"
+
 class Perfil(models.Model):
     class Roles(models.TextChoices):
         DUENO = 'DUENO', 'Dueño'
@@ -33,6 +41,7 @@ class Perfil(models.Model):
         OPERARIO = 'OPERARIO', 'Operario'
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, primary_key=True, related_name="perfil")
+    sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE, null=True, blank=True)
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, null=True, blank=True, related_name="perfiles")
     telefono = models.CharField(max_length=20, null=True, blank=True)
     

@@ -15,6 +15,7 @@ export default function RoutesCatalog() {
   
   // FormData basado en tus campos de Django
   const [formData, setFormData] = useState({
+    codigo_ruta: '',
     nombre_ruta: '',
     descripcion: '',
     activo: true
@@ -54,6 +55,7 @@ export default function RoutesCatalog() {
     if (route) {
       setEditingRoute(route);
       setFormData({
+        codigo_ruta: route.codigo_ruta,
         nombre_ruta: route.nombre_ruta,
         descripcion: route.descripcion || '',
         activo: route.activo !== undefined ? route.activo : true
@@ -73,9 +75,10 @@ export default function RoutesCatalog() {
     setShowModal(false);
     setEditingRoute(null);
     setFormData({
-        nombre_ruta: '',
-        descripcion: '',
-        activo: true
+      codigo_ruta:'',
+      nombre_ruta: '',
+      descripcion: '',
+      activo: true
     });
     setError(null);
   };
@@ -264,6 +267,21 @@ export default function RoutesCatalog() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Código de Ruta <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="codigo_ruta"
+                  value={formData.codigo_ruta || ''}
+                  onChange={(e) => setFormData({ ...formData, codigo_ruta: e.target.value })}
+                  placeholder="Ej: R-001, NORTE-1"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                  required
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Este código aparecerá en las Órdenes de Entrega (Ej: SR-001-1I)</p>
+              </div>
               
               {/* Nombre Ruta */}
               <div>

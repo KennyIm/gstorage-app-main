@@ -10,7 +10,12 @@ from datetime import datetime, timedelta
 from rest_framework.views import APIView     
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
-from .utils import actualizar_estados_automaticos, registrar_auditoria
+from .utils import actualizar_estados_automaticos, registrar_auditoria, generar_numeros_orden_despacho
+import openpyxl
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from django.http import HttpResponse
+from rest_framework import status
+from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from django.views.generic import (
     ListView, 
@@ -46,14 +51,30 @@ def get_empresa_from_user(request):
     if not empresa:
         raise ValidationError("El usuario no está asociado a ninguna empresa.")
     return empresa
+
+def filtrar_por_sucursal_y_empresa(queryset, request):
+    user = request.user
+    if not hasattr(user, 'perfil') or not user.perfil.empresa:
+        return queryset.none()
+        
+    perfil = user.perfil
+    qs = queryset.filter(empresa=perfil.empresa)
+    if perfil.rol != 'DUENO':
+        if perfil.sucursal:
+            qs = qs.filter(sucursal=perfil.sucursal)
+        else:
+            return queryset.none()
+            
+    return qs
 # --- Vistas de API para Mercancia ---
 
 class MercanciaListCreateAPI(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        empresa = get_empresa_from_user(self.request)
-        queryset = Mercancia.activos.filter(empresa=empresa).order_by('-fecha_ingreso')
+        #empresa = get_empresa_from_user(self.request)
+        #queryset = Mercancia.activos.filter(empresa=empresa).order_by('-fecha_ingreso')
+        queryset = filtrar_por_sucursal_y_empresa(Mercancia.activos.all(), self.request).order_by('-fecha_ingreso')
         despacho_id = self.request.query_params.get('id_despacho')
         estado = self.request.query_params.get('estado')
         estado_in = self.request.query_params.get('estado_in') 
@@ -80,6 +101,7 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         empresa = get_empresa_from_user(self.request)
         user = self.request.user
+        sucursal_empleado = user.perfil.sucursal if hasattr(user, 'perfil') else None
         
         nuevos_datos = serializer.validated_data
         ubicacion_seleccionada = nuevos_datos.get('id_ubicacion_actual')
@@ -112,7 +134,8 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
             id_usuario_creacion=user,
             estado='En Bodega',
             activo=True,
-            empresa=empresa
+            empresa=empresa,
+            sucursal=sucursal_empleado
         )
         try:
             if instance.id_ubicacion_actual:
@@ -122,6 +145,7 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
             print(f"Error al ocupar ubicación: {e}")
         HistorialMovimientos.objects.create(
             empresa=empresa,
+            sucursal=sucursal_empleado,
             id_mercancia=instance,
             id_usuario=user,
             id_ubicacion_anterior=None,
@@ -136,8 +160,9 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        empresa = get_empresa_from_user(self.request)
-        return Mercancia.activos.filter(empresa=empresa)
+        #empresa = get_empresa_from_user(self.request)
+        #return Mercancia.activos.filter(empresa=empresa)
+        return filtrar_por_sucursal_y_empresa(Mercancia.objects.all(), self.request)
 
     def perform_update(self, serializer):
         empresa = get_empresa_from_user(self.request)
@@ -288,7 +313,8 @@ class DespachoListCreateAPI(generics.ListCreateAPIView):
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
         actualizar_estados_automaticos(empresa)
-        return Despacho.objects.filter(empresa=empresa, activo=True).order_by('-fecha_programada')
+        base_qs = Despacho.objects.filter(activo=True)
+        return filtrar_por_sucursal_y_empresa(base_qs, self.request).order_by('-fecha_programada')
     
     def get_serializer_class(self):
         if self.request.method == 'GET':
@@ -297,14 +323,18 @@ class DespachoListCreateAPI(generics.ListCreateAPIView):
     
     def perform_create(self, serializer):
         empresa = get_empresa_from_user(self.request)
+        user = self.request.user
+        sucursal_empleado = user.perfil.sucursal if hasattr(user, 'perfil') else None
+        
         instance = serializer.save(
-            id_usuario_creacion=self.request.user, 
+            id_usuario_creacion=user, 
             empresa=empresa,
+            sucursal=sucursal_empleado, 
             activo=True
         )
         registrar_auditoria(
             empresa=empresa,
-            usuario=self.request.user,
+            usuario=user,
             modelo="Despacho",
             accion="Creación",
             descripcion=f"Despacho programado para {instance.fecha_programada}"
@@ -315,8 +345,9 @@ class DespachoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        empresa = get_empresa_from_user(self.request)
-        return Despacho.objects.filter(empresa=empresa, activo=True)
+        #empresa = get_empresa_from_user(self.request)
+        #return Despacho.objects.filter(empresa=empresa, activo=True)
+        return filtrar_por_sucursal_y_empresa(Despacho.objects.all(), self.request)
     
     def perform_update(self, serializer):
         prev_estado = self.get_object().estado_despacho
@@ -504,12 +535,19 @@ class RutaListCreateAPI(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
     
     def get_queryset(self):
-        empresa = get_empresa_from_user(self.request)
-        return Ruta.objects.filter(empresa=empresa)
+        #empresa = get_empresa_from_user(self.request)
+        #return Ruta.objects.filter(empresa=empresa)
+        return filtrar_por_sucursal_y_empresa(Ruta.objects.all(), self.request)
     
     def perform_create(self, serializer):
         empresa = get_empresa_from_user(self.request)
-        instance = serializer.save(empresa=empresa, activo=True)
+        user = self.request.user
+        sucursal_empleado = user.perfil.sucursal if hasattr(user, 'perfil') else None
+        instance = serializer.save(
+            empresa=empresa, 
+            sucursal=sucursal_empleado, 
+            activo=True
+        )
         registrar_auditoria(
             empresa=empresa,
             usuario=self.request.user,
@@ -523,8 +561,9 @@ class RutaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
 
     def get_queryset(self):
-        empresa = get_empresa_from_user(self.request)
-        return Ruta.objects.filter(empresa=empresa)
+        #empresa = get_empresa_from_user(self.request)
+        #return Ruta.objects.filter(empresa=empresa)
+        return filtrar_por_sucursal_y_empresa(Ruta.objects.all(), self.request)
     
     def perform_update(self, serializer):
         instance = serializer.save()
@@ -604,26 +643,25 @@ class UbicacionListCreateAPI(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        empresa = get_empresa_from_user(self.request)
-        return Ubicacion.activos.filter(empresa=empresa)
+        return filtrar_por_sucursal_y_empresa(Ubicacion.activos.all(), self.request)
     
     def perform_create(self, serializer):
         empresa = get_empresa_from_user(self.request)
-        serializer.save(empresa=empresa, activo=True)
+        user = self.request.user
+        sucursal_empleado = user.perfil.sucursal if hasattr(user, 'perfil') else None 
+        
+        serializer.save(empresa=empresa, sucursal=sucursal_empleado, activo=True)
 
 class UbicacionDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UbicacionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        empresa = get_empresa_from_user(self.request)
-        return Ubicacion.activos.filter(empresa=empresa)
+        return filtrar_por_sucursal_y_empresa(Ubicacion.activos.all(), self.request)
     
     def perform_destroy(self, instance):
-        # --- VALIDACIÓN DE BORRADO ---
         if instance.estado_ocupado:
             mercancia = Mercancia.activos.filter(id_ubicacion_actual=instance).exists()
-            
             if mercancia:
                 raise ValidationError(
                     {"detail": f"No se puede eliminar la ubicación {instance.codigo_ubicacion}: Tiene mercancía asignada."}
@@ -640,7 +678,7 @@ class DashboardStatsAPI(APIView):
         empresa = get_empresa_from_user(request)
         
         total_en_bodega = Mercancia.activos.filter(empresa=empresa, estado='En Bodega').count()
-        despachos_programados = Despacho.objects.filter(empresa=empresa, estado_despacho='Programado').count() # Asumiendo borrado lógico para despachos
+        despachos_programados = Despacho.objects.filter(empresa=empresa, estado_despacho='Programado').count()
         ubicaciones_libres = Ubicacion.activos.filter(empresa=empresa, estado_ocupado=False).count()
         total_clientes = Cliente.activos.filter(empresa=empresa).count()
 
@@ -658,35 +696,33 @@ class EstanteriaListCreateAPI(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        empresa = get_empresa_from_user(self.request)
-        return Estanteria.objects.filter(empresa=empresa)
+        return filtrar_por_sucursal_y_empresa(Estanteria.objects.all(), self.request)
     
     def perform_create(self, serializer):
         empresa = get_empresa_from_user(self.request)
-        serializer.save(empresa=empresa, activo=True)
+        user = self.request.user
+        sucursal_empleado = user.perfil.sucursal if hasattr(user, 'perfil') else None
+        
+        serializer.save(empresa=empresa, sucursal=sucursal_empleado, activo=True)
 
 class EstanteriaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Estanteria.objects.all()
     serializer_class = EstanteriaSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        return filtrar_por_sucursal_y_empresa(Estanteria.objects.all(), self.request)
+
     def perform_update(self, serializer):
-        # 1. Datos Antiguos
         instance = self.get_object()
         old_ancho = instance.num_modulos_ancho
         old_alto = instance.num_niveles_alto
         old_prof = instance.num_profundidad
         
-        # 2. Validar antes de guardar
-        # Obtenemos los datos que se intentan guardar
         new_ancho = serializer.validated_data.get('num_modulos_ancho', old_ancho)
         new_alto = serializer.validated_data.get('num_niveles_alto', old_alto)
         new_prof = serializer.validated_data.get('num_profundidad', old_prof)
 
-        # --- LÓGICA DE REDUCCIÓN  ---
         if new_ancho < old_ancho or new_alto < old_alto or new_prof < old_prof:
-            
-            # Buscamos las ubicaciones que quedarían "fuera" de los nuevos límites
             ubicaciones_afectadas = Ubicacion.activos.filter(
                 estanteria=instance
             ).filter(
@@ -695,45 +731,34 @@ class EstanteriaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
                 Q(pos_z_rel__gte=new_prof)         
             )
 
-            # Si alguna de esas ubicaciones está ocupada, PROHIBIR la acción
             if ubicaciones_afectadas.filter(estado_ocupado=True).exists():
                 raise ValidationError(
                     {"detail": f"No se puede reducir el tamaño: Hay mercancía en las ubicaciones que intentas eliminar. Mueve la carga primero."}
                 )
-            
-            # Si están vacías, las marcamos para borrar 
-            # Guardamos los IDs para borrarlas después
             ids_a_borrar = list(ubicaciones_afectadas.values_list('id_ubicacion', flat=True))
         else:
             ids_a_borrar = []
 
-        # 3. Guardar cambios 
         estanteria = serializer.save()
 
-        # 4. Ejecutar Borrado de sobrantes 
         if ids_a_borrar:
             Ubicacion.objects.filter(id_ubicacion__in=ids_a_borrar).delete() 
 
-        # 5. Lógica de Expansión
         if new_ancho > old_ancho or new_alto > old_alto or new_prof > old_prof:
              self.rellenar_huecos(estanteria)
 
     def perform_destroy(self, instance):
-        # --- VALIDACIÓN DE BORRADO ---
         ubicaciones_ocupadas = Ubicacion.activos.filter(estanteria=instance, estado_ocupado=True)
-        
         if ubicaciones_ocupadas.exists():
             count = ubicaciones_ocupadas.count()
             raise ValidationError(
                 {"detail": f"No se puede eliminar la estantería: Contiene {count} ubicaciones con mercancía. Vacíela primero."}
             )
         Ubicacion.activos.filter(estanteria=instance).update(activo=False)
-        
         instance.activo = False
         instance.save()
 
     def rellenar_huecos(self, estanteria):
-        # Lógica para crear huecos faltantes cuando crece el rack
         total_niveles = estanteria.num_niveles_alto + 1
         volumen = estanteria.ancho_hueco_m * estanteria.alto_hueco_m * estanteria.profundo_hueco_m
         capacidad = estanteria.capacidad_carga_por_hueco_kg
@@ -747,6 +772,7 @@ class EstanteriaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
                         
                         ubicaciones_crear.append(Ubicacion(
                             empresa=estanteria.empresa,
+                            sucursal=estanteria.sucursal,
                             estanteria=estanteria,
                             codigo_ubicacion=codigo,
                             pos_x_rel=x, pos_y_rel=y, pos_z_rel=z,
@@ -765,8 +791,7 @@ class HistorialListAPI(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated ,IsJefeDeBodega]
 
     def get_queryset(self):
-        empresa = get_empresa_from_user(self.request)
-        return HistorialMovimientos.objects.filter(empresa=empresa).order_by('-fecha_hora_movimiento')
+        return filtrar_por_sucursal_y_empresa(HistorialMovimientos.objects.all(), self.request).order_by('-fecha_hora_movimiento')
 
 class DashboardStatsAPI(APIView):
     permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
@@ -774,32 +799,30 @@ class DashboardStatsAPI(APIView):
     def get(self, request, format=None):
         empresa = get_empresa_from_user(request)
         
-        # --- 1. TARJETAS SUPERIORES (KPIs) ---
-        total_en_bodega = Mercancia.activos.filter(empresa=empresa, estado='En Bodega').count()
+        qs_mercancia = filtrar_por_sucursal_y_empresa(Mercancia.activos.all(), request)
+        qs_despachos = filtrar_por_sucursal_y_empresa(Despacho.objects.filter(activo=True), request)
+        qs_ubicaciones = filtrar_por_sucursal_y_empresa(Ubicacion.activos.all(), request)
+        
+        total_en_bodega = qs_mercancia.filter(estado='En Bodega').count()
 
-        despachos_activos = Despacho.objects.filter(
-            empresa=empresa, 
-            activo=True,
+        despachos_activos = qs_despachos.filter(
             estado_despacho__in=['Programado', 'En Carga', 'En Tránsito']
         ).count()
 
-        total_ubicaciones = Ubicacion.activos.filter(empresa=empresa).count()
-        ubicaciones_ocupadas = Ubicacion.activos.filter(empresa=empresa, estado_ocupado=True).count()
+        total_ubicaciones = qs_ubicaciones.count()
+        ubicaciones_ocupadas = qs_ubicaciones.filter(estado_ocupado=True).count()
+        
         porcentaje_ocupacion = 0
         if total_ubicaciones > 0:
             porcentaje_ocupacion = round((ubicaciones_ocupadas / total_ubicaciones) * 100, 1)
 
-        total_historico = Mercancia.objects.filter(empresa=empresa).count()
+        total_historico = qs_mercancia.count()
 
-
-        # --- 2. GRÁFICOS ---
-
-        estado_counts = Mercancia.activos.filter(empresa=empresa).values('estado').annotate(cantidad=Count('estado'))
+        estado_counts = qs_mercancia.values('estado').annotate(cantidad=Count('estado'))
         distribution_data = [
             {'name': item['estado'], 'value': item['cantidad']} 
             for item in estado_counts
         ]
-
         movements_data = [
             {'mes': 'Jun', 'despachos': 12},
             {'mes': 'Jul', 'despachos': 19},
@@ -809,19 +832,13 @@ class DashboardStatsAPI(APIView):
             {'mes': 'Nov', 'despachos': despachos_activos + 5}, 
         ]
 
-
-        proximos_despachos = Despacho.objects.filter(empresa=empresa, activo=True, estado_despacho__in=['Programado', 'En Carga']).order_by('fecha_programada')[:5]
+        proximos_despachos = qs_despachos.filter(
+            estado_despacho__in=['Programado', 'En Carga']
+        ).order_by('fecha_programada')[:5]
+        
         despachos_list = []
         for d in proximos_despachos:
-            bultos = Mercancia.activos.filter(id_despacho=d).count()
-            despachos_list.append({
-                'id': d.id_despacho, 'ruta': d.id_ruta.nombre_ruta, 'camion': d.id_camion.patente,
-                'fecha': d.fecha_programada.strftime('%d/%m'), 'estado': d.estado_despacho, 'bultos': bultos
-            })
-
-        despachos_list = []
-        for d in proximos_despachos:
-            bultos = Mercancia.activos.filter(id_despacho=d).count()
+            bultos = qs_mercancia.filter(id_despacho=d).count()
             despachos_list.append({
                 'id': d.id_despacho,
                 'ruta': d.id_ruta.nombre_ruta,
@@ -831,13 +848,13 @@ class DashboardStatsAPI(APIView):
                 'bultos': bultos
             })
 
-        top_clientes_qs = Mercancia.activos.filter(empresa=empresa).values('id_cliente__nombre_cliente').annotate(cantidad=Count('id_mercancia')).order_by('-cantidad')[:5]
+        top_clientes_qs = qs_mercancia.values('id_cliente__nombre_cliente').annotate(cantidad=Count('id_mercancia')).order_by('-cantidad')[:5]
         top_clientes = [
             {'name': item['id_cliente__nombre_cliente'], 'value': item['cantidad']}
             for item in top_clientes_qs
         ]
 
-        totales = Mercancia.activos.filter(empresa=empresa, estado='En Bodega').aggregate(
+        totales = qs_mercancia.filter(estado='En Bodega').aggregate(
             total_kg=Sum('kg'),
             total_m3=Sum('m3')
         )
@@ -866,20 +883,20 @@ class AreaRestringidaListCreateAPI(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        empresa = get_empresa_from_user(self.request)
-        return AreaRestringida.objects.filter(empresa=empresa)
+        return filtrar_por_sucursal_y_empresa(AreaRestringida.objects.all(), self.request)
 
     def perform_create(self, serializer):
         empresa = get_empresa_from_user(self.request)
-        serializer.save(empresa=empresa)
+        user = self.request.user
+        sucursal_empleado = user.perfil.sucursal if hasattr(user, 'perfil') else None 
+        serializer.save(empresa=empresa, sucursal=sucursal_empleado)
 
 class AreaRestringidaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AreaRestringidaSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        empresa = get_empresa_from_user(self.request)
-        return AreaRestringida.objects.filter(empresa=empresa)
+        return filtrar_por_sucursal_y_empresa(AreaRestringida.objects.all(), self.request)
 
 #Proveedores
 class ProveedorListCreateAPI(generics.ListCreateAPIView):
@@ -947,6 +964,204 @@ class RamplaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             descripcion=f"Se eliminó la rampla: {instance.patente}"
         )
 
+
+
+def formatear_rut(rut_raw):
+    if not rut_raw:
+        return ""
+    rut_limpio = ''.join(c for c in str(rut_raw) if c.isalnum()).upper()
+    if len(rut_limpio) < 2:
+        return rut_limpio
+    cuerpo = rut_limpio[:-1]
+    dv = rut_limpio[-1]
+    try:
+        cuerpo_fmt = f"{int(cuerpo):,}".replace(',', '.')
+        return f"{cuerpo_fmt}-{dv}"
+    except ValueError:
+        return rut_limpio
+
+class GenerarHojaRutaExcelAPI(generics.RetrieveAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id_despacho' 
+
+    def get_queryset(self):
+        return filtrar_por_sucursal_y_empresa(Despacho.objects.filter(activo=True), self.request)
+
+    def retrieve(self, request, *args, **kwargs):
+        despacho = self.get_object()
+        empresa = despacho.empresa
+
+        mercancias = Mercancia.activos.filter(id_despacho=despacho).order_by(
+            'id_destino__nombre_ciudad', 
+            'id_cliente__nombre_cliente'  
+        )
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f"Ruta_{despacho.id_despacho}"
+
+        # --- ESTILOS ---
+        bold_font = Font(bold=True)
+        center_aligned = Alignment(horizontal="center", vertical="center")
+        thin_border = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
+        fill_ciudad = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+        fill_totales = PatternFill(start_color="EFEFEF", end_color="EFEFEF", fill_type="solid")
+
+        # --- CABECERA (Ajustada para 8 columnas: de la A a la H) ---
+        ws.merge_cells('A1:B4')
+        ws['A1'] = "LOGO EMPRESA"
+        ws['A1'].font = Font(bold=True, size=16)
+        ws['A1'].alignment = center_aligned
+
+        ws.merge_cells('C1:F4')
+        ws['C1'] = f"Hoja de Ruta - {empresa.nombre_empresa}"
+        ws['C1'].font = Font(bold=True, size=18)
+        ws['C1'].alignment = center_aligned
+
+        ruta_obj = despacho.id_ruta
+        if ruta_obj:
+            codigo = getattr(ruta_obj, 'codigo_ruta', '') or ''
+            nombre = getattr(ruta_obj, 'nombre_ruta', '') or ''
+            ws['H3'] = f"{codigo} - {nombre}".strip(" -")
+        else:
+            ws['H3'] = "N/A"
+
+        conductor = despacho.id_conductor
+        camion = despacho.id_camion
+        rampla = despacho.id_rampla
+
+        ws['A6'] = "Fecha:"
+        ws['B6'] = despacho.fecha_salida_real.strftime('%d/%m/%Y') if despacho.fecha_programada else ""
+        ws['D6'] = "Pte Camión:"
+        ws['E6'] = getattr(camion, 'patente', '')
+
+        ws['A7'] = "Conductor:"
+        ws['B7'] = f"{getattr(conductor, 'nombre_completo', '')} {getattr(conductor, 'apellido', '')}" if conductor else ''
+        ws['D7'] = "Pte Rampla:"
+        ws['E7'] = getattr(rampla, 'patente', 'N/A')
+
+        ws['A8'] = "Rut:"
+        ws['B8'] = formatear_rut(getattr(conductor, 'rut_conductor', '') if conductor else '') 
+        ws['D8'] = "Celular:"
+        ws['E8'] = int(getattr(conductor, 'telefono', '') if conductor else '')
+
+        # --- TABLA DE MERCANCÍAS ---
+        headers = ["Cliente", "Factura", "Cant/Tipo", "Kilos", "CodigoI", "Proveedor", "N° Orden", "Valor"]
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=10, column=col_num)
+            cell.value = header
+            cell.font = bold_font
+            cell.alignment = center_aligned
+            cell.border = thin_border
+
+        row_num = 11
+        ciudad_actual = None 
+        
+        suma_kilos = 0.0
+        suma_valor = 0.0
+
+        for m in mercancias:
+            ciudad_item = getattr(m.id_destino, 'nombre_ciudad', 'Sin Ciudad')
+
+            if ciudad_item != ciudad_actual:
+                ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=8)
+                cell = ws.cell(row=row_num, column=1)
+                cell.value = f"DESTINO: {ciudad_item.upper()}"
+                cell.font = Font(bold=True, size=12, color="000000")
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+                cell.fill = fill_ciudad
+                
+                for col in range(1, 9):
+                    ws.cell(row=row_num, column=col).border = thin_border
+                    
+                row_num += 1 
+                ciudad_actual = ciudad_item 
+
+            kilos_fila = float(m.kg) if m.kg else 0.0
+            valor_fila = float(m.precio_total) if m.precio_total else 0.0
+            
+            suma_kilos += kilos_fila
+            suma_valor += valor_fila
+            
+            cant = m.cantidad_bultos or 1
+            tipo = m.tipo or ''
+            cantidad_y_tipo = f"{cant} {tipo}".strip()
+
+            datos_fila = [
+                getattr(m.id_cliente, 'nombre_cliente', ''),
+                m.factura,
+                cantidad_y_tipo, 
+                kilos_fila, 
+                m.codigo_interno or '',
+                getattr(m.id_proveedor, 'nombre_proveedor', '') if m.id_proveedor else '',
+                m.numero_orden_entrega or 'Sin N/O', 
+                valor_fila
+            ]
+
+            for col_num, dato in enumerate(datos_fila, 1):
+                cell = ws.cell(row=row_num, column=col_num)
+                cell.value = dato
+                cell.border = thin_border
+                if col_num == 8 and isinstance(dato, float):
+                    cell.number_format = '"$"#,##0' 
+            
+            row_num += 1
+
+        ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=3)
+        lbl_totales = ws.cell(row=row_num, column=1)
+        lbl_totales.value = "TOTALES GLOBALES DE LA RUTA:"
+        lbl_totales.font = Font(bold=True)
+        lbl_totales.alignment = Alignment(horizontal="right", vertical="center")
+        lbl_totales.fill = fill_totales
+        
+        for col in range(1, 4):
+            ws.cell(row=row_num, column=col).border = thin_border
+
+        cell_kg = ws.cell(row=row_num, column=4)
+        cell_kg.value = suma_kilos
+        cell_kg.font = Font(bold=True)
+        cell_kg.border = thin_border
+        cell_kg.fill = fill_totales
+        cell_kg.number_format = '#,##0 "kg"' 
+
+        for col in range(5, 8):
+            c_vacia = ws.cell(row=row_num, column=col)
+            c_vacia.border = thin_border
+            c_vacia.fill = fill_totales
+
+        cell_val = ws.cell(row=row_num, column=8)
+        cell_val.value = suma_valor
+        cell_val.font = Font(bold=True)
+        cell_val.border = thin_border
+        cell_val.fill = fill_totales
+        cell_val.number_format = '"$"#,##0' 
+
+        # --- AJUSTE DE ANCHO DE COLUMNAS ---
+        column_widths = {'A': 25, 'B': 15, 'C': 18, 'D': 12, 'E': 15, 'F': 20, 'G': 15, 'H': 15}
+        for col, width in column_widths.items():
+            ws.column_dimensions[col].width = width
+
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="Ruta_{despacho.id_despacho}.xlsx"'
+        wb.save(response)
+        
+        return response
+    
+
+class GenerarOrdenesDespachoAPI(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, id_despacho):
+        empresa = get_empresa_from_user(request)
+        despacho = get_object_or_404(Despacho, id_despacho=id_despacho, empresa=empresa)
+        try:
+            generar_numeros_orden_despacho(despacho)
+            return Response({"mensaje": "Órdenes generadas exitosamente."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 #DJANGO METODO SIN REACT (FUNCIONAL)
 
 

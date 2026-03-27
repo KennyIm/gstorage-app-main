@@ -12,25 +12,26 @@ export default function DespachoList() {
   const [despachos, setDespachos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState(''); // Añadido para filtro local
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sucursales, setSucursales] = useState([]);
   const { logoutUser } = useAuth();
 
   useEffect(() => {
-    const fetchDespachos = async () => {
+    const fetchData = async () => {
       try {
-        const response = await apiClient.get('/api/inventario/despachos/');
-        setDespachos(response.data);
+        const [despRes, sucurRes] = await Promise.all([
+          apiClient.get('/api/inventario/despachos/'),
+          apiClient.get('/api/usuarios/sucursales/')
+        ]);
+        setDespachos(despRes.data);
+        setSucursales(sucurRes.data);
         setLoading(false);
       } catch (err) {
-        if (err.response && err.response.status === 401) {
-          logoutUser();
-        } else {
-          setError('No se pudo cargar la lista de despachos.');
-        }
+        console.error(err);
         setLoading(false);
       }
     };
-    fetchDespachos();
+    fetchData();
   }, []);
 
   const handleDateChange = async (id, newValue) => {
@@ -39,13 +40,12 @@ export default function DespachoList() {
     ));
 
     try {
-      // Enviamos null si el valor está vacío
       await apiClient.patch(`/api/inventario/despachos/${id}/`, {
         fecha_salida_real: newValue || null
       });
     } catch (err) {
       alert("Error al actualizar la fecha. Recargando...");
-      fetchDespachos(); // Revertir si falla
+      fetchDespachos();
     }
   };
 
@@ -172,6 +172,7 @@ export default function DespachoList() {
               <thead className="bg-gray-50/50 text-gray-500 font-medium border-b border-gray-100">
                 <tr>
                   <th className="px-6 py-4">ID / Ruta</th>
+                  <th className="px-6 py-4">Suc</th>
                   <th className="px-6 py-4">Transporte</th>
                   <th className="px-6 py-4">Fecha Programada</th>
                   <th className="px-6 py-4">Salida Real</th>
@@ -181,101 +182,115 @@ export default function DespachoList() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredDespachos.length > 0 ? (
-                  filteredDespachos.map((despacho) => (
-                    <tr key={despacho.id_despacho} className="hover:bg-gray-50/50 transition">
+                  filteredDespachos.map((despacho) => {
 
-                      {/* ID y Ruta */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs">
-                            #{despacho.id_despacho}
-                          </div>
-                          <div>
-                            <div className="font-semibold text-gray-900 flex items-center gap-1.5">
-                              {despacho.id_ruta}
-                            </div>
-                            <span className="text-xs text-gray-500">Ruta Asignada</span>
-                          </div>
-                        </div>
-                      </td>
 
-                      {/* Transporte (Camión + Conductor) */}
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2 text-gray-700">
-                            <Truck className="w-3.5 h-3.5 text-gray-400" />
-                            <span className="font-medium">{despacho.id_camion}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-gray-500 text-xs">
-                            <User className="w-3.5 h-3.5" />
-                            {despacho.id_conductor}
-                          </div>
-                        </div>
-                      </td>
+                    const sucursalObj = sucursales.find(s => s.id === despacho.sucursal_id);
+                    const nombreLugar = sucursalObj ? sucursalObj.ciudad : 'Sin Asignar';
+                    const iniciales = sucursalObj ? nombreLugar.substring(0, 3).toUpperCase() : '---';
 
-                      {/* Fecha */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Calendar className="w-4 h-4 text-gray-400" />
-                          {despacho.fecha_programada}
-                        </div>
-                      </td>
+                return(
+                <tr key={despacho.id_despacho} className="hover:bg-gray-50/50 transition">
 
-                      <td className="px-6 py-4">
-                        <div className="relative">
-                          <input
-                            type="datetime-local"
-                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-gray-700 bg-white shadow-sm cursor-pointer hover:border-gray-400 transition"
-                            value={formatDateForInput(despacho.fecha_salida_real)}
-                            onChange={(e) => handleDateChange(despacho.id_despacho, e.target.value)}
-                          />
-                          {!despacho.fecha_salida_real && (
-                            <div className="absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none">
-                              <span className="flex h-2 w-2 relative">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Estado */}
-                      <td className="px-6 py-4 text-center">
-                        {getStatusBadge(despacho.estado_despacho)}
-                      </td>
-
-                      {/* Acciones */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link
-                            to={`/despachos/${despacho.id_despacho}`}
-                            className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition group"
-                            title="Ver Detalle"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Link>
-                          <Link
-                            to={`/despachos/${despacho.id_despacho}/editar`}
-                            className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                            title="Editar"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center justify-center text-gray-400">
-                        <Truck className="w-12 h-12 mb-3 opacity-20" />
-                        <p className="text-lg font-medium text-gray-900">No se encontraron despachos</p>
-                        <p className="text-sm">Intenta ajustar tu búsqueda o crea un nuevo despacho.</p>
+                  {/* ID y Ruta */}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                        #{despacho.id_despacho}
                       </div>
-                    </td>
-                  </tr>
+                      <div>
+                        <div className="font-semibold text-gray-900 flex items-center gap-1.5">
+                          {despacho.id_ruta}
+                        </div>
+                        <span className="text-xs text-gray-500">Ruta Asignada</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2 text-green-700">
+                        <span className="font-medium">{sucursalObj ? `${iniciales}` : 'Sin Asignar'}</span>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Transporte (Camión + Conductor) */}
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2 text-gray-700">
+                        <Truck className="w-3.5 h-3.5 text-gray-400" />
+                        <span className="font-medium">{despacho.id_camion}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-gray-500 text-xs">
+                        <User className="w-3.5 h-3.5" />
+                        {despacho.id_conductor}
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* Fecha */}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Calendar className="w-4 h-4 text-gray-400" />
+                      {despacho.fecha_programada}
+                    </div>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <div className="relative">
+                      <input
+                        type="datetime-local"
+                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-gray-700 bg-white shadow-sm cursor-pointer hover:border-gray-400 transition"
+                        value={formatDateForInput(despacho.fecha_salida_real)}
+                        onChange={(e) => handleDateChange(despacho.id_despacho, e.target.value)}
+                      />
+                      {!despacho.fecha_salida_real && (
+                        <div className="absolute right-8 top-1/2 -translate-y-1/2 pointer-events-none">
+                          <span className="flex h-2 w-2 relative">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Estado */}
+                  <td className="px-6 py-4 text-center">
+                    {getStatusBadge(despacho.estado_despacho)}
+                  </td>
+
+                  {/* Acciones */}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-end gap-2">
+                      <Link
+                        to={`/despachos/${despacho.id_despacho}`}
+                        className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition group"
+                        title="Ver Detalle"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Link>
+                      <Link
+                        to={`/despachos/${despacho.id_despacho}/editar`}
+                        className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                        title="Editar"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+                  )})
+                ) : (
+                <tr>
+                  <td colSpan="5" className="px-6 py-12 text-center">
+                    <div className="flex flex-col items-center justify-center text-gray-400">
+                      <Truck className="w-12 h-12 mb-3 opacity-20" />
+                      <p className="text-lg font-medium text-gray-900">No se encontraron despachos</p>
+                      <p className="text-sm">Intenta ajustar tu búsqueda o crea un nuevo despacho.</p>
+                    </div>
+                  </td>
+                </tr>
                 )}
               </tbody>
             </table>

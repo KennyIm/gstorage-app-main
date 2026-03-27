@@ -109,6 +109,27 @@ export default function DespachoDetail() {
     }
   };
 
+  const handleDescargarExcel = async (idDespacho) => {
+    try {
+      const response = await apiClient.get(`/api/inventario/despachos/${idDespacho}/excel/`, {
+        responseType: 'blob',
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Hoja_de_Ruta_${idDespacho}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Error al descargar el Excel", err);
+      alert("Hubo un problema al generar la hoja de ruta.");
+    }
+  };
+
   // --- RENDERIZADO ---
 
   if (loading) {
@@ -179,6 +200,12 @@ export default function DespachoDetail() {
             >
               <Printer className="w-5 h-5" />
               Imprimir Órdenes
+            </button>
+            <button
+              onClick={() => handleDescargarExcel(despacho.id_despacho)}
+              className="text-green-600 hover:bg-green-50 p-2 rounded-lg"
+            >
+              Descargar Excel
             </button>
           </div>
         </div>
@@ -315,7 +342,7 @@ export default function DespachoDetail() {
                             <Package className="w-3.5 h-3.5 text-indigo-400" />
                             <span>{m.cantidad_bultos} bultos</span>
                           </div>
-                          <span>{m.kg} kg / {m.m3} m³</span> 
+                          <span>{m.kg} kg / {m.m3} m³</span>
                         </div>
 
                       </div>

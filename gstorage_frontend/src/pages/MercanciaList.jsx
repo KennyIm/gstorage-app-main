@@ -10,6 +10,7 @@ export default function MercanciaList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [despachos, setDespachos] = useState([]);
   const [ubicaciones, setUbicaciones] = useState([]);
+  const [sucursales, setSucursales] = useState([]);
 
   const [mermaTarget, setMermaTarget] = useState(null);
 
@@ -30,15 +31,16 @@ export default function MercanciaList() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [mercRes, despRes, ubicRes, provRes] = await Promise.all([
+        const [mercRes, despRes, ubicRes, sucurRes] = await Promise.all([
           apiClient.get('/api/inventario/mercancias/'),
           apiClient.get('/api/inventario/despachos/'),
-          apiClient.get('/api/inventario/ubicaciones/')
+          apiClient.get('/api/inventario/ubicaciones/'),
+          apiClient.get('/api/usuarios/sucursales/')
         ]);
-        console.log("Lo que Django me está enviando:", mercRes.data[0]);
         setMercancias(mercRes.data);
         setDespachos(despRes.data);
         setUbicaciones(ubicRes.data);
+        setSucursales(sucurRes.data);
         setLoading(false);
       } catch (err) {
         console.error(err);
@@ -83,6 +85,7 @@ export default function MercanciaList() {
   };
 
   const filteredItems = mercancias.filter(item => {
+    console.log(item)
     if (!item) return false;
 
     const term = searchTerm.toLowerCase();
@@ -179,6 +182,7 @@ export default function MercanciaList() {
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Código</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Cliente / Descripción</th>
+                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Suc</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">RUT del Proveedor</th>
                 {/*<th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Ubicación</th>*/}
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Valor</th>
@@ -189,7 +193,10 @@ export default function MercanciaList() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredItems.map((item) => {
+                const sucursalObj = sucursales.find(s => s.id === item.sucursal_id);
 
+                const nombreLugar = sucursalObj ? sucursalObj.ciudad : 'Sin Asignar';
+                const iniciales = sucursalObj ? nombreLugar.substring(0, 3).toUpperCase() : '---';
                 return (
                   <tr key={item.id_mercancia} className="hover:bg-gray-50 transition group">
 
@@ -239,6 +246,11 @@ export default function MercanciaList() {
                     </div>
                   </td>
                   */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm font-bold text-green-700 px-2 py-1">
+                        {sucursalObj ? `${iniciales}` : 'Sin Asignar'}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-bold text-blue-700 px-2 py-1">
                         {item.id_proveedor}

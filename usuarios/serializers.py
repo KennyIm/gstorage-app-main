@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Empresa, Perfil
+from .models import Empresa, Perfil, Sucursal
 from inventario.models import Estanteria
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
@@ -14,7 +14,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
 class PerfilWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Perfil
-        fields = ['empresa', 'telefono', 'rol']
+        fields = ['empresa', 'telefono', 'rol', 'sucursal']
         read_only_fields = ['empresa']
 
     def validate(self, data):
@@ -45,11 +45,13 @@ class EstanteriaSerializer(serializers.ModelSerializer):
 class PerfilReadSerializer(serializers.ModelSerializer):
     empresa = serializers.StringRelatedField() 
     empresa_nombre = serializers.StringRelatedField(source='empresa', read_only=True)
+    sucursal = serializers.StringRelatedField()
+    sucursal_nombre = serializers.StringRelatedField(source='sucursal', read_only=True)
     rol_display = serializers.CharField(source='get_rol_display', read_only=True)
 
     class Meta:
         model = Perfil
-        fields = ['empresa', 'empresa_nombre', 'telefono', 'rol', 'rol_display']
+        fields = ['empresa', 'empresa_nombre', 'telefono', 'rol', 'rol_display','sucursal','sucursal_nombre']
 
 class UserSerializer(serializers.ModelSerializer):
     perfil = PerfilReadSerializer(read_only=True)
@@ -137,3 +139,9 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         user.set_password(self.validated_data['new_password1'])
         user.save()
         return user
+    
+
+class SucursalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Sucursal
+        fields = ['id', 'nombre', 'ciudad', 'empresa']

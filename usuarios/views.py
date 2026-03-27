@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from rest_framework import generics, permissions, viewsets, status
 from django.contrib.auth.models import User
-from .models import Empresa, Perfil
+from .models import Empresa, Perfil, Sucursal
 from inventario.views import get_empresa_from_user
 from .permissions import IsAdminEmpresa
 from rest_framework.response import Response
@@ -22,7 +22,8 @@ from .serializers import (
     RegisterSerializer,
     ChangePasswordSerializer,
     PasswordResetRequestSerializer, 
-    PasswordResetConfirmSerializer
+    PasswordResetConfirmSerializer,
+    SucursalSerializer
 )
 class EmpresaViewSet(viewsets.ModelViewSet):
     queryset = Empresa.objects.all()
@@ -77,14 +78,14 @@ class PerfilUpdateView(generics.UpdateAPIView):
 
         instance = serializer.save(empresa=empresa_admin)
 
-        accion = "Asignación de Rol/Empresa"
+        accion = "Asignación de Rol/Empresa/Sucursal"
         detalle = f"Usuario {instance.user.username} asignado a empresa {empresa_admin.nombre_empresa} con rol {instance.rol}"
 
         HistorialMovimientos.objects.create(
             empresa=empresa_admin,
-            id_mercancia=None, # Es un evento de sistema, no de mercancía
-            id_usuario=admin_user, # El que hizo la acción
-            tipo_movimiento='Modificación Manual', # O puedes crear un tipo 'Gestión Usuarios'
+            id_mercancia=None, 
+            id_usuario=admin_user, 
+            tipo_movimiento='Modificación Manual', 
             descripcion_adicional=detalle
         )
 
@@ -170,3 +171,16 @@ class EmpresaConfigView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return get_empresa_from_user(self.request)
+
+
+class SucursalListAPI(generics.ListAPIView):
+    serializer_class = SucursalSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        usuario = self.request.user
+        try:
+            empresa = usuario.perfil.empresa 
+            return Sucursal.objects.filter(empresa=empresa)
+        except AttributeError:
+            return Sucursal.objects.none()

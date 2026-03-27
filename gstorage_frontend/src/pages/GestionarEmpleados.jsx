@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Users, Search, Plus, Edit, UserX, UserCheck, X, Mail, Lock, Shield, KeyRound } from 'lucide-react';
+import { Users, Search, Plus, Edit, UserX, UserCheck, X, Lock, Shield, KeyRound, Building } from 'lucide-react';
 
 export default function GestionarEmpleados() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // Estados del Modal
+  const [sucursales, setSucursales] = useState([]);
+
   const [showModal, setShowModal] = useState(false);
-  const [editingUser, setEditingUser] = useState(null); // Si es null, es modo CREAR
+  const [editingUser, setEditingUser] = useState(null);
+  
   const [formData, setFormData] = useState({
     username: '',
     first_name: '',
@@ -18,10 +19,11 @@ export default function GestionarEmpleados() {
     email: '',
     password: '',
     role: 'OPERARIO',
+    sucursal: '' 
   });
   const [modalError, setModalError] = useState(null);
 
-  const { user: currentUser } = useAuth(); // Datos del admin actual
+  const { user: currentUser } = useAuth();
 
   // --- CARGA DE DATOS ---
   const fetchUsuarios = async () => {
@@ -36,9 +38,27 @@ export default function GestionarEmpleados() {
     }
   };
 
+  const fetchSucursales = async () => {
+    try {
+      const response = await apiClient.get('/api/usuarios/sucursales/');
+      setSucursales(response.data);
+    } catch (err) {
+      console.error("Error cargando sucursales:", err);
+    }
+  };
+
   useEffect(() => {
     fetchUsuarios();
+    fetchSucursales();
   }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   // --- FILTRADO ---
   const filteredUsers = users.filter(u => {
@@ -54,35 +74,47 @@ export default function GestionarEmpleados() {
     setModalError(null);
     if (userToEdit) {
       setEditingUser(userToEdit);
+      
+      const nombreSuc = userToEdit.perfil?.sucursal_nombre || userToEdit.perfil?.sucursal;
+      const sucursalObj = sucursales.find(s => s.nombre === nombreSuc);
+      const idSucursal = sucursalObj ? sucursalObj.id : '';
+
       setFormData({
         username: userToEdit.username,
         first_name: userToEdit.first_name,
         last_name: userToEdit.last_name,
         email: userToEdit.email,
-        password: '', 
-        role: userToEdit.perfil?.rol || 'OPERARIO'
+        password: '',
+        role: userToEdit.perfil?.rol || 'OPERARIO',
+        sucursal: idSucursal || "",
       });
     } else {
       setEditingUser(null);
+      const defaultSucursal = sucursales.length > 0 ? sucursales[0].id : '';
       setFormData({
-        username: '', first_name: '', last_name: '', email: '', password: '', role: 'OPERARIO'
+        username: '', first_name: '', last_name: '', email: '', password: '', role: 'OPERARIO', sucursal: defaultSucursal
       });
     }
     setShowModal(true);
   };
 
-  // --- LÓGICA DE GUARDADO (CREAR/EDITAR) ---
+  // --- LÓGICA DE GUARDADO ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setModalError(null);
 
+    if (!formData.sucursal) {
+      setModalError("Debes asignar una sucursal a este empleado.");
+      return;
+    }
+
     try {
       if (editingUser) {
         await apiClient.patch(`/api/usuarios/perfil/${editingUser.id}/`, {
-        rol: formData.role
+          rol: formData.role,
+          sucursal: formData.sucursal
         });
       } else {
-        // CREAR NUEVO
         const res = await apiClient.post('/api/usuarios/register/', {
           username: formData.username,
           password: formData.password,
@@ -90,14 +122,15 @@ export default function GestionarEmpleados() {
           first_name: formData.first_name,
           last_name: formData.last_name
         });
-        
+
         const newUserId = res.data.id;
-        await apiClient.put(`/api/usuarios/perfil/${newUserId}/`, {
+        await apiClient.patch(`/api/usuarios/perfil/${newUserId}/`, {
           empresa: currentUser.perfil.empresa,
-          rol: formData.role
+          rol: formData.role,
+          sucursal: formData.sucursal 
         });
       }
-      
+
       setShowModal(false);
       fetchUsuarios();
     } catch (err) {
@@ -105,15 +138,10 @@ export default function GestionarEmpleados() {
       if (err.response?.data) {
         const errorData = err.response.data;
         const errorMessages = Object.keys(errorData).map(key => {
-          const messages = Array.isArray(errorData[key]) 
-            ? errorData[key].join(' ') 
-            : errorData[key];
-            
+          const messages = Array.isArray(errorData[key]) ? errorData[key].join(' ') : errorData[key];
           if (key === 'detail' || key === 'non_field_errors') return messages;
-          
           return `${key}: ${messages}`;
         }).join('\n');
-
         setModalError(errorMessages);
       } else {
         setModalError("Ocurrió un error al guardar. Intente nuevamente.");
@@ -127,14 +155,14 @@ export default function GestionarEmpleados() {
     if (!window.confirm(`¿Seguro que deseas ${action} a ${user.username}?`)) return;
 
     try {
-        if (user.is_active) {
-            await apiClient.delete(`/api/usuarios/users/${user.id}/`);
-        } else {
-            await apiClient.patch(`/api/usuarios/users/${user.id}/`, { is_active: true });
-        }
-        fetchUsuarios();
+      if (user.is_active) {
+        await apiClient.delete(`/api/usuarios/users/${user.id}/`);
+      } else {
+        await apiClient.patch(`/api/usuarios/users/${user.id}/`, { is_active: true });
+      }
+      fetchUsuarios();
     } catch (err) {
-        alert("Error al cambiar el estado.");
+      alert("Error al cambiar el estado.");
     }
   };
 
@@ -166,7 +194,6 @@ export default function GestionarEmpleados() {
       </div>
 
       <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
-        {/* BARRA DE HERRAMIENTAS */}
         <div className="flex flex-col md:flex-row gap-4 mb-6">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -187,7 +214,6 @@ export default function GestionarEmpleados() {
           </button>
         </div>
 
-        {/* TABLA DE USUARIOS */}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -195,6 +221,7 @@ export default function GestionarEmpleados() {
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Usuario</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Email</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Rol</th>
+                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Sucursal</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Estado</th>
                 <th className="text-right py-4 px-4 text-sm font-semibold text-gray-600">Acciones</th>
               </tr>
@@ -205,6 +232,7 @@ export default function GestionarEmpleados() {
                 const targetIsOwner = u.perfil?.rol === 'DUENO';
                 const iamOwner = currentUser.perfil?.rol === 'DUENO';
                 const canEdit = !isMe && (iamOwner || !targetIsOwner);
+                const nombreSucursal = u.perfil?.sucursal_nombre || u.perfil?.sucursal || 'Sin Asignar';
 
                 return (
                   <tr key={u.id} className={`border-b border-gray-100 hover:bg-gray-50 transition ${!u.is_active ? 'bg-gray-50/50 opacity-60' : ''}`}>
@@ -221,23 +249,23 @@ export default function GestionarEmpleados() {
                     </td>
                     <td className="py-4 px-4 text-gray-600">{u.email}</td>
                     <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        u.perfil?.rol === 'DUENO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
-                      }`}>
-                        {u.perfil?.rol_display || 'Sin Rol'}
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${u.perfil?.rol === 'DUENO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {u.perfil?.rol_display || u.perfil?.rol || 'Sin Rol'}
                       </span>
                     </td>
                     <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                      }`}>
+                      <div className="flex items-center gap-1.5 text-gray-600">
+                        <Building className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm">{nombreSucursal}</span>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {u.is_active ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center justify-end gap-2">
-                        
-                        {/* Botón Editar Rol */}
                         <button
                           onClick={() => handleOpenModal(u)}
                           disabled={!canEdit}
@@ -246,8 +274,6 @@ export default function GestionarEmpleados() {
                         >
                           <Edit className="w-4 h-4" />
                         </button>
-                        
-                        {/* Botón Reset Password */}
                         <button
                           onClick={() => handleAdminPasswordReset(u.id, u.username)}
                           disabled={!canEdit || !u.is_active}
@@ -256,20 +282,16 @@ export default function GestionarEmpleados() {
                         >
                           <KeyRound className="w-4 h-4" />
                         </button>
-
-                        {/* Botón Activar/Desactivar */}
                         <button
                           onClick={() => handleToggleStatus(u)}
                           disabled={!canEdit}
-                          className={`p-2 rounded-lg transition ${
-                            !canEdit ? 'text-gray-300 cursor-not-allowed' :
+                          className={`p-2 rounded-lg transition ${!canEdit ? 'text-gray-300 cursor-not-allowed' :
                             u.is_active ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'
-                          }`}
+                            }`}
                           title={u.is_active ? 'Desactivar' : 'Activar'}
                         >
                           {u.is_active ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                         </button>
-
                       </div>
                     </td>
                   </tr>
@@ -280,7 +302,6 @@ export default function GestionarEmpleados() {
         </div>
       </div>
 
-      {/* MODAL FORMULARIO */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 animate-in fade-in zoom-in duration-200">
@@ -300,60 +321,84 @@ export default function GestionarEmpleados() {
                 <>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                        <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                            value={formData.first_name} onChange={e => setFormData({...formData, first_name: e.target.value})} required />
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                      <input type="text" name="first_name" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                        value={formData.first_name} onChange={handleChange} required />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Apellido</label>
-                        <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                            value={formData.last_name} onChange={e => setFormData({...formData, last_name: e.target.value})} required />
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Apellido</label>
+                      <input type="text" name="last_name" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                        value={formData.last_name} onChange={handleChange} required />
                     </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Usuario (Login)</label>
-                    <input type="text" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                        value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} required />
+                    <input type="text" name="username" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={formData.username} onChange={handleChange} required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                    <input type="email" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                        value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
+                    <input type="email" name="email" className="w-full px-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={formData.email} onChange={handleChange} required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
                     <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input type="password" className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                            value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} required />
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input type="password" name="password" className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                        value={formData.password} onChange={handleChange} required />
                     </div>
                   </div>
                 </>
               )}
 
               {editingUser && (
-                  <div className="p-4 bg-gray-50 rounded-lg mb-4">
-                      <p className="text-sm text-gray-500">Usuario</p>
-                      <p className="font-medium text-gray-900">{editingUser.first_name} {editingUser.last_name}</p>
-                      <p className="text-sm text-gray-500 mt-2">Email</p>
-                      <p className="font-medium text-gray-900">{editingUser.email}</p>
-                  </div>
+                <div className="p-4 bg-gray-50 rounded-lg mb-4">
+                  <p className="text-sm text-gray-500">Usuario</p>
+                  <p className="font-medium text-gray-900">{editingUser.first_name} {editingUser.last_name}</p>
+                  <p className="text-sm text-gray-500 mt-2">Email</p>
+                  <p className="font-medium text-gray-900">{editingUser.email}</p>
+                </div>
               )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rol Asignado</label>
-                <div className="relative">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Rol Asignado</label>
+                  <div className="relative">
                     <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <select
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 appearance-none bg-white"
-                        value={formData.role}
-                        onChange={e => setFormData({...formData, role: e.target.value})}
+                      name="role"
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 appearance-none bg-white"
+                      value={formData.role}
+                      onChange={handleChange}
                     >
-                        <option value="OPERARIO">Operario</option>
-                        <option value="JEFE_BODEGA">Jefe de Bodega</option>
-                        <option value="SECRETARIA">Secretaria</option>
-                        <option value="DUENO">Dueño</option>
+                      <option value="OPERARIO">Operario</option>
+                      <option value="JEFE_BODEGA">Jefe de Bodega</option>
+                      <option value="SECRETARIA">Secretaria</option>
+                      <option value="DUENO">Dueño</option>
                     </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sucursal</label>
+                  <div className="relative">
+                    <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <select
+                      name="sucursal" 
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 appearance-none bg-white"
+                      value={formData.sucursal} 
+                      onChange={handleChange}
+                      required
+                    >
+                      <option value="" disabled hidden>Selecciona sucursal...</option>
+                      {sucursales.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 

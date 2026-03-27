@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -9,11 +9,24 @@ export default function CrearUsuario() {
     password: '',
     email: '',
     first_name: '',
-    last_name: ''
+    last_name: '',
+    sucursal_id: '' 
   });
+  const [sucursales, setSucursales] = useState([]); 
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const { user } = useAuth(); 
+  useEffect(() => {
+    const fetchSucursales = async () => {
+      try {
+        const response = await apiClient.get('/api/inventario/sucursales/'); 
+        setSucursales(response.data);
+      } catch (err) {
+        console.error("Error cargando sucursales:", err);
+      }
+    };
+    fetchSucursales();
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -27,16 +40,26 @@ export default function CrearUsuario() {
         setError("Error: Tu cuenta de administrador no está asignada a ninguna empresa.");
         return;
     }
+    if (!formData.sucursal_id) {
+        setError("Por favor, selecciona una sucursal para este empleado.");
+        return;
+    }
 
     try {
-      const response = await apiClient.post('/api/usuarios/register/', formData);
+      const response = await apiClient.post('/api/usuarios/register/', {
+        username: formData.username,
+        password: formData.password,
+        email: formData.email,
+        first_name: formData.first_name,
+        last_name: formData.last_name
+      });
       
       const newUserId = response.data.id; 
       const empresaId = user.perfil.empresa;
-      
       await apiClient.put(`/api/usuarios/perfil/${newUserId}/`, {
         empresa: empresaId,
-        rol: 'OPERARIO' 
+        rol: 'OPERARIO',
+        sucursal: formData.sucursal_id 
       });
       navigate('/gestionar-empleados');
 
@@ -130,6 +153,24 @@ export default function CrearUsuario() {
               onChange={handleChange}
             />
           </div>
+        </div>
+        <div className="mb-4">
+          <label htmlFor="sucursal_id" className="form-label font-weight-bold text-primary">Asignar Sucursal</label>
+          <select
+            id="sucursal_id"
+            name="sucursal_id"
+            className="form-select border-primary"
+            value={formData.sucursal_id}
+            onChange={handleChange}
+            required
+          >
+            <option value="">Selecciona una sucursal...</option>
+            {sucursales.map(sucursal => (
+              <option key={sucursal.id} value={sucursal.id}>
+                {sucursal.nombre} ({sucursal.ciudad})
+              </option>
+            ))}
+          </select>
         </div>
         
         <button type="submit" className="btn btn-primary">Crear Empleado</button>

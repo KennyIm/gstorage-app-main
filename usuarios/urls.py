@@ -16,4 +16,5 @@ urlpatterns = [
     path('password-reset/', views.PasswordResetRequestView.as_view(), name='password_reset_request'),
     path('password-reset/confirm/', views.PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
     path('empresa/config/', views.EmpresaConfigView.as_view(), name='empresa_config'),
+    path('sucursales/', views.SucursalListAPI.as_view(), name='listar-sucursales'),
 ]

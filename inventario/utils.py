@@ -1,6 +1,7 @@
 from django.utils import timezone
 from datetime import timedelta
-from .models import Despacho, Camion, HistorialMovimientos
+from .models import Despacho, Camion, HistorialMovimientos, Mercancia
+import math
 
 def actualizar_estados_automaticos(empresa):
     now = timezone.now()
@@ -77,3 +78,74 @@ def registrar_auditoria(empresa, usuario, modelo, accion, descripcion, mercancia
         )
     except Exception as e:
         print(f"Error al registrar auditoría: {e}")
+
+def generar_numeros_orden_despacho(despacho):
+    mercancias = Mercancia.activos.filter(id_despacho=despacho).order_by(
+        'id_destino__nombre_ciudad', 
+        'id_cliente__nombre_cliente'
+    )
+
+    if not mercancias.exists():
+        return
+
+    grupos = {}
+    
+    for m in mercancias:
+        cliente_id = m.id_cliente.id_cliente if m.id_cliente else 0
+        destino_id = m.id_destino.id_destino if m.id_destino else 0
+        
+        clave = f"{cliente_id}_{destino_id}"
+        
+        if clave not in grupos:
+            grupos[clave] = {
+                'normales': [],
+                'proveedor': []
+            }
+            
+        if getattr(m, 'paga_proveedor', False):
+            grupos[clave]['proveedor'].append(m)
+        else:
+            grupos[clave]['normales'].append(m)
+
+    origen = getattr(despacho, 'origen', 'Santiago')
+    inicial_origen = str(origen)[0].upper() if origen else 'S'
+    ruta_obj = getattr(despacho, 'id_ruta', None)
+    numero_ruta = getattr(ruta_obj, 'codigo_ruta', None)
+    
+    if not numero_ruta:
+        numero_ruta = getattr(despacho, 'numero_correlativo', despacho.id_despacho) or despacho.id_despacho
+    
+    orden_index = 1
+    mercancias_a_actualizar = []
+
+    def procesar_lista(lista_cargas, es_proveedor, index_actual, destino_nombre):
+        if not lista_cargas:
+            return
+            
+        inicial_destino = str(destino_nombre)[0].upper() if destino_nombre else 'I'
+        sufijo = "-P" if es_proveedor else ""
+        total_items = len(lista_cargas)
+        total_paginas = math.ceil(total_items / 10.0)
+
+        for idx, m in enumerate(lista_cargas):
+            pagina_actual = (idx // 10) + 1
+            
+            if total_paginas > 1:
+                codigo = f"{inicial_origen}{numero_ruta}-{index_actual}-{pagina_actual}{inicial_destino}{sufijo}"
+            else:
+                codigo = f"{inicial_origen}{numero_ruta}-{index_actual}{inicial_destino}{sufijo}"
+            
+            m.numero_orden_entrega = codigo
+            mercancias_a_actualizar.append(m)
+
+    for clave, data in grupos.items():
+        todas = data['normales'] + data['proveedor']
+        destino_str = getattr(todas[0].id_destino, 'nombre_ciudad', 'Iquique') if todas else 'Iquique'
+        
+        procesar_lista(data['normales'], False, orden_index, destino_str)
+        procesar_lista(data['proveedor'], True, orden_index, destino_str)
+        
+        orden_index += 1
+
+    if mercancias_a_actualizar:
+        Mercancia.objects.bulk_update(mercancias_a_actualizar, ['numero_orden_entrega'])

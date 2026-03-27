@@ -58,7 +58,6 @@ export default function OrdenEntregaPlantilla() {
                     return acc;
                 }, {});
                 const paginasCalculadas = [];
-                let ordenIncremental = 1;
 
                 Object.keys(gruposPorClienteYDestino).forEach(claveGrupo => {
                     const cargasTotales = gruposPorClienteYDestino[claveGrupo];
@@ -89,14 +88,12 @@ export default function OrdenEntregaPlantilla() {
                                 paginaActual: numPaginaActual,
                                 totalPaginas: totalPaginas,
                                 esUltimaPaginaDelCliente: numPaginaActual === totalPaginas,
-                                ordenIndex: ordenIncremental,
                                 esPagaProveedor: esPagaProveedor
                             });
                         }
                     };
                     procesarChunks(cargasCliente, false);
                     procesarChunks(cargasProveedor, true);
-                    ordenIncremental++;
                 });
 
                 setPaginas(paginasCalculadas);
@@ -143,6 +140,21 @@ export default function OrdenEntregaPlantilla() {
         return ramplaEncontrada ? ` | Rampla: ${ramplaEncontrada.patente}` : '';
     };
 
+    const handleGenerarOrdenes = async () => {
+        if (!window.confirm("¿Seguro que deseas fijar los Números de Orden para este despacho? Una vez generados, quedarán guardados.")) return;
+
+        try {
+            setLoading(true);
+            await apiClient.post(`/api/inventario/despachos/${id}/generar-ordenes/`);
+            alert("¡Números de Orden generados con éxito!");
+            window.location.reload();
+        } catch (err) {
+            console.error(err);
+            alert("Hubo un error al generar las órdenes.");
+            setLoading(false);
+        }
+    };
+
     const generarPDF = useReactToPrint({
         contentRef: componenteRef,
         documentTitle: `Orden_Entrega_Ruta_${id}`,
@@ -179,6 +191,12 @@ export default function OrdenEntregaPlantilla() {
                 <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-600 hover:text-indigo-600 font-medium transition">
                     <ArrowLeft className="w-5 h-5" /> Volver al Despacho
                 </button>
+                <button
+                    onClick={handleGenerarOrdenes}
+                    className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-2.5 rounded-xl shadow-md hover:bg-indigo-700 font-bold transition"
+                >
+                    Generar N° de Órdenes
+                </button>
                 <button onClick={generarPDF} className="flex items-center gap-2 bg-slate-900 text-white px-6 py-2.5 rounded-xl shadow-md hover:bg-slate-800 font-bold transition">
                     <Printer className="w-5 h-5" /> Imprimir Documento
                 </button>
@@ -188,17 +206,7 @@ export default function OrdenEntregaPlantilla() {
             <div ref={componenteRef} className="print:w-[210mm] mx-auto">
                 {paginas.map((pagina, index) => {
                     const isLastPageGlobal = index === paginas.length - 1;
-                    const inicialOrigen = (despacho?.origen || 'Santiago').charAt(0).toUpperCase();
-                    const inicialDestino = (pagina.destino || 'Iquique').charAt(0).toUpperCase();
-                    const numeroRuta = despacho?.numero_correlativo || id;
-                    const sufijo = pagina.esPagaProveedor ? '-P' : '';
-                    let codigoOrden = '';
-                    if (pagina.totalPaginas > 1) {
-                        codigoOrden = `${inicialOrigen}${numeroRuta}-${pagina.ordenIndex}-${pagina.paginaActual}${inicialDestino}${sufijo}`;
-                    } else {
-                        codigoOrden = `${inicialOrigen}${numeroRuta}-${pagina.ordenIndex}${inicialDestino}${sufijo}`;
-                    }
-
+                    const codigoOrden = pagina.cargas.length > 0 ? pagina.cargas[0].numero_orden_entrega : 'Sin N/O';
                     return (
                         <React.Fragment key={`pagina-wrapper-${index}`}>
                             {index > 0 && <div className="saltopagina" style={{ pageBreakBefore: 'always' }}></div>}

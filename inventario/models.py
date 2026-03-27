@@ -2,7 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User 
 from django.db.models import Q
 from django.conf import settings
-from usuarios.models import Empresa
+from usuarios.models import Empresa, Sucursal
 
 # --- Modelos de Catálogo ---
 
@@ -54,7 +54,6 @@ class RamplaManager(models.Manager):
     def get_queryset(self):
         return super().get_queryset().filter(activo=True)
     
-
 class Proveedor(models.Model):
     rut = models.CharField(max_length=20, primary_key=True, verbose_name="RUT del Proveedor")
     nombre_proveedor = models.CharField(max_length=150, verbose_name="Nombre / Razón Social")
@@ -153,6 +152,8 @@ class Rampla(models.Model):
 
 class Ruta(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="rutas")
+    sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE)
+    codigo_ruta = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="Código de Ruta")
     id_ruta = models.AutoField(primary_key=True)
     nombre_ruta = models.CharField(max_length=100, unique=True, verbose_name="Nombre de Ruta")
     descripcion = models.TextField(null=True, blank=True, verbose_name="Descripción")
@@ -161,6 +162,8 @@ class Ruta(models.Model):
     activos = RutaManager()
 
     def __str__(self):
+        if self.codigo_ruta:
+            return f"{self.codigo_ruta} - {self.nombre_ruta}"
         return self.nombre_ruta
 
 class Destino(models.Model):
@@ -179,6 +182,7 @@ class Destino(models.Model):
 
 class Estanteria(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='estanterias')
+    sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE)
     codigo_estanteria = models.CharField(max_length=50, unique=True, verbose_name="Código de Estantería")
     
     # Coordenadas 3D donde empieza esta estantería
@@ -216,6 +220,7 @@ class Estanteria(models.Model):
   
 class Ubicacion(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='ubicaciones')
+    sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE)
     codigo_ubicacion = models.CharField(max_length=50, unique=True, verbose_name="Código de Ubicación")
     id_ubicacion = models.AutoField(primary_key=True)
     estanteria = models.ForeignKey(Estanteria, on_delete=models.SET_NULL, null=True, blank=True, related_name='ubicaciones_en_estanteria')
@@ -260,6 +265,7 @@ class Despacho(models.Model):
     ('Tocopilla', 'Tocopilla')
     ]
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="despachos")
+    sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE)
     id_despacho = models.AutoField(primary_key=True)
     fecha_programada = models.DateField(verbose_name="Fecha Programada")
     fecha_salida_real = models.DateTimeField(null=True, blank=True, verbose_name="Fecha Salida Real")
@@ -301,6 +307,7 @@ class Mercancia(models.Model):
         ('Merma', 'Merma'),
     ]
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="mercancias")
+    sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE)
     id_mercancia = models.AutoField(primary_key=True)
     descripcion_carga = models.TextField(null=True, blank=True, verbose_name="Descripción")
     cantidad_bultos = models.IntegerField(default=1, verbose_name="Cantidad de Bultos")
@@ -321,6 +328,7 @@ class Mercancia(models.Model):
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='En Bodega', verbose_name="Estado")
     motivo_baja = models.TextField(null=True, blank=True, verbose_name="Motivo de Baja/Merma")
     paga_proveedor = models.BooleanField(default=False, verbose_name="¿Paga Proveedor?")
+    numero_orden_entrega = models.CharField(max_length=50, null=True, blank=True)
 
     id_usuario_creacion = models.ForeignKey(User, related_name='mercancias_creadas', on_delete=models.PROTECT, verbose_name="Usuario Creación", null=True, blank=True)
     id_usuario_ultima_modificacion = models.ForeignKey(User, related_name='mercancias_modificadas', on_delete=models.PROTECT, null=True, blank=True, verbose_name="Usuario Modificación")
@@ -349,6 +357,7 @@ class HistorialMovimientos(models.Model):
         ('Borrado Lógico', 'Borrado Lógico'),
     ]
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="historial_movimientos")
+    sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE, null=True, blank=True)
     id_historial = models.AutoField(primary_key=True)
     id_mercancia = models.ForeignKey(Mercancia, on_delete=models.CASCADE, related_name="historial", null=True, blank=True)
     id_usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
@@ -382,6 +391,7 @@ class HistorialMovimientos(models.Model):
 
 class ReporteGenerado(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE)
+    sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     tipo = models.CharField(max_length=50) 
     formato = models.CharField(max_length=10) 
@@ -394,6 +404,7 @@ class ReporteGenerado(models.Model):
     
 class AreaRestringida(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='areas_restringidas')
+    sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE)
     nombre = models.CharField(max_length=100, verbose_name="Nombre (Ej: Oficina)")
     
     # Posición (Esquina superior izquierda del área)

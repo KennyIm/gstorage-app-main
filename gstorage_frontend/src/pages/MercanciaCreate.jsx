@@ -278,7 +278,7 @@ export default function MercanciaCreate() {
                     <NotebookPen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-700 pointer-events-none" />
                     <input
                       type="text"
-                      name="factura"
+                      name="tipo"
                       value={formData.tipo}
                       onChange={handleChange}
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
