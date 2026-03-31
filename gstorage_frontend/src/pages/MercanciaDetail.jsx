@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import {
   ArrowLeft, Edit, Trash2, Package, MapPin, User,
   Calendar, Activity, Truck, Scale, Box, FileText,
-  Loader2, AlertCircle, Info, DollarSign
+  Loader2, AlertCircle, Info, DollarSign, Warehouse
 } from 'lucide-react';
 
 export default function MercanciaDetail() {
@@ -15,6 +15,7 @@ export default function MercanciaDetail() {
   const [clientes, setClientes] = useState([]);
   const [destinos, setDestinos] = useState([]);
   const [ubicaciones, setUbicaciones] = useState([]);
+  const [sucursales, setSucursales] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,15 +29,17 @@ export default function MercanciaDetail() {
       try {
         const mercanciaRes = await apiClient.get(`/api/inventario/mercancias/${id}/`);
         setMercancia(mercanciaRes.data);
-        const [clientesRes, destinosRes, ubicacionesRes] = await Promise.all([
+        const [clientesRes, destinosRes, ubicacionesRes, sucursalesRes] = await Promise.all([
           apiClient.get('/api/inventario/clientes/'),
           apiClient.get('/api/inventario/destinos/'),
-          apiClient.get('/api/inventario/ubicaciones/')
+          apiClient.get('/api/inventario/ubicaciones/'),
+          apiClient.get('/api/usuarios/sucursales/')
         ]);
 
         setClientes(clientesRes.data);
         setDestinos(destinosRes.data);
         setUbicaciones(ubicacionesRes.data);
+        setSucursales(sucursalesRes.data);
 
         setLoading(false);
       } catch (err) {
@@ -69,6 +72,12 @@ export default function MercanciaDetail() {
     const ubicacion = ubicaciones.find(u => u.id_ubicacion === id);
     return ubicacion ? ubicacion.codigo_ubicacion : `ID: ${id}`;
   };
+
+  const getNombreSucursal = (id) => {
+    if (!id) return 'Sin sucursal';
+    const sucursal = sucursales.find(s => String(s.id) === String(id));
+    return sucursal ? sucursal.nombre : `Suc ${id}`
+  }
 
   const handleDelete = async () => {
     if (window.confirm(`¿Estás seguro de que deseas eliminar el Lote #${mercancia?.id_mercancia}?`)) {
@@ -194,7 +203,7 @@ export default function MercanciaDetail() {
                   <div className="p-4 border border-emerald-100 rounded-lg text-center hover:border-emerald-200 transition bg-emerald-50">
                     <DollarSign className="w-5 h-5 text-emerald-500 mx-auto mb-2" />
                     <span className="block text-xl font-bold text-emerald-700">
-                      ${parseFloat(mercancia.precio_total || 0).toFixed(0)}
+                      ${parseFloat(mercancia.precio_total || 0).toLocaleString('es-CL')}
                     </span>
                     <span className="text-xs text-emerald-600 font-medium">Valor Total</span>
                   </div>
@@ -211,6 +220,13 @@ export default function MercanciaDetail() {
                       {mercancia.factura || "Sin Asignar"}
                     </span>
                     <span className="text-xs text-amber-600 font-medium">Factura</span>
+                  </div>
+                  <div className="p-4 border border-cyan-100 rounded-lg text-center hover:border-cyan-200 transition bg-cyan-50">
+                    <Warehouse className="w-5 h-5 text-cyan-500 mx-auto mb-2" />
+                    <span className="block text-sm font-bold text-gray-600">
+                      {getNombreSucursal(mercancia.sucursal_id).replace('Sucursal ', '')}
+                    </span>
+                    <span className="text-xs text-cyan-600 font-medium">Sucursal</span>
                   </div>
                 </div>
 

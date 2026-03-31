@@ -1,18 +1,24 @@
 from django.shortcuts import render
+import os
+from django.conf import settings
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
+from rest_framework.pagination import PageNumberPagination
 from rest_framework import generics, permissions
 from django.db.models import Count
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
 from datetime import datetime, timedelta
+from django.utils import timezone
 from rest_framework.views import APIView     
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from .utils import actualizar_estados_automaticos, registrar_auditoria, generar_numeros_orden_despacho
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+from openpyxl.drawing.image import Image as ExcelImage
+from openpyxl.worksheet.page import PageMargins
 from django.http import HttpResponse
 from rest_framework import status
 from django.shortcuts import get_object_or_404
@@ -786,15 +792,22 @@ class EstanteriaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             Ubicacion.objects.bulk_create(ubicaciones_crear)
     
 
+class HistorialPagination(PageNumberPagination):
+    page_size = 25  
+    page_size_query_param = 'page_size'
+    max_page_size = 50
+
 class HistorialListAPI(generics.ListAPIView):
     serializer_class = HistorialSerializer
-    permission_classes = [permissions.IsAuthenticated ,IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    pagination_class = HistorialPagination # 👈 Le inyectamos el paginador directamente
 
     def get_queryset(self):
-        return filtrar_por_sucursal_y_empresa(HistorialMovimientos.objects.all(), self.request).order_by('-fecha_hora_movimiento')
+        qs = HistorialMovimientos.objects.all()
+        return filtrar_por_sucursal_y_empresa(qs, self.request).order_by('-fecha_hora_movimiento')
 
 class DashboardStatsAPI(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega] # Asumo que IsJefeDeBodega ya lo tienes importado
 
     def get(self, request, format=None):
         empresa = get_empresa_from_user(request)
@@ -823,14 +836,31 @@ class DashboardStatsAPI(APIView):
             {'name': item['estado'], 'value': item['cantidad']} 
             for item in estado_counts
         ]
-        movements_data = [
-            {'mes': 'Jun', 'despachos': 12},
-            {'mes': 'Jul', 'despachos': 19},
-            {'mes': 'Ago', 'despachos': 15},
-            {'mes': 'Sep', 'despachos': 25},
-            {'mes': 'Oct', 'despachos': 22},
-            {'mes': 'Nov', 'despachos': despachos_activos + 5}, 
-        ]
+
+        MESES_ESP = {
+            1: 'Ene', 2: 'Feb', 3: 'Mar', 4: 'Abr', 5: 'May', 6: 'Jun',
+            7: 'Jul', 8: 'Ago', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dic'
+        }
+        
+        movements_data = []
+        hoy = timezone.now().date()
+        
+        for i in range(5, -1, -1):
+            mes_target = hoy.month - i
+            ano_target = hoy.year
+            
+            if mes_target <= 0:
+                mes_target += 12
+                ano_target -= 1
+            total_mes = qs_despachos.filter(
+                fecha_programada__year=ano_target,
+                fecha_programada__month=mes_target
+            ).count()
+            
+            movements_data.append({
+                'mes': MESES_ESP[mes_target],
+                'despachos': total_mes
+            })
 
         proximos_despachos = qs_despachos.filter(
             estado_despacho__in=['Programado', 'En Carga']
@@ -841,25 +871,44 @@ class DashboardStatsAPI(APIView):
             bultos = qs_mercancia.filter(id_despacho=d).count()
             despachos_list.append({
                 'id': d.id_despacho,
-                'ruta': d.id_ruta.nombre_ruta,
-                'camion': d.id_camion.patente,
-                'fecha': d.fecha_programada.strftime('%d/%m'),
+                'ruta': getattr(d.id_ruta, 'nombre_ruta', 'Sin Ruta'), # Protegemos por si es null
+                'camion': getattr(d.id_camion, 'patente', 'Sin Asignar'),
+                'fecha': d.fecha_programada.strftime('%d/%m') if d.fecha_programada else 'N/A',
                 'estado': d.estado_despacho,
                 'bultos': bultos
             })
 
         top_clientes_qs = qs_mercancia.values('id_cliente__nombre_cliente').annotate(cantidad=Count('id_mercancia')).order_by('-cantidad')[:5]
         top_clientes = [
-            {'name': item['id_cliente__nombre_cliente'], 'value': item['cantidad']}
+            {'name': item['id_cliente__nombre_cliente'] or 'Sin Cliente', 'value': item['cantidad']}
             for item in top_clientes_qs
+        ]
+
+        top_destinos_qs = qs_mercancia.exclude(id_destino__isnull=True).values('id_destino__nombre_ciudad').annotate(cantidad=Count('id_mercancia')).order_by('-cantidad')[:5]
+        top_destinos = [
+            {'name': item['id_destino__nombre_ciudad'], 'value': item['cantidad']}
+            for item in top_destinos_qs
         ]
 
         totales = qs_mercancia.filter(estado='En Bodega').aggregate(
             total_kg=Sum('kg'),
-            total_m3=Sum('m3')
+            total_m3=Sum('m3'),
+            valor_total=Sum('precio_total') 
         )
         total_kg = totales['total_kg'] or 0
         total_m3 = totales['total_m3'] or 0
+        valor_total = totales['valor_total'] or 0
+
+        alertas = []
+        
+        if porcentaje_ocupacion >= 90:
+            alertas.append({"tipo": "critico", "titulo": "Bodega Saturada", "mensaje": f"La capacidad ha alcanzado un {porcentaje_ocupacion}%. Se requiere liberar espacio urgente."})
+        elif porcentaje_ocupacion >= 75:
+            alertas.append({"tipo": "advertencia", "titulo": "Alta Ocupación", "mensaje": f"La ocupación está en {porcentaje_ocupacion}%. Planee despachos pronto."})
+            
+        despachos_atrasados = qs_despachos.filter(estado_despacho='Programado', fecha_programada__lt=timezone.now().date()).count()
+        if despachos_atrasados > 0:
+            alertas.append({"tipo": "critico", "titulo": "Despachos Atrasados", "mensaje": f"Existen {despachos_atrasados} despachos programados para fechas pasadas que no han salido."})
 
         data = {
             'metrics': {
@@ -868,12 +917,15 @@ class DashboardStatsAPI(APIView):
                 'ocupacion': porcentaje_ocupacion,
                 'total_historico': total_historico,
                 'total_kg': total_kg,
-                'total_m3': total_m3
+                'total_m3': total_m3,
+                'valor_total': valor_total 
             },
+            'alertas': alertas,
             'distribution_data': distribution_data,
             'movements_data': movements_data,
             'despachos_list': despachos_list,
             'top_clientes': top_clientes,
+            'top_destinos': top_destinos,
         }
         
         return Response(data)
@@ -1007,25 +1059,47 @@ class GenerarHojaRutaExcelAPI(generics.RetrieveAPIView):
             left=Side(style='thin'), right=Side(style='thin'),
             top=Side(style='thin'), bottom=Side(style='thin')
         )
+        left_aligned = Alignment(horizontal="left", vertical="center")
+        right_aligned = Alignment(horizontal="right", vertical="center")
         fill_ciudad = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
         fill_totales = PatternFill(start_color="EFEFEF", end_color="EFEFEF", fill_type="solid")
 
         # --- CABECERA (Ajustada para 8 columnas: de la A a la H) ---
         ws.merge_cells('A1:B4')
-        ws['A1'] = "LOGO EMPRESA"
-        ws['A1'].font = Font(bold=True, size=16)
-        ws['A1'].alignment = center_aligned
+        if empresa.logo:
+            try:
+                img = ExcelImage(empresa.logo.path)
+                img.width = 140
+                img.height = 70
+                ws.add_image(img, 'A1')
+            except Exception:
+                ws['A1'] = empresa.nombre_empresa
+                ws['A1'].font = Font(bold=True, size=16)
+                ws['A1'].alignment = center_aligned
+        else:
+            ws['A1'] = empresa.nombre_empresa
+            ws['A1'].font = Font(bold=True, size=16)
+            ws['A1'].alignment = center_aligned
+        
 
         ws.merge_cells('C1:F4')
-        ws['C1'] = f"Hoja de Ruta - {empresa.nombre_empresa}"
-        ws['C1'].font = Font(bold=True, size=18)
-        ws['C1'].alignment = center_aligned
+        texto_con_saltos = (
+            "HOJA DE RUTA\n"
+            "SOCIEDAD COMERCIAL Y TRANSPORTES\n"
+            "MEDALLA Y VARGAS LIMITADA\n"
+            "R.U.T 76.203.747-5"
+            )
+        ws['C1'] = texto_con_saltos
+        ws['C1'].font = Font(bold=True, size=8)
+        ws['C1'].alignment = Alignment(wrapText=True, horizontal='center', vertical='center')
 
         ruta_obj = despacho.id_ruta
         if ruta_obj:
             codigo = getattr(ruta_obj, 'codigo_ruta', '') or ''
             nombre = getattr(ruta_obj, 'nombre_ruta', '') or ''
-            ws['H3'] = f"{codigo} - {nombre}".strip(" -")
+            ws['H3'] = f"RUTA: {codigo}".strip(" -")
+            ws['H3'].font = Font(bold=True, size=12)
+            ws['H3'].alignment = center_aligned
         else:
             ws['H3'] = "N/A"
 
@@ -1046,7 +1120,7 @@ class GenerarHojaRutaExcelAPI(generics.RetrieveAPIView):
         ws['A8'] = "Rut:"
         ws['B8'] = formatear_rut(getattr(conductor, 'rut_conductor', '') if conductor else '') 
         ws['D8'] = "Celular:"
-        ws['E8'] = int(getattr(conductor, 'telefono', '') if conductor else '')
+        ws['E8'] = getattr(conductor, 'telefono', '') if conductor else ''
 
         # --- TABLA DE MERCANCÍAS ---
         headers = ["Cliente", "Factura", "Cant/Tipo", "Kilos", "CodigoI", "Proveedor", "N° Orden", "Valor"]
@@ -1062,23 +1136,30 @@ class GenerarHojaRutaExcelAPI(generics.RetrieveAPIView):
         
         suma_kilos = 0.0
         suma_valor = 0.0
+        colores_destinos = ["E6F2FF", "E6FFE6", "FFFFE6", "FFE6E6", "F2E6FF", "E6FFFF"]
+        indice_color = -1  
 
         for m in mercancias:
             ciudad_item = getattr(m.id_destino, 'nombre_ciudad', 'Sin Ciudad')
 
             if ciudad_item != ciudad_actual:
+                indice_color = (indice_color + 1) % len(colores_destinos)
+                color_actual = colores_destinos[indice_color]
+                relleno_encabezado = PatternFill(start_color=color_actual, end_color=color_actual, fill_type="solid")
+
                 ws.merge_cells(start_row=row_num, start_column=1, end_row=row_num, end_column=8)
                 cell = ws.cell(row=row_num, column=1)
                 cell.value = f"DESTINO: {ciudad_item.upper()}"
                 cell.font = Font(bold=True, size=12, color="000000")
-                cell.alignment = Alignment(horizontal="left", vertical="center")
-                cell.fill = fill_ciudad
+                cell.alignment = left_aligned
                 
                 for col in range(1, 9):
-                    ws.cell(row=row_num, column=col).border = thin_border
+                    celda_encabezado = ws.cell(row=row_num, column=col)
+                    celda_encabezado.border = thin_border
+                    celda_encabezado.fill = relleno_encabezado
                     
                 row_num += 1 
-                ciudad_actual = ciudad_item 
+                ciudad_actual = ciudad_item
 
             kilos_fila = float(m.kg) if m.kg else 0.0
             valor_fila = float(m.precio_total) if m.precio_total else 0.0
@@ -1105,7 +1186,15 @@ class GenerarHojaRutaExcelAPI(generics.RetrieveAPIView):
                 cell = ws.cell(row=row_num, column=col_num)
                 cell.value = dato
                 cell.border = thin_border
-                if col_num == 8 and isinstance(dato, float):
+                
+                if col_num in [1, 6]:
+                    cell.alignment = left_aligned
+                elif col_num in [4, 8]:
+                    cell.alignment = right_aligned
+                else:
+                    cell.alignment = center_aligned
+                
+                if col_num == 8 and isinstance(dato, (int, float)):
                     cell.number_format = '"$"#,##0' 
             
             row_num += 1
@@ -1140,9 +1229,26 @@ class GenerarHojaRutaExcelAPI(generics.RetrieveAPIView):
         cell_val.number_format = '"$"#,##0' 
 
         # --- AJUSTE DE ANCHO DE COLUMNAS ---
-        column_widths = {'A': 25, 'B': 15, 'C': 18, 'D': 12, 'E': 15, 'F': 20, 'G': 15, 'H': 15}
+        column_widths = {'A': 15, 'B': 15, 'C': 18, 'D': 12, 'E': 15, 'F': 20, 'G': 15, 'H': 15}
         for col, width in column_widths.items():
             ws.column_dimensions[col].width = width
+
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = False
+        
+        ws.page_setup.paperSize = 1 
+        
+        ws.print_options.horizontalCentered = True
+        
+        ws.page_margins = PageMargins(
+            left=0.35,   
+            right=0.35, 
+            top=0.75,   
+            bottom=0.75, 
+            header=0.3,
+            footer=0.3
+        )
 
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         response['Content-Disposition'] = f'attachment; filename="Ruta_{despacho.id_despacho}.xlsx"'

@@ -51,7 +51,7 @@ class PerfilReadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Perfil
-        fields = ['empresa', 'empresa_nombre', 'telefono', 'rol', 'rol_display','sucursal','sucursal_nombre']
+        fields = ['empresa', 'empresa_nombre', 'telefono', 'rol', 'rol_display','sucursal','sucursal_nombre','sucursal_id']
 
 class UserSerializer(serializers.ModelSerializer):
     perfil = PerfilReadSerializer(read_only=True)

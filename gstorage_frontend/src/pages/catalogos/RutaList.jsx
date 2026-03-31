@@ -45,7 +45,8 @@ export default function RoutesCatalog() {
     const term = searchTerm.toLowerCase();
     return (
       route.nombre_ruta.toLowerCase().includes(term) ||
-      (route.descripcion && route.descripcion.toLowerCase().includes(term))
+      (route.descripcion && route.descripcion.toLowerCase().includes(term)) ||
+      route.codigo_ruta.toLowerCase().includes(term)
     );
   });
 
@@ -65,6 +66,7 @@ export default function RoutesCatalog() {
       setFormData({
         nombre_ruta: '',
         descripcion: '',
+        codigo_ruta: '',
         activo: true
       });
     }
@@ -144,7 +146,7 @@ export default function RoutesCatalog() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por nombre o descripción..."
+              placeholder="Buscar por código, nombre o descripción..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
@@ -164,6 +166,7 @@ export default function RoutesCatalog() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
+                <th className='text-left py-4 px-4 text-sm font-semibold text-gray-600'>Código de Ruta</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Nombre de Ruta</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Descripción</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Estado</th>
@@ -179,11 +182,16 @@ export default function RoutesCatalog() {
                     key={route.id_ruta} 
                     className={`border-b border-gray-100 transition ${!isActivo ? 'bg-gray-50/50 opacity-60' : 'hover:bg-gray-50'}`}
                   >
+                    <td className='py-4 px-4'>
+                      <div className='flex items-center gap-3'>
+                        <div className ={`p-2 rounded-lg ${isActivo ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-200 text-gray-500'}`}>
+                          <Route className='w-5 h-5'/>
+                        </div>
+                        <span className='font-semibold text-gray-900'>{route.codigo_ruta}</span>
+                      </div>
+                    </td>
                     <td className="py-4 px-4">
                       <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${isActivo ? 'bg-indigo-50 text-indigo-600' : 'bg-gray-200 text-gray-500'}`}>
-                          <Route className="w-5 h-5" />
-                        </div>
                         <span className="font-semibold text-gray-900">{route.nombre_ruta}</span>
                       </div>
                     </td>
@@ -272,15 +280,15 @@ export default function RoutesCatalog() {
                   Código de Ruta <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="text"
+                  type="number"
                   name="codigo_ruta"
                   value={formData.codigo_ruta || ''}
                   onChange={(e) => setFormData({ ...formData, codigo_ruta: e.target.value })}
-                  placeholder="Ej: R-001, NORTE-1"
+                  placeholder="Ej: 001"
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                   required
                 />
-                <p className="text-[10px] text-slate-500 mt-1">Este código aparecerá en las Órdenes de Entrega (Ej: SR-001-1I)</p>
+                <p className="text-[10px] text-slate-500 mt-1">Este código aparecerá en las Órdenes de Entrega</p>
               </div>
               
               {/* Nombre Ruta */}

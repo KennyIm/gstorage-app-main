@@ -19,6 +19,7 @@ export default function OrdenEntregaPlantilla() {
     const [paginas, setPaginas] = useState([]);
     const [camiones, setCamiones] = useState([]);
     const [ramplas, setRamplas] = useState([]);
+    const [rutas, setRutas] = useState([]);
 
     const TASA_IVA = 0.19;
     const ITEMS_POR_PAGINA = 10;
@@ -27,13 +28,14 @@ export default function OrdenEntregaPlantilla() {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const [despachoRes, mercanciasRes, clientesRes, proveedoresRes, camionesRes, ramplasRes] = await Promise.all([
+                const [despachoRes, mercanciasRes, clientesRes, proveedoresRes, camionesRes, ramplasRes, rutasRes] = await Promise.all([
                     apiClient.get(`/api/inventario/despachos/${id}/`),
                     apiClient.get('/api/inventario/mercancias/'),
                     apiClient.get('/api/inventario/clientes/'),
                     apiClient.get('/api/inventario/proveedores/'),
                     apiClient.get('/api/inventario/camiones/'),
-                    apiClient.get('/api/inventario/ramplas/')
+                    apiClient.get('/api/inventario/ramplas/'),
+                    apiClient.get('/api/inventario/rutas/')
                 ]);
 
                 const despachoActual = despachoRes.data;
@@ -43,6 +45,7 @@ export default function OrdenEntregaPlantilla() {
                 setProveedores(proveedoresRes.data);
                 setCamiones(camionesRes.data);
                 setRamplas(ramplasRes.data);
+                setRutas(rutasRes.data);
 
                 const mercanciasDelViaje = mercanciasRes.data.filter(carga =>
                     String(carga.despacho) === String(id) || String(carga.id_despacho) === String(id)
@@ -138,6 +141,17 @@ export default function OrdenEntregaPlantilla() {
         if (!id_rampla) return '';
         const ramplaEncontrada = ramplas.find(r => String(r.id_rampla) === String(id_rampla));
         return ramplaEncontrada ? ` | Rampla: ${ramplaEncontrada.patente}` : '';
+    };
+
+    const getCodigoRuta = (rutaId) => {
+        if (!rutaId) return 'Sin Ruta asignada';
+        const rutaEncontrada = rutas.find(r => String(r.id) === String(rutaId) || String(r.id_ruta) === String(rutaId));
+
+        if (rutaEncontrada) {
+            return rutaEncontrada.codigo_ruta || rutaEncontrada.codigo || `Encontrada (Sin código)`;
+        }
+
+        return `Ruta N° ${rutaId}`;
     };
 
     const handleGenerarOrdenes = async () => {
@@ -244,7 +258,7 @@ export default function OrdenEntregaPlantilla() {
                                             )}
                                             <div className="flex items-center justify-end gap-2 text-xs font-semibold text-slate-700 mb-1">
                                                 <span className="text-slate-900 font-medium">Ruta N°</span>
-                                                <span className="text-slate-900">{id}</span>
+                                                <span className="text-slate-900">{getCodigoRuta(despacho?.id_ruta)}</span>
                                             </div>
                                             <div className="flex items-center justify-end gap-2 text-xs font-semibold text-slate-700 mb-1">
                                                 <span className="text-slate-900 font-medium">N°</span>

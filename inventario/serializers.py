@@ -177,7 +177,7 @@ class RutaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ruta
         fields = '__all__'
-        read_only_fields = ['empresa', 'sucursal', 'activo']
+        read_only_fields = ['empresa', 'sucursal']
 
 class DestinoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -221,6 +221,7 @@ class ReporteGeneradoSerializer(serializers.ModelSerializer):
 
 class HistorialSerializer(serializers.ModelSerializer):
     usuario_nombre = serializers.CharField(source='id_usuario.username', read_only=True)
+    sucursal_nombre = serializers.CharField(source='sucursal_id.nombre', read_only=True)
 
     class Meta:
         model = HistorialMovimientos
@@ -228,7 +229,7 @@ class HistorialSerializer(serializers.ModelSerializer):
             'id_historial', 'fecha_hora_movimiento',
             'descripcion_adicional', 'usuario_nombre',
             'modelo_afectado', 
-            'accion',
+            'accion', 'sucursal_nombre','sucursal_id'
         ]
 
 class AreaRestringidaSerializer(serializers.ModelSerializer):

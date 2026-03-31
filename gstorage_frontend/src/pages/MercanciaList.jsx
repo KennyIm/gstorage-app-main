@@ -85,7 +85,6 @@ export default function MercanciaList() {
   };
 
   const filteredItems = mercancias.filter(item => {
-    console.log(item)
     if (!item) return false;
 
     const term = searchTerm.toLowerCase();
@@ -259,7 +258,7 @@ export default function MercanciaList() {
 
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
-                        ${parseFloat(item.precio_total || 0).toFixed(0)}
+                        ${parseFloat(item.precio_total || 0).toLocaleString('es-CL')}
                       </span>
                     </td>
 

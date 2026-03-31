@@ -153,7 +153,7 @@ class Rampla(models.Model):
 class Ruta(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="rutas")
     sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE)
-    codigo_ruta = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="Código de Ruta")
+    codigo_ruta = models.IntegerField(unique=True, null=True, blank=True, verbose_name="Código de Ruta")
     id_ruta = models.AutoField(primary_key=True)
     nombre_ruta = models.CharField(max_length=100, unique=True, verbose_name="Nombre de Ruta")
     descripcion = models.TextField(null=True, blank=True, verbose_name="Descripción")
@@ -312,7 +312,7 @@ class Mercancia(models.Model):
     descripcion_carga = models.TextField(null=True, blank=True, verbose_name="Descripción")
     cantidad_bultos = models.IntegerField(default=1, verbose_name="Cantidad de Bultos")
     kg = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Peso (Kg)")
-    m3 = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Volumen (m³)")
+    m3 = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, verbose_name="Volumen (m³)")
     precio_total = models.DecimalField(max_digits=12, decimal_places=0, default=0.0, verbose_name="Precio Calculado")
     factura = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número de Factura")
     tipo = models.CharField(max_length=50, blank=True, null=True, verbose_name="Tipo de carga")

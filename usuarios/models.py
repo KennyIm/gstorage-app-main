@@ -10,6 +10,7 @@ class Empresa(models.Model):
     nombre_empresa = models.CharField(max_length=255, unique=True, verbose_name="Nombre de la Empresa")
     rut_empresa = models.CharField(max_length=12, unique=True, null=True, blank=True, verbose_name="RUT de la Empresa")
     dueno_empresa = models.CharField(max_length=50, verbose_name="Dueño de la empresa")
+    logo = models.ImageField(upload_to='logo_empresas/', null=True, blank=True, verbose_name="Logo de la empresa")
     telefono_contacto = models.CharField(max_length=20, null=True, blank=True, verbose_name="Teléfono") 
     email_contacto = models.EmailField(max_length=100, null=True, blank=True, verbose_name="Email") 
     fecha_creacion = models.DateTimeField(auto_now_add=True)

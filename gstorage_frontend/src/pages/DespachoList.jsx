@@ -171,7 +171,7 @@ export default function DespachoList() {
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50/50 text-gray-500 font-medium border-b border-gray-100">
                 <tr>
-                  <th className="px-6 py-4">ID / Ruta</th>
+                  <th className="px-6 py-4">Ruta</th>
                   <th className="px-6 py-4">Suc</th>
                   <th className="px-6 py-4">Transporte</th>
                   <th className="px-6 py-4">Fecha Programada</th>
@@ -195,14 +195,10 @@ export default function DespachoList() {
                   {/* ID y Ruta */}
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs">
-                        #{despacho.id_despacho}
-                      </div>
                       <div>
                         <div className="font-semibold text-gray-900 flex items-center gap-1.5">
-                          {despacho.id_ruta}
+                          Ruta {despacho.id_ruta}
                         </div>
-                        <span className="text-xs text-gray-500">Ruta Asignada</span>
                       </div>
                     </div>
                   </td>
@@ -232,7 +228,9 @@ export default function DespachoList() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 text-gray-600">
                       <Calendar className="w-4 h-4 text-gray-400" />
-                      {despacho.fecha_programada}
+                      {despacho.fecha_programada
+                        ? new Date(despacho.fecha_programada).toLocaleDateString('es-CL')
+                        : 'Sin definir'}
                     </div>
                   </td>
 

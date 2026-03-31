@@ -46,7 +46,6 @@ export default function DespachoDetail() {
         setClientes(clientesRes.data);
 
         setLoading(false);
-        console.log("Datos que llegaron de Django:", despachoRes.data)
       } catch (err) {
         if (err.response && err.response.status === 401) {
           logoutUser();
@@ -63,7 +62,7 @@ export default function DespachoDetail() {
   // --- Helpers para obtener Nombres ---
   const getNombreRuta = (id) => {
     const found = rutas.find(r => r.id_ruta === id);
-    return found ? found.nombre_ruta : `Ruta ID: ${id}`;
+    return found ? found.codigo_ruta : `Ruta ID: ${id}`;
   };
 
   const getInfoCamion = (id) => {
@@ -203,7 +202,7 @@ export default function DespachoDetail() {
             </button>
             <button
               onClick={() => handleDescargarExcel(despacho.id_despacho)}
-              className="text-green-600 hover:bg-green-50 p-2 rounded-lg"
+              className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-blue-200 text-green-700 font-medium rounded-lg hover:bg-green-100 transition shadow-sm"
             >
               Descargar Excel
             </button>
@@ -235,7 +234,9 @@ export default function DespachoDetail() {
                     <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Fecha Programada</label>
                     <div className="flex items-center gap-2 text-gray-700">
                       <Calendar className="w-4 h-4 text-gray-400" />
-                      {despacho.fecha_programada || 'Sin definir'}
+                      {despacho.fecha_programada
+                        ? new Date(despacho.fecha_programada).toLocaleDateString('es-CL')
+                        : 'Sin definir'}
                     </div>
                   </div>
 
@@ -244,7 +245,15 @@ export default function DespachoDetail() {
                     {despacho.fecha_salida_real ? (
                       <div className="flex items-center gap-2 text-blue-700 bg-blue-50 w-fit px-2 py-1 rounded">
                         <Clock className="w-4 h-4" />
-                        {despacho.fecha_salida_real.replace('T', ' ')}
+                        {despacho.fecha_salida_real
+                          ? new Date(despacho.fecha_salida_real).toLocaleString('es-CL', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })
+                          : 'Sin definir'}
                       </div>
                     ) : (
                       <span className="text-gray-400 italic text-sm flex items-center gap-2">

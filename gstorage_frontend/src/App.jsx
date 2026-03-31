@@ -63,6 +63,8 @@ import Proveedores from './pages/catalogos/ProveedorList'
 
 import RamplasManager from './pages/catalogos/RamplasManager'
 
+import PlanificadorRutas from './components/PlanificadorRutas'
+
 function App() {
   return (
     <Routes>
@@ -82,6 +84,7 @@ function App() {
         <Route path="despachos/:id" element={<DespachoDetail />} />
         <Route path="despachos/:id/editar" element={<DespachoEdit />} />
         <Route path="/despachos/:id/imprimir-plantilla" element={<OrdenEntregaPrint />} />
+        <Route path="/despachos/:id/planificar" element={<PlanificadorRutas />} />
 
         <Route path="clientes" element={<ClienteList />} />
         <Route path="clientes/nuevo" element={<ClienteCreate />} />

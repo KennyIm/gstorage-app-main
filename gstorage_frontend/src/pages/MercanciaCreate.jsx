@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom'; 
-import apiClient from '../services/api'; 
-import { useAuth } from '../context/AuthContext'; 
+import { useNavigate, Link } from 'react-router-dom';
+import apiClient from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import Select from 'react-select';
 import {
   Save, X, NotebookPen, User, MapPin, Map, Package, Scale, Box, FileText, AlertCircle, Loader2, ArrowLeft, Truck
 } from 'lucide-react';
@@ -135,6 +136,7 @@ export default function MercanciaCreate() {
       navigate('/mercancias');
     } catch (err) {
       console.error(err);
+      console.log("Django dice que el error está en:", err.response?.data);
       setError('Error al guardar la mercancía. Revisa los campos e intenta nuevamente.');
       setSubmitting(false);
     }
@@ -184,64 +186,97 @@ export default function MercanciaCreate() {
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="relative">
-                  <label htmlFor="id_cliente" className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
+                <div className="relative z-40">
+                  <label htmlFor="cliente" className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400 pointer-events-none" />
-                    <select
-                      id="id_cliente"
-                      name="id_cliente"
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
-                      value={formData.id_cliente}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="">Selecciona un cliente...</option>
-                      {clientes.map(c => (
-                        <option key={c.id_cliente} value={c.id_cliente}>{c.nombre_cliente}</option>
-                      ))}
-                    </select>
+                    <div>
+                      <Select
+                        placeholder="Buscar cliente..."
+                        inputId="cliente"
+                        noOptionsMessage={() => "No se encontró el cliente"}
+                        options={clientes.map(c => ({
+                          value: c.id_cliente,
+                          label: c.nombre_cliente
+                        }))}
+                        value={clientes.find(c => c.id_cliente === formData.id_cliente) ? {
+                          value: formData.id_cliente,
+                          label: clientes.find(c => c.id_cliente === formData.id_cliente).nombre_cliente
+                        } : null}
+                        onChange={(opcionSeleccionada) => {
+                          handleChange({
+                            target: {
+                              name: 'id_cliente',
+                              value: opcionSeleccionada ? opcionSeleccionada.value : ''
+                            }
+                          });
+                        }}
+                        isClearable
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="relative">
-                  <label htmlFor="id_destino" className="block text-sm font-medium text-gray-700 mb-1">Destino *</label>
+                <div className="relative z-40">
+                  <label htmlFor="destino" className="block text-sm font-medium text-gray-700 mb-1">Destino</label>
                   <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400 pointer-events-none" />
-                    <select
-                      id="id_destino"
-                      name="id_destino"
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
-                      value={formData.id_destino}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="">Selecciona un destino...</option>
-                      {destinos.map(d => (
-                        <option key={d.id_destino} value={d.id_destino}>{d.nombre_ciudad}</option>
-                      ))}
-                    </select>
+                    <div>
+                      <Select
+                        placeholder="Selecciona un destino..."
+                        inputId="destino"
+                        noOptionsMessage={() => "No se encontró el destino"}
+                        options={destinos.map(d => ({
+                          value: d.id_destino,
+                          label: d.nombre_ciudad
+                        }))}
+                        value={destinos.find(d => d.id_destino === formData.id_destino) ? {
+                          value: formData.id_destino,
+                          label: destinos.find(d => d.id_destino === formData.id_destino).nombre_ciudad
+                        } : null}
+                        onChange={(opcion) => {
+                          handleChange({
+                            target: {
+                              name: 'id_destino',
+                              value: opcion ? opcion.value : ''
+                            }
+                          });
+                        }}
+                        isClearable
+                      />
+                    </div>
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="rut_proveedor" className="block text-sm font-medium text-gray-700 mb-1">
-                    Proveedor
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400 pointer-events-none" />
-                    <select
-                      name="id_proveedor"
-                      value={formData.id_proveedor}
-                      onChange={handleChange}
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
-                    >
-                      <option value="">Selecciona un proveedor...</option>
-                      {proveedores.map(prov => (
-                        <option key={prov.rut} value={prov.rut}>
-                          {prov.nombre_proveedor} (RUT: {prov.rut})
-                        </option>
-                      ))}
-                    </select>
+                  <div className="relative z-30">
+                    <label htmlFor="proveedor" className="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
+                    <div className="relative">
+                      <div>
+                        <Select
+                          placeholder="Selecciona un proveedor..."
+                          inputId="proveedor"
+                          noOptionsMessage={() => "No se encontró el proveedor"}
+                          options={proveedores.map(prov => ({
+                            value: prov.rut,
+                            label: `${prov.nombre_proveedor} (RUT: ${prov.rut})`
+                          }))}
+                          value={proveedores.find(prov => prov.rut === formData.id_proveedor) ? {
+                            value: formData.id_proveedor,
+                            label: (() => {
+                              const p = proveedores.find(prov => prov.rut === formData.id_proveedor);
+                              return `${p.nombre_proveedor} (RUT: ${p.rut})`;
+                            })()
+                          } : null}
+                          onChange={(opcion) => {
+                            handleChange({
+                              target: {
+                                name: 'id_proveedor',
+                                value: opcion ? opcion.value : ''
+                              }
+                            });
+                          }}
+                          isClearable
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -255,14 +290,14 @@ export default function MercanciaCreate() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="factura" className="block text-sm font-medium text-gray-700 mb-1">
                     N° de Factura
                   </label>
                   <div className="relative">
                     <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-700 pointer-events-none" />
                     <input
                       type="text"
-                      name="factura"
+                      id="factura"
                       value={formData.factura}
                       onChange={handleChange}
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
@@ -271,14 +306,14 @@ export default function MercanciaCreate() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="tipo" className="block text-sm font-medium text-gray-700 mb-1">
                     Tipo de carga
                   </label>
                   <div className="relative">
                     <NotebookPen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-700 pointer-events-none" />
                     <input
                       type="text"
-                      name="tipo"
+                      id="tipo"
                       value={formData.tipo}
                       onChange={handleChange}
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
@@ -353,7 +388,7 @@ export default function MercanciaCreate() {
                 </div>
                 {/* PRECIO TOTAL */}
                 <div className="col-span-1 md:col-span-2">
-                  <label className="block text-sm font-bold text-emerald-700 mb-1">
+                  <label htmlFor="precio_total" className="block text-sm font-bold text-emerald-700 mb-1">
                     Precio Total Calculado ($)
                   </label>
                   <div className="relative">
@@ -361,7 +396,7 @@ export default function MercanciaCreate() {
                     <input
                       type="number"
                       step="1"
-                      name="precio_total"
+                      id="precio_total"
                       value={formData.precio_total}
                       onChange={(e) => setFormData({ ...formData, precio_total: e.target.value })}
                       className="w-full pl-8 pr-4 py-2 bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-colors"
@@ -376,8 +411,8 @@ export default function MercanciaCreate() {
                 <div className="flex items-center gap-2 mt-2">
                   <input
                     type="checkbox"
-                    name="paga_proveedor"
-                    checked={formData.paga_proveedor} 
+                    id="paga_proveedor"
+                    checked={formData.paga_proveedor}
                     onChange={handleChange}
                     className="w-4 h-4 text-indigo-600 rounded"
                   />

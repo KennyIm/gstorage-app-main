@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom'; // Descomentar en producción
-import apiClient from '../services/api'; // Descomentar en producción
-import { useAuth } from '../context/AuthContext'; // Descomentar en producción
+import { useNavigate, useParams, Link } from 'react-router-dom'; 
+import apiClient from '../services/api'; 
+import { useAuth } from '../context/AuthContext';
+import Select from 'react-select';
 import {
   Save, ArrowLeft, User, MapPin, Map, Package, Scale, Box, FileText,
-  Truck, Activity, Loader2, AlertCircle, CheckCircle,NotebookPen
+  Truck, Activity, Loader2, AlertCircle, CheckCircle, NotebookPen
 } from 'lucide-react';
 
 
@@ -208,60 +209,100 @@ export default function MercanciaEdit() {
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
+                <div className="relative z-50">
                   <label htmlFor="id_cliente" className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-400 pointer-events-none" />
-                    <select
-                      name="id_cliente"
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                      value={formData.id_cliente}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="">Seleccionar cliente...</option>
-                      {clientes.map(c => (
-                        <option key={c.id_cliente} value={c.id_cliente}>{c.nombre_cliente}</option>
-                      ))}
-                    </select>
+                    <div >
+                      <Select
+                        inputId="id_cliente"
+                        placeholder="Seleccionar cliente..."
+                        noOptionsMessage={() => "No se encontró el cliente"}
+                        options={clientes.map(c => ({
+                          value: c.id_cliente,
+                          label: c.nombre_cliente
+                        }))}
+                        value={clientes.find(c => c.id_cliente === formData.id_cliente) ? {
+                          value: formData.id_cliente,
+                          label: clientes.find(c => c.id_cliente === formData.id_cliente).nombre_cliente
+                        } : null}
+                        onChange={(opcion) => {
+                          handleChange({
+                            target: {
+                              name: 'id_cliente',
+                              value: opcion ? opcion.value : ''
+                            }
+                          });
+                        }}
+                        isClearable
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div>
+                {/* --- BLOQUE DESTINO --- */}
+                <div className="relative z-40">
                   <label htmlFor="id_destino" className="block text-sm font-medium text-gray-700 mb-1">Destino</label>
                   <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400 pointer-events-none" />
-                    <select
-                      name="id_destino"
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                      value={formData.id_destino}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="">Seleccionar destino...</option>
-                      {destinos.map(d => (
-                        <option key={d.id_destino} value={d.id_destino}>{d.nombre_ciudad}</option>
-                      ))}
-                    </select>
+                    <div>
+                      <Select
+                        inputId="id_destino"
+                        placeholder="Seleccionar destino..."
+                        noOptionsMessage={() => "No se encontró el destino"}
+                        options={destinos.map(d => ({
+                          value: d.id_destino,
+                          label: d.nombre_ciudad
+                        }))}
+                        value={destinos.find(d => d.id_destino === formData.id_destino) ? {
+                          value: formData.id_destino,
+                          label: destinos.find(d => d.id_destino === formData.id_destino).nombre_ciudad
+                        } : null}
+                        onChange={(opcion) => {
+                          handleChange({
+                            target: {
+                              name: 'id_destino',
+                              value: opcion ? opcion.value : ''
+                            }
+                          });
+                        }}
+                        isClearable
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="mt-6">
+
+                {/* --- BLOQUE PROVEEDOR --- */}
+                <div className="relative z-30">
                   <label htmlFor="id_proveedor" className="block text-sm font-medium text-gray-700 mb-1">
                     Proveedor
                   </label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-400 pointer-events-none" />
-                    <select
-                      name="id_proveedor"
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition appearance-none cursor-pointer"
-                      value={formData.id_proveedor}
-                      onChange={handleChange}
-                    >
-                      <option value="">Selecciona un proveedor...</option>
-                      {proveedores.map(p => (
-                        <option key={p.rut} value={p.rut}>{p.nombre_proveedor} (RUT: {p.rut})</option>
-                      ))}
-                    </select>
+                    <div>
+                      <Select
+                        inputId="id_proveedor"
+                        placeholder="Selecciona un proveedor..."
+                        noOptionsMessage={() => "No se encontró el proveedor"}
+                        options={proveedores.map(p => ({
+                          value: p.rut,
+                          label: `${p.nombre_proveedor} (RUT: ${p.rut})`
+                        }))}
+                        value={proveedores.find(p => p.rut === formData.id_proveedor) ? {
+                          value: formData.id_proveedor,
+                          label: (() => {
+                            const prov = proveedores.find(p => p.rut === formData.id_proveedor);
+                            return `${prov.nombre_proveedor} (RUT: ${prov.rut})`;
+                          })()
+                        } : null}
+                        onChange={(opcion) => {
+                          handleChange({
+                            target: {
+                              name: 'id_proveedor',
+                              value: opcion ? opcion.value : ''
+                            }
+                          });
+                        }}
+                        isClearable
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -308,7 +349,7 @@ export default function MercanciaEdit() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="factura" className="block text-sm font-medium text-gray-700 mb-1">
                     N° de Factura
                   </label>
                   <div className="relative">
@@ -316,6 +357,7 @@ export default function MercanciaEdit() {
                     <input
                       type="text"
                       name="factura"
+                      id = "factura"
                       value={formData.factura}
                       onChange={handleChange}
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
@@ -324,7 +366,7 @@ export default function MercanciaEdit() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="tipo" className="block text-sm font-medium text-gray-700 mb-1">
                     Tipo de carga
                   </label>
                   <div className="relative">
@@ -332,6 +374,7 @@ export default function MercanciaEdit() {
                     <input
                       type="text"
                       name="tipo"
+                      id="tipo"
                       value={formData.tipo}
                       onChange={handleChange}
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
@@ -340,12 +383,13 @@ export default function MercanciaEdit() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bultos</label>
+                  <label htmlFor="cantidad_bultos" className="block text-sm font-medium text-gray-700 mb-1">Bultos</label>
                   <div className="relative">
                     <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
                     <input
                       type="number"
                       name="cantidad_bultos"
+                      id = "cantidad_bultos"
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
                       value={formData.cantidad_bultos}
                       onChange={handleChange}
@@ -356,12 +400,13 @@ export default function MercanciaEdit() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Peso (Kg)</label>
+                  <label htmlFor="kg" className="block text-sm font-medium text-gray-700 mb-1">Peso (Kg)</label>
                   <div className="relative">
                     <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
                     <input
                       type="number"
                       name="kg"
+                      id = "kg"
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
                       value={formData.kg}
                       onChange={handleChange}
@@ -371,12 +416,13 @@ export default function MercanciaEdit() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Volumen (m³)</label>
+                  <label htmlFor="m3" className="block text-sm font-medium text-gray-700 mb-1">Volumen (m³)</label>
                   <div className="relative">
                     <Box className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
                     <input
                       type="number"
                       name="m3"
+                      id = "m3"
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
                       value={formData.m3}
                       onChange={handleChange}
@@ -385,12 +431,13 @@ export default function MercanciaEdit() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Volumen (m³)</label>
+                  <label htmlFor="codigo_interno" className="block text-sm font-medium text-gray-700 mb-1">Volumen (m³)</label>
                   <div className="relative">
                     <NotebookPen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-900 pointer-events-none" />
                     <input
                       type="text"
                       name="codigo_interno"
+                      id= "codigo_interno"
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
                       value={formData.codigo_interno}
                       onChange={handleChange}
@@ -399,7 +446,7 @@ export default function MercanciaEdit() {
                   </div>
                 </div>
                 <div className="col-span-1 md:col-span-2">
-                  <label className="block text-sm font-bold text-emerald-700 mb-1">
+                  <label htmlFor="precio_total" className="block text-sm font-bold text-emerald-700 mb-1">
                     Precio Total ($)
                   </label>
                   <div className="relative">
@@ -408,6 +455,7 @@ export default function MercanciaEdit() {
                       type="number"
                       step="1"
                       name="precio_total"
+                      id="precio_total"
                       value={formData.precio_total}
                       onChange={handleChange}
                       className="w-full pl-8 pr-4 py-2 bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-colors"
@@ -417,7 +465,7 @@ export default function MercanciaEdit() {
                 <div className="flex items-center gap-2 mt-2">
                   <input
                     type="checkbox"
-                    name="paga_proveedor"
+                    id="paga_proveedor"
                     checked={formData.paga_proveedor}
                     onChange={handleChange}
                     className="w-4 h-4 text-indigo-600 rounded"
@@ -429,11 +477,12 @@ export default function MercanciaEdit() {
               </div>
 
               <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                <label htmlFor="descripcion_carga" className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
                 <div className="relative">
                   <FileText className="absolute left-3 top-3 w-4 h-4 text-gray-400 pointer-events-none" />
                   <textarea
                     name="descripcion_carga"
+                    id="descripcion_carga"
                     rows={3}
                     className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition resize-none"
                     value={formData.descripcion_carga}
@@ -452,17 +501,18 @@ export default function MercanciaEdit() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Estado Actual</label>
+                  <label htmlFor="estado"className="block text-sm font-medium text-gray-700 mb-1">Estado Actual</label>
                   <div className="relative">
                     <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                     <select
                       name="estado"
+                      id="estado"
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                      value={formData.estado || ''} 
+                      value={formData.estado || ''}
                       onChange={handleChange}
                     >
                       <option value="" disabled hidden>Seleccione estado...</option>
-                      
+
                       <option value="En Bodega">En Bodega</option>
                       <option value="Asignado">Asignado a Despacho</option>
                       <option value="En Tránsito">En Tránsito</option>
@@ -472,11 +522,12 @@ export default function MercanciaEdit() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Despacho Asignado</label>
+                  <label htmlFor="despacho" className="block text-sm font-medium text-gray-700 mb-1">Despacho Asignado</label>
                   <div className="relative">
                     <Truck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                     <select
                       name="id_despacho"
+                      id="despacho"
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
                       value={formData.id_despacho}
                       onChange={handleChange}

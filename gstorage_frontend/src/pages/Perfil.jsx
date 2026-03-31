@@ -1,18 +1,52 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../services/api';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import EditProfileModal from '../components/EditProfileModal'; 
-import { User, Mail, Calendar, Shield, Edit, Phone, Building } from 'lucide-react';
+import { User, Mail, Calendar, Shield, Edit, Phone, Building, Warehouse } from 'lucide-react';
 
 export default function Perfil() {
   const { user, authTokens } = useAuth(); 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [sucursales, setSucursales] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   
   const handleProfileUpdate = () => {
      window.location.reload(); 
   };
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setError(null);
+        
+        const [sucursalesRes] = await Promise.all([
+          apiClient.get('/api/usuarios/sucursales/')
+        ]);
+        
+        setSucursales(sucursalesRes.data);
+        setLoading(false);
+        
+      } catch (err) {
+        if (err.response && err.response.status === 401) {
+          if (logoutUser) logoutUser();
+        } else {
+          console.error("Error al cargar datos:", err);
+          setError("No se pudo cargar la información de las sucursales.");
+        }
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const getNombreSucursal = (id) => {
+    if (!id) return 'Sin sucursal';
+    const sucursal = sucursales.find(s => String(s.id) === String(id));
+    return sucursal ? sucursal.nombre : `Suc ${id}`
+  }
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Nunca';
@@ -26,7 +60,10 @@ export default function Perfil() {
   };
 
   if (!user) return <div className="p-8 text-center">Cargando perfil...</div>;
+  if (loading) return <div>Cargando perfil...</div>;
+  if (error) return <div className="text-red-600">{error}</div>;
 
+  console.log("Mis datos de usuario son:", user);
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="mb-8">
@@ -94,11 +131,11 @@ export default function Perfil() {
           {/* Teléfono */}
           <div className="p-5 bg-gray-50 rounded-xl border border-gray-100">
             <div className="flex items-center gap-3 mb-2">
-              <Phone className="w-5 h-5 text-indigo-500" />
-              <p className="text-sm font-medium text-gray-500 uppercase">Teléfono</p>
+              <Warehouse className="w-5 h-5 text-indigo-500" />
+              <p className="text-sm font-medium text-gray-500 uppercase">Sucursal</p>
             </div>
             <p className="text-gray-900 font-medium pl-8">
-              {user.perfil?.telefono || 'No registrado'}
+              {user?.perfil?.sucursal_nombre.replace('Sucursal ', '') || 'Sin sucursal'}
             </p>
           </div>
         </div>
