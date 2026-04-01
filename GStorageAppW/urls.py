@@ -21,13 +21,18 @@ from django.conf.urls.static import static
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
+    TokenBlacklistView
 )
+
+class LoginThrottleView(TokenObtainPairView):
+    throttle_scope = 'login'
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/inventario/', include('inventario.urls')),
     path('api/usuarios/', include('usuarios.urls')),
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/', LoginThrottleView.as_view(), name='token_obtain_pair'),
+    path('api/logout/', TokenBlacklistView.as_view(), name='token_logout'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
     path('api/visualizacion/', include('visualizacion.urls')),

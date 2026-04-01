@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../services/api';
-import { Search, Plus, Edit, Briefcase, X, Users, Mail, Phone, CreditCard, User, MapPin, Building, AlertCircle, CheckCircle, XCircle, DollarSign } from 'lucide-react';
+import {
+  Search, Plus, Edit, Briefcase, X, Users, Mail, Phone,
+  CreditCard, User, MapPin, Building, AlertCircle, CheckCircle,
+  XCircle, DollarSign, ChevronLeft, ChevronRight
+} from 'lucide-react';
 
 export default function ClientsCatalog() {
   const [clients, setClients] = useState([]);
@@ -11,6 +15,8 @@ export default function ClientsCatalog() {
   // Estados del Modal
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   const [formData, setFormData] = useState({
     nombre_cliente: '',
@@ -24,6 +30,7 @@ export default function ClientsCatalog() {
     ciudad: '',
     activo: true
   });
+
 
   // --- CARGA DE DATOS ---
   const fetchClients = async () => {
@@ -44,6 +51,10 @@ export default function ClientsCatalog() {
     fetchClients();
   }, []);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
   // --- FILTRADO ---
   const filteredClients = clients.filter(client => {
     const term = searchTerm.toLowerCase();
@@ -51,11 +62,14 @@ export default function ClientsCatalog() {
       client.nombre_cliente?.toLowerCase().includes(term) ||
       client.rut_cliente?.toLowerCase().includes(term) ||
       client.email_contacto?.toLowerCase().includes(term) ||
-      client.nombre_contacto?.toLowerCase().includes(term) || 
-      client.ciudad?.toLowerCase().includes(term) ||
-      client.direccion?.toLowerCase().includes(term)
+      client.nombre_contacto?.toLowerCase().includes(term) ||
+      client.ciudad?.toLowerCase().includes(term)
     );
   });
+
+  const totalPages = Math.ceil(filteredClients.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedClients = filteredClients.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   // --- HANDLERS (MODAL) ---
   const handleOpenModal = (client = null) => {
@@ -193,7 +207,7 @@ export default function ClientsCatalog() {
               </tr>
             </thead>
             <tbody>
-              {filteredClients.map((client) => {
+              {paginatedClients.map((client) => {
                 const precioKg = parseFloat(client.precio_kg) || 0;
                 const precioM3 = parseFloat(client.precio_m3) || 0;
 
@@ -292,15 +306,52 @@ export default function ClientsCatalog() {
               })}
             </tbody>
           </table>
-
-          {filteredClients.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
-              No se encontraron clientes registrados.
-            </div>
-          )}
         </div>
-      </div>
 
+        {/* --- CONTROLES DE PAGINACIÓN --- */}
+        {filteredClients.length > 0 && (
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-100 pt-6">
+            <p className="text-sm text-gray-600">
+              Mostrando <span className="font-semibold">{startIndex + 1}</span> a{' '}
+              <span className="font-semibold">
+                {Math.min(startIndex + ITEMS_PER_PAGE, filteredClients.length)}
+              </span> de{' '}
+              <span className="font-semibold">{filteredClients.length}</span> clientes
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+
+              <div className="flex gap-1">
+                {[...Array(totalPages)].map((_, i) => (
+                  <button
+                    key={i + 1}
+                    onClick={() => setCurrentPage(i + 1)}
+                    className={`w-10 h-10 rounded-lg text-sm font-bold transition ${currentPage === i + 1 ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-indigo-50'
+                      }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
       {/* MODAL FORMULARIO */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">

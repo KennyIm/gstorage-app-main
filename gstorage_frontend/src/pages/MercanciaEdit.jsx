@@ -209,7 +209,7 @@ export default function MercanciaEdit() {
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="relative z-50">
+                <div className="relative z-40">
                   <label htmlFor="id_cliente" className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
                   <div className="relative">
                     <div >

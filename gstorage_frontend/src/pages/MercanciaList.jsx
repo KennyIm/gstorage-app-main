@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../services/api';
-import { Search, Filter, Package, Plus, Eye, Trash2, Truck, MapPin, Check, X, FileText } from 'lucide-react';
+import { Search, Filter, Package, Plus, Eye, Trash2, Truck, MapPin, Check, X, FileText,
+  ChevronLeft, ChevronRight
+ } from 'lucide-react';
 import MermaModal from '../components/MermaModal';
 
 export default function MercanciaList() {
@@ -17,6 +19,13 @@ export default function MercanciaList() {
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [statusFilter, setStatusFilter] = useState('TODOS');
   const filterRef = useRef(null);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 15;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -86,19 +95,22 @@ export default function MercanciaList() {
 
   const filteredItems = mercancias.filter(item => {
     if (!item) return false;
-
     const term = searchTerm.toLowerCase();
-    const cliente = item.cliente_nombre?.toLowerCase() || '';
-    const descripcion = item.descripcion_carga?.toLowerCase() || '';
-    const id = item.codigo_interno ? String(item.codigo_interno) : '';
-    const factura = item.factura?.toLowerCase() || '';
-    const rutproveedor = item.rut_proveedor?.toLowerCase() || '';
-    const matchesSearch = cliente.includes(term) || descripcion.includes(term) || id.includes(term) || factura.includes(term) || rutproveedor.includes(term);
+    const matchesSearch = 
+      (item.cliente_nombre?.toLowerCase() || '').includes(term) || 
+      (item.descripcion_carga?.toLowerCase() || '').includes(term) || 
+      (String(item.codigo_interno || '')).includes(term) || 
+      (item.factura?.toLowerCase() || '').includes(term);
+    
     const matchesStatus = statusFilter === 'TODOS' || item.estado === statusFilter;
-
     return matchesSearch && matchesStatus;
   });
 
+
+
+  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedItems = filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   const filterOptions = ['TODOS', 'En Bodega', 'Asignado', 'En Tránsito', 'Entregado', 'Merma'];
 
   if (loading) return <div className="p-8 text-center">Cargando inventario...</div>;
@@ -191,9 +203,8 @@ export default function MercanciaList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredItems.map((item) => {
+              {paginatedItems.map((item) => {
                 const sucursalObj = sucursales.find(s => s.id === item.sucursal_id);
-
                 const nombreLugar = sucursalObj ? sucursalObj.ciudad : 'Sin Asignar';
                 const iniciales = sucursalObj ? nombreLugar.substring(0, 3).toUpperCase() : '---';
                 return (
@@ -315,13 +326,61 @@ export default function MercanciaList() {
               })}
             </tbody>
           </table>
+          </div>
+        {filteredItems.length > 0 && (
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-100 pt-6">
+            <p className="text-sm text-gray-600">
+              Mostrando <span className="font-semibold">{startIndex + 1}</span> a{' '}
+              <span className="font-semibold">
+                {Math.min(startIndex + ITEMS_PER_PAGE, filteredItems.length)}
+              </span> de{' '}
+              <span className="font-semibold">{filteredItems.length}</span> mercancías
+            </p>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {[...Array(totalPages)].map((_, i) => {
+                   if (totalPages > 5 && Math.abs(currentPage - (i + 1)) > 2) return null;
+                   return (
+                    <button
+                      key={i + 1}
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`w-10 h-10 rounded-lg text-sm font-medium transition ${
+                        currentPage === i + 1
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-gray-600 hover:bg-indigo-50'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                   );
+                })}
+              </div>
 
-          {filteredItems.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No se encontraron mercancías que coincidan con la búsqueda.
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {filteredItems.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            No se encontraron mercancías.
+          </div>
+        )}
       </div>
 
       {mermaTarget && (

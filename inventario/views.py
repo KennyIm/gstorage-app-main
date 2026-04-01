@@ -1050,7 +1050,7 @@ class GenerarHojaRutaExcelAPI(generics.RetrieveAPIView):
 
         wb = openpyxl.Workbook()
         ws = wb.active
-        ws.title = f"Ruta_{despacho.id_despacho}"
+        ws.title = f"Ruta_{despacho.id_ruta}"
 
         # --- ESTILOS ---
         bold_font = Font(bold=True)
@@ -1251,7 +1251,7 @@ class GenerarHojaRutaExcelAPI(generics.RetrieveAPIView):
         )
 
         response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = f'attachment; filename="Ruta_{despacho.id_despacho}.xlsx"'
+        response['Content-Disposition'] = f'attachment; filename="Ruta_{despacho.id_ruta}.xlsx"'
         wb.save(response)
         
         return response

@@ -219,7 +219,7 @@ export default function PlanificadorRutas() {
       // --- ESTILO PARA TÍTULOS (Fila 2) ---
       if (numeroFila === 2) {
         hoja[referenciaCelda].s.font.bold = true;
-        hoja[referenciaCelda].s.fill = { fgColor: { rgb: "F2F2F2" } }; // Gris clarito para resaltar
+        hoja[referenciaCelda].s.fill = { fgColor: { rgb: "F2F2F2" } }; 
       }
     });
 

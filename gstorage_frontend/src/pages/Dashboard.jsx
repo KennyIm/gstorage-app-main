@@ -213,7 +213,7 @@ export default function Dashboard() {
                 {despachos_list.length === 0 ? (
                    <tr><td colSpan="4" className="text-center py-8 text-slate-400">Sin despachos programados.</td></tr>
                 ) : (
-                  despachos_list.slice(0, 5).map((d) => ( // Solo mostramos los 5 más próximos
+                  despachos_list.slice(0, 5).map((d) => ( 
                     <tr key={d.id} className="hover:bg-slate-50 transition-colors group cursor-pointer">
                       <td className="px-6 py-4">
                         <span className="font-bold text-indigo-600">#{d.id}</span>

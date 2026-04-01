@@ -2,20 +2,29 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Home, User, ChevronDown, LogOut, Users, LayoutDashboard, Database } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import apiClient from '../services/api'; 
 import logoImg from '../assets/logo.png';
 
 export function Navbar() {
   const { user, logoutUser } = useAuth();
+  const [sucursales, setSucursales] = useState([]);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const menuRef = useRef(null);
   const navigate = useNavigate();
 
-  // Lógica de roles para mostrar el botón de gestión
   const userRol = user?.perfil?.rol?.trim() || '';
   const isAdmin = userRol === 'DUENO' || userRol === 'SECRETARIA';
 
-  // Cerrar el menú si haces clic fuera
   useEffect(() => {
+    const fetchSucursales = async () => {
+      try {
+        const res = await apiClient.get('/api/usuarios/sucursales/');
+        setSucursales(res.data);
+      } catch (error) {
+        console.error("Error al traer sucursales", error);
+      }
+    };
+    fetchSucursales();
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setShowProfileMenu(false);
@@ -25,6 +34,14 @@ export function Navbar() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  
+
+  const getNombreSucursal = (id) => {
+    if (!id) return 'Sin sucursal';
+    const sucursal = sucursales.find(s => String(s.id) === String(id));
+    return sucursal ? sucursal.nombre : `Suc ${id}`
+  }
 
   return (
     <nav className="fixed top-0 left-0 right-0 bg-white shadow-md z-50 h-16 print:hidden">
@@ -60,7 +77,7 @@ export function Navbar() {
                       {user.first_name || user.username}
                     </span>
                     <span className="text-xs text-gray-500 mt-1">
-                      {user.perfil?.rol_display || 'Usuario'}
+                      {user.perfil?.rol_display || 'Usuario'} | {getNombreSucursal(user.perfil?.sucursal_id)}
                     </span>
                   </div>
 
@@ -82,26 +99,26 @@ export function Navbar() {
                     </Link>
 
                     {/* Enlace a Estadísticas*/}
-                    {isAdmin &&(
+                    {isAdmin && (
                       <Link
-                      to="/dashboard"
-                      onClick={() => setShowProfileMenu(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
-                    >
-                      <LayoutDashboard className="w-4 h-4 text-gray-500" />
-                      Estadísticas
-                    </Link>
+                        to="/dashboard"
+                        onClick={() => setShowProfileMenu(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition"
+                      >
+                        <LayoutDashboard className="w-4 h-4 text-gray-500" />
+                        Estadísticas
+                      </Link>
                     )}
-          
+
                     {/* Catalogos */}
-                    {isAdmin &&(
+                    {isAdmin && (
                       <Link to="/catalogos"
-                      onClick={() => setShowProfileMenu(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
-                      <Database className="w-4 h-4 text-gray-500" /> Catálogos
-                    </Link>
+                        onClick={() => setShowProfileMenu(false)}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                        <Database className="w-4 h-4 text-gray-500" /> Catálogos
+                      </Link>
                     )}
-                    
+
 
                     {/* Enlace a Gestión de Usuarios (Solo Admin) */}
                     {isAdmin && (
@@ -132,7 +149,6 @@ export function Navbar() {
                 )}
               </div>
             ) : (
-              // Si no hay usuario (aunque PrivateRoute lo evita, es buena práctica)
               <Link to="/login" className="text-indigo-600 font-medium hover:underline">
                 Iniciar Sesión
               </Link>

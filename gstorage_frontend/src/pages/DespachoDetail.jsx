@@ -117,7 +117,7 @@ export default function DespachoDetail() {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Hoja_de_Ruta_${idDespacho}.xlsx`);
+      link.setAttribute('download', `Hoja_de_Ruta_${getNombreRuta(idDespacho)}.xlsx`);
       document.body.appendChild(link);
       link.click();
 

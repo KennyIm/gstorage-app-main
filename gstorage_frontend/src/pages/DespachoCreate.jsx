@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import Select from 'react-select';
 import {
   Save, ArrowLeft, Calendar, Truck, User, Map,
   Activity, Loader2, AlertCircle, CheckCircle, PencilRuler
@@ -119,7 +120,7 @@ export default function DespachoCreate() {
     'Iquique',
     'Antofagasta',
     'Calama',
-    'Copiapó',
+    'Copiapo',
     'Tocopilla',
     'Mejillones'
   ];
@@ -206,64 +207,73 @@ export default function DespachoCreate() {
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2">
+                <div className="md:col-span-2 relative z-40">
                   <label htmlFor="id_ruta" className="block text-sm font-medium text-gray-700 mb-1">Ruta Asignada *</label>
                   <div className="relative">
-                    <Map className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <select
-                      id="id_ruta"
-                      name="id_ruta"
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                      value={formData.id_ruta}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="">Seleccionar ruta...</option>
-                      {rutas.map(r => (
-                        <option key={r.id_ruta} value={r.id_ruta}>{r.nombre_ruta}</option>
-                      ))}
-                    </select>
+                    <div>
+                      <Select
+                        inputId="id_ruta"
+                        placeholder="Seleccionar ruta..."
+                        noOptionsMessage={() => "No se encontró la ruta"}
+                        options={rutas.map(r => ({
+                          value: r.id_ruta,
+                          label: r.nombre_ruta
+                        }))}
+                        value={rutas.find(r => r.id_ruta === formData.id_ruta) ? {
+                          value: formData.id_ruta,
+                          label: rutas.find(r => r.id_ruta === formData.id_ruta).nombre_ruta
+                        } : null}
+                        onChange={(opcion) => {
+                          handleChange({
+                            target: { name: 'id_ruta', value: opcion ? opcion.value : '' }
+                          });
+                        }}
+                        isClearable
+                      />
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                <div className="relative z-30">
+                  <label htmlFor="origen" className="block text-sm font-semibold text-slate-700 mb-1">
                     Ciudad de Origen
                   </label>
-                  <select
-                    name="origen"
-                    value={formData.origen || ''}
-                    onChange={handleChange}
-                    required
-                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  >
-                    <option value="" disabled>Seleccione el origen...</option>
-                    {UBICACIONES.map((ciudad) => (
-                      <option key={`origen-${ciudad}`} value={ciudad}>
-                        {ciudad}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+                    inputId="origen"
+                    placeholder="Seleccione el origen..."
+                    options={UBICACIONES.map(ciudad => ({
+                      value: ciudad,
+                      label: ciudad
+                    }))}
+                    value={formData.origen ? { value: formData.origen, label: formData.origen } : null}
+                    onChange={(opcion) => {
+                      handleChange({
+                        target: { name: 'origen', value: opcion ? opcion.value : '' }
+                      });
+                    }}
+                    isClearable
+                  />
                 </div>
 
                 {/* --- CAMPO DESTINO --- */}
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                <div className="relative z-30">
+                  <label htmlFor="destino" className="block text-sm font-semibold text-slate-700 mb-1">
                     Ciudad de Destino
                   </label>
-                  <select
-                    name="destino"
-                    value={formData.destino || ''}
-                    onChange={handleChange}
-                    required
-                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  >
-                    <option value="" disabled>Seleccione el destino...</option>
-                    {UBICACIONES.map((ciudad) => (
-                      <option key={`destino-${ciudad}`} value={ciudad}>
-                        {ciudad}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+                    inputId="destino"
+                    placeholder="Seleccione el destino..."
+                    options={UBICACIONES.map(ciudad => ({
+                      value: ciudad,
+                      label: ciudad
+                    }))}
+                    value={formData.destino ? { value: formData.destino, label: formData.destino } : null}
+                    onChange={(opcion) => {
+                      handleChange({
+                        target: { name: 'destino', value: opcion ? opcion.value : '' }
+                      });
+                    }}
+                    isClearable
+                  />
                 </div>
               </div>
             </div>
@@ -276,66 +286,98 @@ export default function DespachoCreate() {
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="id_camion" className="block text-sm font-medium text-gray-700 mb-1">Camión *</label>
-                  <div className="relative">
-                    <Truck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <select
-                      id="id_camion"
-                      name="id_camion"
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                      value={formData.id_camion}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="">Seleccionar camión...</option>
-                      {camiones.map(c => (
-                        <option key={c.id_camion} value={c.id_camion}>{c.patente} ({c.marca})</option>
-                      ))}
-                    </select>
+                  {/* --- SELECTOR CAMIÓN --- */}
+                  <div className="relative z-20">
+                    <label htmlFor="id_camion" className="block text-sm font-medium text-gray-700 mb-1">Camión *</label>
+                    <div className="relative">
+                      <div className="">
+                        <Select
+                          inputId="id_camion"
+                          placeholder="Seleccionar camión..."
+                          noOptionsMessage={() => "No se encontró el camión"}
+                          options={camiones.map(c => ({
+                            value: c.id_camion,
+                            label: `${c.patente} (${c.marca})`
+                          }))}
+                          value={camiones.find(c => c.id_camion === formData.id_camion) ? {
+                            value: formData.id_camion,
+                            label: (() => {
+                              const c = camiones.find(cam => cam.id_camion === formData.id_camion);
+                              return `${c.patente} (${c.marca})`;
+                            })()
+                          } : null}
+                          onChange={(opcion) => {
+                            handleChange({
+                              target: { name: 'id_camion', value: opcion ? opcion.value : '' }
+                            });
+                          }}
+                          isClearable
+                          required
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <label htmlFor="id_rampla" className="block text-sm font-medium text-gray-700 mb-1">Rampla *</label>
-                  <div className="relative">
-                    <PencilRuler className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <select
-                      id="id_rampla"
-                      name="id_rampla"
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                      value={formData.id_rampla}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="">Seleccionar rampla...</option>
-                      {ramplas.map(r => (
-                        <option key={r.id_rampla} value={r.id_rampla}>
-                          {r.patente} ({r.modelo})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
 
-                <div>
-                  <label htmlFor="id_conductor" className="block text-sm font-medium text-gray-700 mb-1">Conductor *</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <select
-                      id="id_conductor"
-                      name="id_conductor"
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                      value={formData.id_conductor}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="">Seleccionar conductor...</option>
-                      {conductores.map(c => (
-                        <option key={c.id_conductor} value={c.id_conductor}>{c.nombre_completo}</option>
-                      ))}
-                    </select>
+                  {/* --- SELECTOR RAMPLA --- */}
+                  <div className="relative z-20">
+                    <label htmlFor="id_rampla" className="block text-sm font-medium text-gray-700 mb-1">Rampla *</label>
+                    <div className="relative">
+                      <div className="">
+                        <Select
+                          inputId="id_rampla"
+                          placeholder="Seleccionar rampla..."
+                          noOptionsMessage={() => "No se encontró la rampla"}
+                          options={ramplas.map(r => ({
+                            value: r.id_rampla,
+                            label: `${r.patente} (${r.modelo})`
+                          }))}
+                          value={ramplas.find(r => r.id_rampla === formData.id_rampla) ? {
+                            value: formData.id_rampla,
+                            label: (() => {
+                              const r = ramplas.find(ram => ram.id_rampla === formData.id_rampla);
+                              return `${r.patente} (${r.modelo})`;
+                            })()
+                          } : null}
+                          onChange={(opcion) => {
+                            handleChange({
+                              target: { name: 'id_rampla', value: opcion ? opcion.value : '' }
+                            });
+                          }}
+                          isClearable
+                          required
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
+
+                  {/* --- SELECTOR CONDUCTOR --- */}
+                  <div className="relative z-10">
+                    <label htmlFor="id_conductor" className="block text-sm font-medium text-gray-700 mb-1">Conductor *</label>
+                    <div className="relative">
+                      <div className="">
+                        <Select
+                          inputId="id_conductor"
+                          placeholder="Seleccionar conductor..."
+                          noOptionsMessage={() => "No se encontró el conductor"}
+                          options={conductores.map(c => ({
+                            value: c.id_conductor,
+                            label: c.nombre_completo
+                          }))}
+                          value={conductores.find(c => c.id_conductor === formData.id_conductor) ? {
+                            value: formData.id_conductor,
+                            label: conductores.find(c => c.id_conductor === formData.id_conductor).nombre_completo
+                          } : null}
+                          onChange={(opcion) => {
+                            handleChange({
+                              target: { name: 'id_conductor', value: opcion ? opcion.value : '' }
+                            });
+                          }}
+                          isClearable
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
               </div>
             </div>
 

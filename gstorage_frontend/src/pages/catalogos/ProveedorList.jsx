@@ -3,45 +3,32 @@ import apiClient from '../../services/api';
 import {
     Search, Plus, Edit, Trash2, User, Building,
     Mail, Phone, X, Briefcase, CreditCard, AlertCircle
+    ,ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 // --- FUNCION DE UTILIDAD PARA EL RUT ---
 const formatRUT = (rut) => {
-    // Quitar todo lo que no sea número o la letra K
     let value = rut.replace(/[^0-9kK]/g, '').toUpperCase();
     if (value.length <= 1) return value;
-
-    // Separar el cuerpo del dígito verificador
     const body = value.slice(0, -1);
     const dv = value.slice(-1);
-
-    // Ponerle los puntos al cuerpo
     const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-
     return `${formattedBody}-${dv}`;
 };
 
 const isValidRUT = (rut) => {
-    // Limpiar el formato
     const cleanRUT = rut.replace(/[^0-9kK]/g, '').toUpperCase();
     if (cleanRUT.length < 7) return false;
-
-    // Separar cuerpo y dv
     const body = cleanRUT.slice(0, -1);
     const dv = cleanRUT.slice(-1);
-
-    // Algoritmo Módulo 11
     let sum = 0;
     let multiplier = 2;
-
     for (let i = body.length - 1; i >= 0; i--) {
         sum += parseInt(body.charAt(i)) * multiplier;
         multiplier = multiplier === 7 ? 2 : multiplier + 1;
     }
-
     const expectedDV = 11 - (sum % 11);
     const finalDV = expectedDV === 11 ? '0' : expectedDV === 10 ? 'K' : expectedDV.toString();
-
     return dv === finalDV;
 };
 
@@ -51,7 +38,13 @@ export default function Proveedores() {
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Estados del Modal
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
     const [showModal, setShowModal] = useState(false);
     const [editingProveedor, setEditingProveedor] = useState(null);
     const [submitting, setSubmitting] = useState(false);
@@ -93,6 +86,10 @@ export default function Proveedores() {
             prov.contacto?.toLowerCase().includes(term)
         );
     });
+
+    const totalPages = Math.ceil(filteredProveedores.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const paginatedProveedores = filteredProveedores.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
     // --- HANDLERS DEL MODAL ---
     const handleOpenModal = (proveedor = null) => {
@@ -208,8 +205,8 @@ export default function Proveedores() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {filteredProveedores.length > 0 ? (
-                                    filteredProveedores.map((prov) => (
+                                {paginatedProveedores.length > 0 ? (
+                                        paginatedProveedores.map((prov) => (
                                         <tr key={prov.rut} className="hover:bg-gray-50 transition group">
 
                                             {/* EMPRESA Y RUT */}
@@ -271,6 +268,23 @@ export default function Proveedores() {
                                 )}
                             </tbody>
                         </table>
+                    </div>
+                    
+                )}
+            {filteredProveedores.length > 0 && (
+                    <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <p className="text-xs text-gray-500">
+                            Mostrando {startIndex + 1} a {Math.min(startIndex + ITEMS_PER_PAGE, filteredProveedores.length)} de {filteredProveedores.length}
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="p-1.5 border rounded-lg disabled:opacity-40"><ChevronLeft size={20}/></button>
+                            <div className="flex gap-1">
+                                {[...Array(totalPages)].map((_, i) => (
+                                    <button key={i} onClick={() => setCurrentPage(i + 1)} className={`w-9 h-9 rounded-lg text-xs font-bold ${currentPage === i + 1 ? 'bg-indigo-600 text-white' : 'hover:bg-white border border-transparent'}`}>{i + 1}</button>
+                                ))}
+                            </div>
+                            <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="p-1.5 border rounded-lg disabled:opacity-40"><ChevronRight size={20}/></button>
+                        </div>
                     </div>
                 )}
             </div>

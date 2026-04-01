@@ -89,6 +89,19 @@ export default function DriversCatalog() {
     setError(null);
   };
 
+  const formatRUT = (rut) => {
+    if (!rut) return 'Sin RUT';
+    let value = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+    if (value.length <= 1) return value;
+
+    const body = value.slice(0, -1);
+    const dv = value.slice(-1);
+
+    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+    return `${formattedBody}-${dv}`;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -190,7 +203,7 @@ export default function DriversCatalog() {
                         </div>
                         <div>
                           <p className="font-semibold text-gray-900">{driver.nombre_completo}</p>
-                          <p className="text-xs text-gray-500">{driver.rut_conductor}</p>
+                          <p className="text-xs text-gray-500">{formatRUT(driver.rut_conductor)}</p>
                         </div>
                       </div>
                     </td>

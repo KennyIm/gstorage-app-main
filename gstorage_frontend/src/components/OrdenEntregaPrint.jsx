@@ -171,7 +171,7 @@ export default function OrdenEntregaPlantilla() {
 
     const generarPDF = useReactToPrint({
         contentRef: componenteRef,
-        documentTitle: `Orden_Entrega_Ruta_${id}`,
+        documentTitle: `Orden_Entrega_Ruta_${getCodigoRuta(id)}`,
         pageStyle: `
             @page { size: 210mm 275mm; margin: 0; }
             @media print { 

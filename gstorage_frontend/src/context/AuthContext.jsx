@@ -43,12 +43,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logoutUser = () => {
-    setAuthTokens(null);
-    setUser(null);
-    localStorage.removeItem('authTokens');
-    navigate('/login');
-  };
+  const logoutUser = async () => {
+  try {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (refreshToken) {
+      await apiClient.post('/api/logout/', { refresh: refreshToken });
+    }
+  } catch (error) {
+    console.error("Error en blacklist:", error);
+  } finally {
+    localStorage.clear(); 
+    delete apiClient.defaults.headers.common['Authorization'];
+    setUser(null); 
+    window.location.href = '/login'; 
+  }
+};
 
   useEffect(() => {
     if (authTokens) {
