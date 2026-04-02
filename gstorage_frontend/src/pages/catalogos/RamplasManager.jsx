@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../services/api';
-import { Search, Plus, Edit, Trash2, X, Truck, AlertCircle } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, X, Truck, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function RamplaList() {
   const [ramplas, setRamplas] = useState([]);
@@ -85,8 +86,8 @@ export default function RamplaList() {
       } else {
         await apiClient.post('/api/inventario/ramplas/', formData);
       }
-      handleCloseModal(); 
-      fetchRamplas();   
+      handleCloseModal();
+      fetchRamplas();
     } catch (err) {
       console.error(err);
       setError("Error al guardar. Verifica que la patente no esté duplicada.");
@@ -109,6 +110,9 @@ export default function RamplaList() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <Link to="/catalogos" className=" text-gray-500 transition shadow-sm">
+        <ArrowLeft className="w-7 h-7" />
+      </Link>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Catálogo de Ramplas</h1>
         <p className="text-gray-600">Gestiona los remolques y sus capacidades de carga</p>
@@ -165,17 +169,16 @@ export default function RamplaList() {
                   </td>
                   <td className="py-4 px-4">
                     <div className="text-sm">
-                        <p><span className="font-medium">{rampla.capacidad_max_kg}</span> Kg</p>
-                        <p className="text-gray-500 text-xs">{rampla.capacidad_max_m3} m³</p>
+                      <p><span className="font-medium">{rampla.capacidad_max_kg}</span> Kg</p>
+                      <p className="text-gray-500 text-xs">{rampla.capacidad_max_m3} m³</p>
                     </div>
                   </td>
                   <td className="py-4 px-4 text-gray-600">{rampla.anio || '-'}</td>
                   <td className="py-4 px-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      rampla.estado_rampla === 'DISPONIBLE' ? 'bg-green-100 text-green-700' :
-                      rampla.estado_rampla === 'EN_USO' ? 'bg-blue-100 text-blue-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${rampla.estado_rampla === 'DISPONIBLE' ? 'bg-green-100 text-green-700' :
+                        rampla.estado_rampla === 'EN_USO' ? 'bg-blue-100 text-blue-700' :
+                          'bg-red-100 text-red-700'
+                      }`}>
                       {rampla.estado_rampla?.replace('_', ' ')}
                     </span>
                   </td>
@@ -201,10 +204,10 @@ export default function RamplaList() {
               ))}
             </tbody>
           </table>
-          
+
           {filteredRamplas.length === 0 && (
             <div className="text-center py-12 text-gray-500">
-                No se encontraron ramplas.
+              No se encontraron ramplas.
             </div>
           )}
         </div>
@@ -224,9 +227,9 @@ export default function RamplaList() {
             </div>
 
             {error && (
-                <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm flex items-center gap-2">
-                    <AlertCircle size={16}/> {error}
-                </div>
+              <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm flex items-center gap-2">
+                <AlertCircle size={16} /> {error}
+              </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -244,73 +247,73 @@ export default function RamplaList() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
-                    <input
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
+                  <input
                     type="text"
                     value={formData.marca}
                     onChange={(e) => setFormData({ ...formData, marca: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                     placeholder="Tremac"
-                    />
+                  />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Modelo</label>
-                    <input
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Modelo</label>
+                  <input
                     type="text"
                     value={formData.modelo}
                     onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                     placeholder="Plana 3 Ejes"
-                    />
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Cap. (Kg)</label>
-                    <input
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cap. (Kg)</label>
+                  <input
                     type="number"
                     value={formData.capacidad_max_kg}
                     onChange={(e) => setFormData({ ...formData, capacidad_max_kg: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                     step="0.01"
                     required
-                    />
+                  />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Cap. (m³)</label>
-                    <input
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cap. (m³)</label>
+                  <input
                     type="number"
                     value={formData.capacidad_max_m3}
                     onChange={(e) => setFormData({ ...formData, capacidad_max_m3: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                     step="0.01"
                     required
-                    />
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Año</label>
-                    <input
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Año</label>
+                  <input
                     type="number"
                     value={formData.anio}
                     onChange={(e) => setFormData({ ...formData, anio: parseInt(e.target.value) })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                    />
+                  />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-                    <select
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                  <select
                     value={formData.estado_rampla}
                     onChange={(e) => setFormData({ ...formData, estado_rampla: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                    >
+                  >
                     <option value="DISPONIBLE">Disponible</option>
                     <option value="EN_USO">En Uso</option>
                     <option value="MANTENIMIENTO">Mantenimiento</option>
-                    </select>
+                  </select>
                 </div>
               </div>
 

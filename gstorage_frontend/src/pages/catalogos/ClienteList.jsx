@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../services/api';
+import { Link } from 'react-router-dom';
 import {
   Search, Plus, Edit, Briefcase, X, Users, Mail, Phone,
   CreditCard, User, MapPin, Building, AlertCircle, CheckCircle,
-  XCircle, DollarSign, ChevronLeft, ChevronRight
+  XCircle, DollarSign, ChevronLeft, ChevronRight, ArrowLeft
 } from 'lucide-react';
 
 export default function ClientsCatalog() {
@@ -142,7 +143,7 @@ export default function ClientsCatalog() {
     }
   };
 
-  // --- LÓGICA DE ESTADO (ADAPTADA) ---
+  // --- LÓGICA DE ESTADO ---
   const handleToggleStatus = async (client) => {
     const action = client.activo ? 'DESACTIVAR' : 'ACTIVAR';
     if (!window.confirm(`¿Seguro que deseas ${action} a ${client.nombre_cliente}?`)) return;
@@ -164,6 +165,9 @@ export default function ClientsCatalog() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <Link to="/catalogos" className=" text-gray-500 transition shadow-sm">
+        <ArrowLeft className="w-7 h-7" />
+      </Link>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Catálogo de Clientes</h1>
         <p className="text-gray-600">Administra la información y estado de tus clientes.</p>

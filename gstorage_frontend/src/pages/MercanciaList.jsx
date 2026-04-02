@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../services/api';
-import { Search, Filter, Package, Plus, Eye, Trash2, Truck, MapPin, Check, X, FileText,
-  ChevronLeft, ChevronRight
- } from 'lucide-react';
+import {
+  Search, Filter, Package, Plus, Eye, Trash2, Truck, MapPin, Check, X, FileText,
+  ChevronLeft, ChevronRight, ArrowLeft
+} from 'lucide-react';
 import MermaModal from '../components/MermaModal';
 
 export default function MercanciaList() {
@@ -96,12 +97,12 @@ export default function MercanciaList() {
   const filteredItems = mercancias.filter(item => {
     if (!item) return false;
     const term = searchTerm.toLowerCase();
-    const matchesSearch = 
-      (item.cliente_nombre?.toLowerCase() || '').includes(term) || 
-      (item.descripcion_carga?.toLowerCase() || '').includes(term) || 
-      (String(item.codigo_interno || '')).includes(term) || 
+    const matchesSearch =
+      (item.cliente_nombre?.toLowerCase() || '').includes(term) ||
+      (item.descripcion_carga?.toLowerCase() || '').includes(term) ||
+      (String(item.codigo_interno || '')).includes(term) ||
       (item.factura?.toLowerCase() || '').includes(term);
-    
+
     const matchesStatus = statusFilter === 'TODOS' || item.estado === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -125,6 +126,9 @@ export default function MercanciaList() {
       <div className="bg-white rounded-xl shadow-md p-6 mb-6 border border-gray-100">
         {/* BARRA SUPERIOR */}
         <div className="flex flex-col md:flex-row gap-4 mb-6">
+          <Link to="/" className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 transition shadow-sm">
+            <ArrowLeft className="w-auto h-auto" />
+          </Link>
 
           {/* Buscador */}
           <div className="flex-1 relative">
@@ -326,7 +330,7 @@ export default function MercanciaList() {
               })}
             </tbody>
           </table>
-          </div>
+        </div>
         {filteredItems.length > 0 && (
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-100 pt-6">
             <p className="text-sm text-gray-600">
@@ -336,7 +340,7 @@ export default function MercanciaList() {
               </span> de{' '}
               <span className="font-semibold">{filteredItems.length}</span> mercancías
             </p>
-            
+
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -345,23 +349,22 @@ export default function MercanciaList() {
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              
+
               <div className="flex items-center gap-1">
                 {[...Array(totalPages)].map((_, i) => {
-                   if (totalPages > 5 && Math.abs(currentPage - (i + 1)) > 2) return null;
-                   return (
+                  if (totalPages > 5 && Math.abs(currentPage - (i + 1)) > 2) return null;
+                  return (
                     <button
                       key={i + 1}
                       onClick={() => setCurrentPage(i + 1)}
-                      className={`w-10 h-10 rounded-lg text-sm font-medium transition ${
-                        currentPage === i + 1
+                      className={`w-10 h-10 rounded-lg text-sm font-medium transition ${currentPage === i + 1
                           ? 'bg-indigo-600 text-white'
                           : 'text-gray-600 hover:bg-indigo-50'
-                      }`}
+                        }`}
                     >
                       {i + 1}
                     </button>
-                   );
+                  );
                 })}
               </div>
 

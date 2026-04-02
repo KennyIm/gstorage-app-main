@@ -3,6 +3,7 @@ import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import * as XLSX from 'xlsx-js-style';
 import { GripVertical, FileSpreadsheet, User, Package, Building2 } from 'lucide-react';
 import apiClient from '../services/api';
+import Select from 'react-select';
 
 export default function PlanificadorRutas() {
   const [despachos, setDespachos] = useState([]);
@@ -85,17 +86,18 @@ export default function PlanificadorRutas() {
   };
 
   const getCodigoRuta = (rutaId) => {
-        if (!rutaId) return 'Sin Ruta asignada';
-        const rutaEncontrada = rutas.find(r => String(r.id) === String(rutaId) || String(r.id_ruta) === String(rutaId));
+    if (!rutaId) return 'Sin Ruta asignada';
+    const rutaEncontrada = rutas.find(r => String(r.id) === String(rutaId) || String(r.id_ruta) === String(rutaId));
 
-        if (rutaEncontrada) {
-            return rutaEncontrada.codigo_ruta || rutaEncontrada.codigo || `Encontrada (Sin código)`;
-        }
+    if (rutaEncontrada) {
+      return rutaEncontrada.codigo_ruta || rutaEncontrada.codigo || `Encontrada (Sin código)`;
+    }
 
-        return `Ruta N° ${rutaId}`;
-    };
+    return `Ruta N° ${rutaId}`;
+  };
   const manejarSeleccionDespacho = (e) => {
-    const id = e.target.value;
+    const id = (e && e.target) ? e.target.value : e;
+
     setDespachoSeleccionado(id);
 
     if (!id) {
@@ -128,7 +130,7 @@ export default function PlanificadorRutas() {
       [
         "",
         `${despacho?.nombre_conductor || 'N/A'}`,
-        `${getCodigoRuta(despacho?.id_ruta).split('-')[0].trim()}`, // Usamos la función que ya tenías
+        `${getCodigoRuta(despacho?.id_ruta).split('-')[0].trim()}`,
         `${(despacho?.id_camion).replace(/Camión/ig, '').split('(')[0].trim()}`,
         `${getPatenteRampla(despacho?.id_rampla)}`,
         `${despacho?.fecha_salida_real ? new Date(despacho.fecha_salida_real).toLocaleDateString() : 'N/A'}`,
@@ -158,9 +160,9 @@ export default function PlanificadorRutas() {
     const hoja = XLSX.utils.aoa_to_sheet(datosExcel);
     const formatoKilos = '#,##0';
     for (let i = 2; i < datosExcel.length; i++) {
-      const referenciaCelda = XLSX.utils.encode_cell({ r: i, c: 3 }); 
+      const referenciaCelda = XLSX.utils.encode_cell({ r: i, c: 3 });
       if (hoja[referenciaCelda]) {
-        hoja[referenciaCelda].z = formatoKilos; 
+        hoja[referenciaCelda].z = formatoKilos;
       }
     }
     hoja['!merges'] = [
@@ -172,14 +174,14 @@ export default function PlanificadorRutas() {
     ];
 
     hoja['!pageSetup'] = {
-      scale: 70,                
-      orientation: 'landscape', 
-      paperSize: 9             
+      scale: 70,
+      orientation: 'landscape',
+      paperSize: 9
     };
 
     hoja['!margins'] = {
-      left: 0.13,   
-      right: 0.13,  
+      left: 0.13,
+      right: 0.13,
       top: 0.75,
       bottom: 0.75,
       header: 0.3,
@@ -188,11 +190,11 @@ export default function PlanificadorRutas() {
 
     //COLORES SE PUEDEN AGREGAR
     const coloresDestino = {
-      "ANTOFAGASTA": "FF0000", 
-      "IQUIQUE": "000000",     
-      "CALAMA": "0000FF",      
+      "ANTOFAGASTA": "FF0000",
+      "IQUIQUE": "000000",
+      "CALAMA": "0000FF",
       "SANTIAGO": "008000",
-      "TOCOPILLA": "0120FF"     
+      "TOCOPILLA": "0120FF"
     };
     Object.keys(hoja).forEach(referenciaCelda => {
       if (referenciaCelda.startsWith('!')) return;
@@ -219,14 +221,14 @@ export default function PlanificadorRutas() {
       // --- ESTILO PARA TÍTULOS (Fila 2) ---
       if (numeroFila === 2) {
         hoja[referenciaCelda].s.font.bold = true;
-        hoja[referenciaCelda].s.fill = { fgColor: { rgb: "F2F2F2" } }; 
+        hoja[referenciaCelda].s.fill = { fgColor: { rgb: "F2F2F2" } };
       }
     });
 
     const libro = XLSX.utils.book_new();
-    
+
     XLSX.utils.book_append_sheet(libro, hoja, "Ruta");
-    XLSX.writeFile(libro, `Ruta_Despacho_${despachoSeleccionado}.xlsx`);
+    XLSX.writeFile(libro, `Ruta_Despacho_${getCodigoRuta(despachoSeleccionado)}.xlsx`);
   };
 
   if (loading) return <div className="p-10 text-center">Cargando catálogos del sistema...</div>;
@@ -237,19 +239,24 @@ export default function PlanificadorRutas() {
         <div>
           <h1 className="text-3xl font-bold text-slate-800">Planificador de Rutas</h1>
         </div>
-
-        <select
-          className="border border-slate-300 rounded-lg p-3 bg-white shadow-sm outline-none focus:ring-2 focus:ring-indigo-500 min-w-[200px]"
-          value={despachoSeleccionado}
-          onChange={manejarSeleccionDespacho}
-        >
-          <option value="">Seleccionar Despacho...</option>
-          {despachos.map(d => (
-            <option key={d.id_despacho} value={d.id_despacho}>
-              Despacho N° {d.id_despacho}
-            </option>
-          ))}
-        </select>
+        <div className="min-w-[300px]"> {/* Contenedor para controlar el ancho */}
+          <Select
+            inputId="id_despacho"
+            placeholder="Seleccionar Despacho..."
+            noOptionsMessage={() => "No se encontró el despacho"}
+            isClearable
+            options={despachos.map(d => ({
+              value: d.id_despacho,
+              label: `Despacho N° ${d.id_despacho} | Ruta N° ${getCodigoRuta(d.id_despacho)}`
+            }))}
+            value={despachoSeleccionado ? {
+              value: despachoSeleccionado,
+              label: `Despacho N° ${despachoSeleccionado} | Ruta N° ${getCodigoRuta(despachoSeleccionado)}`
+            } : null}
+            onChange={(opcion) => manejarSeleccionDespacho(opcion ? opcion.value : "")}
+            classNamePrefix="react-select"
+          />
+        </div>
       </div>
 
       {listaRuta.length > 0 ? (

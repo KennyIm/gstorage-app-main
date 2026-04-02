@@ -192,12 +192,12 @@ export default function MercanciaDetail() {
                   </div>
                   <div className="p-4 border border-gray-100 rounded-lg text-center hover:border-gray-200 transition bg-white">
                     <Scale className="w-5 h-5 text-gray-400 mx-auto mb-2" />
-                    <span className="block text-xl font-bold text-gray-900">{mercancia.kg || 0}</span>
+                    <span className="block text-xl font-bold text-gray-900">{(mercancia.kg || 0).toLocaleString('es-CL')}</span>
                     <span className="text-xs text-gray-500 font-medium">Kg</span>
                   </div>
                   <div className="p-4 border border-gray-100 rounded-lg text-center hover:border-gray-200 transition bg-white">
                     <Box className="w-5 h-5 text-gray-400 mx-auto mb-2" />
-                    <span className="block text-xl font-bold text-gray-900">{mercancia.m3 || 0}</span>
+                    <span className="block text-xl font-bold text-gray-900">{(mercancia.m3 || 0).toLocaleString('es-CL')}</span>
                     <span className="text-xs text-gray-500 font-medium">m³</span>
                   </div>
                   <div className="p-4 border border-emerald-100 rounded-lg text-center hover:border-emerald-200 transition bg-emerald-50">

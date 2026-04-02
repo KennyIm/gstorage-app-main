@@ -1,8 +1,8 @@
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
-import Dashboard from './pages/Dashboard' 
+import Dashboard from './pages/Dashboard'
 import MercanciaList from './pages/MercanciaList'
-import MercanciaDetail from './pages/MercanciaDetail' 
+import MercanciaDetail from './pages/MercanciaDetail'
 import MercanciaCreate from './pages/MercanciaCreate'
 import MercanciaEdit from './pages/MercanciaEdit'
 
@@ -71,46 +71,46 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
       <Route element={<PrivateRoute />}>
-      <Route path="/" element={<Layout />}>
-        <Route index element={<Home />} />
-        <Route path="dashboard" element={<Dashboard />} /> 
-        <Route path="mercancias" element={<MercanciaList />} />
-        <Route path="mercancias/:id" element={<MercanciaDetail />} />
-        <Route path="mercancias/nueva" element={<MercanciaCreate />} />
-        <Route path='mercancias/:id/editar' element={<MercanciaEdit/>}/>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Home />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="mercancias" element={<MercanciaList />} />
+          <Route path="mercancias/:id" element={<MercanciaDetail />} />
+          <Route path="mercancias/nueva" element={<MercanciaCreate />} />
+          <Route path='mercancias/:id/editar' element={<MercanciaEdit />} />
 
-        <Route path="despachos" element={<DespachoList />} />
-        <Route path="despachos/nuevo" element={<DespachoCreate />} />
-        <Route path="despachos/:id" element={<DespachoDetail />} />
-        <Route path="despachos/:id/editar" element={<DespachoEdit />} />
-        <Route path="/despachos/:id/imprimir-plantilla" element={<OrdenEntregaPrint />} />
-        <Route path="/despachos/:id/planificar" element={<PlanificadorRutas />} />
+          <Route path="despachos" element={<DespachoList />} />
+          <Route path="despachos/nuevo" element={<DespachoCreate />} />
+          <Route path="despachos/:id" element={<DespachoDetail />} />
+          <Route path="despachos/:id/editar" element={<DespachoEdit />} />
+          <Route path="/despachos/:id/imprimir-plantilla" element={<OrdenEntregaPrint />} />
+          <Route path="/planificar" element={<PlanificadorRutas />} />
 
-        <Route path="clientes" element={<ClienteList />} />
-        <Route path="clientes/nuevo" element={<ClienteCreate />} />
-        <Route path="clientes/:id/editar" element={<ClienteEdit />} />
+          <Route path="clientes" element={<ClienteList />} />
+          <Route path="clientes/nuevo" element={<ClienteCreate />} />
+          <Route path="clientes/:id/editar" element={<ClienteEdit />} />
 
-        <Route path="conductores" element={<ConductorList />} />
-        <Route path="conductores/nuevo" element={<ConductorCreate />} />
-        <Route path="conductores/:id/editar" element={<ConductorEdit />} />
-        
-        <Route path="camiones" element={<CamionList />} />
-        <Route path="camiones/nuevo" element={<CamionCreate />} />
-        <Route path="camiones/:id/editar" element={<CamionEdit />} />
+          <Route path="conductores" element={<ConductorList />} />
+          <Route path="conductores/nuevo" element={<ConductorCreate />} />
+          <Route path="conductores/:id/editar" element={<ConductorEdit />} />
 
-        <Route path="rutas" element={<RutaList />} />
-        <Route path="rutas/nuevo" element={<RutaCreate />} />
-        <Route path="rutas/:id/editar" element={<RutaEdit />} />
+          <Route path="camiones" element={<CamionList />} />
+          <Route path="camiones/nuevo" element={<CamionCreate />} />
+          <Route path="camiones/:id/editar" element={<CamionEdit />} />
 
-        <Route path="destinos" element={<DestinoList />} />
-        <Route path="destinos/nuevo" element={<DestinoCreate />} />
-        <Route path="destinos/:id/editar" element={<DestinoEdit />} />
+          <Route path="rutas" element={<RutaList />} />
+          <Route path="rutas/nuevo" element={<RutaCreate />} />
+          <Route path="rutas/:id/editar" element={<RutaEdit />} />
 
-        <Route path="perfil" element={<Perfil />} />
-        <Route path="gestionar-empleados" element={<GestionarEmpleados />} />
-        <Route path="gestionar-empleados/nuevo" element={<CrearUsuario />} />
+          <Route path="destinos" element={<DestinoList />} />
+          <Route path="destinos/nuevo" element={<DestinoCreate />} />
+          <Route path="destinos/:id/editar" element={<DestinoEdit />} />
 
-        {/*<Route path="visualizacion" element={<Visor3D />} />
+          <Route path="perfil" element={<Perfil />} />
+          <Route path="gestionar-empleados" element={<GestionarEmpleados />} />
+          <Route path="gestionar-empleados/nuevo" element={<CrearUsuario />} />
+
+          {/*<Route path="visualizacion" element={<Visor3D />} />
 
         <Route path="estanterias" element={<EstanteriaList />} />
         <Route path="estanterias/nueva" element={<EstanteriaCreate />} />
@@ -121,15 +121,14 @@ function App() {
         <Route path="ubicaciones/:id/editar" element={<UbicacionEdit />} />
         */}
 
-        <Route path="reportes" element={<ReportsView />} />
+          <Route path="reportes" element={<ReportsView />} />
 
-        <Route path="historial" element={<HistorialView />} />
-        <Route path="catalogos" element={<CatalogsView />} />
+          <Route path="historial" element={<HistorialView />} />
+          <Route path="catalogos" element={<CatalogsView />} />
 
-        <Route path="/proveedores" element={<Proveedores />} />
-
-        <Route path="/ramplas" element={<RamplasManager />} />
-      </Route>
+          <Route path="proveedores" element={<Proveedores />} />
+          <Route path="ramplas" element={<RamplasManager />} />
+        </Route>
       </Route>
     </Routes>
   )

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../services/api';
+import { Link } from 'react-router-dom';
 import {
     Search, Plus, Edit, Trash2, User, Building,
     Mail, Phone, X, Briefcase, CreditCard, AlertCircle
-    ,ChevronLeft, ChevronRight
+    , ChevronLeft, ChevronRight, ArrowLeft
 } from 'lucide-react';
 
-// --- FUNCION DE UTILIDAD PARA EL RUT ---
 const formatRUT = (rut) => {
     let value = rut.replace(/[^0-9kK]/g, '').toUpperCase();
     if (value.length <= 1) return value;
@@ -58,7 +58,6 @@ export default function Proveedores() {
         activo: true
     });
 
-    // --- CARGAR DATOS ---
     const fetchProveedores = async () => {
         setLoading(true);
         try {
@@ -77,7 +76,6 @@ export default function Proveedores() {
         fetchProveedores();
     }, []);
 
-    // --- FILTRADO BÚSQUEDA ---
     const filteredProveedores = proveedores.filter(prov => {
         const term = searchTerm.toLowerCase();
         return (
@@ -91,7 +89,6 @@ export default function Proveedores() {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const paginatedProveedores = filteredProveedores.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-    // --- HANDLERS DEL MODAL ---
     const handleOpenModal = (proveedor = null) => {
         setError(null);
         if (proveedor) {
@@ -123,7 +120,6 @@ export default function Proveedores() {
         setEditingProveedor(null);
     };
 
-    // --- CREAR / EDITAR ---
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
@@ -149,7 +145,6 @@ export default function Proveedores() {
         }
     };
 
-    // --- ELIMINADO LÓGICO ---
     const handleDelete = async (rut, nombre) => {
         if (window.confirm(`¿Estás seguro de que deseas dar de baja al proveedor "${nombre}"?`)) {
             try {
@@ -164,13 +159,14 @@ export default function Proveedores() {
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 font-sans">
+            <Link to="/catalogos" className=" text-gray-500 transition shadow-sm">
+                <ArrowLeft className="w-7 h-7" />
+            </Link>
 
-            {/* HEADER DE LA PÁGINA */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Directorio de Proveedores</h1>
             </div>
 
-            {/* BARRA DE HERRAMIENTAS */}
             <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-100 flex flex-col sm:flex-row gap-4 justify-between items-center">
                 <div className="relative w-full sm:max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -206,7 +202,7 @@ export default function Proveedores() {
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {paginatedProveedores.length > 0 ? (
-                                        paginatedProveedores.map((prov) => (
+                                    paginatedProveedores.map((prov) => (
                                         <tr key={prov.rut} className="hover:bg-gray-50 transition group">
 
                                             {/* EMPRESA Y RUT */}
@@ -269,21 +265,21 @@ export default function Proveedores() {
                             </tbody>
                         </table>
                     </div>
-                    
+
                 )}
-            {filteredProveedores.length > 0 && (
+                {filteredProveedores.length > 0 && (
                     <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row justify-between items-center gap-4">
                         <p className="text-xs text-gray-500">
                             Mostrando {startIndex + 1} a {Math.min(startIndex + ITEMS_PER_PAGE, filteredProveedores.length)} de {filteredProveedores.length}
                         </p>
                         <div className="flex items-center gap-2">
-                            <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="p-1.5 border rounded-lg disabled:opacity-40"><ChevronLeft size={20}/></button>
+                            <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="p-1.5 border rounded-lg disabled:opacity-40"><ChevronLeft size={20} /></button>
                             <div className="flex gap-1">
                                 {[...Array(totalPages)].map((_, i) => (
                                     <button key={i} onClick={() => setCurrentPage(i + 1)} className={`w-9 h-9 rounded-lg text-xs font-bold ${currentPage === i + 1 ? 'bg-indigo-600 text-white' : 'hover:bg-white border border-transparent'}`}>{i + 1}</button>
                                 ))}
                             </div>
-                            <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="p-1.5 border rounded-lg disabled:opacity-40"><ChevronRight size={20}/></button>
+                            <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="p-1.5 border rounded-lg disabled:opacity-40"><ChevronRight size={20} /></button>
                         </div>
                     </div>
                 )}

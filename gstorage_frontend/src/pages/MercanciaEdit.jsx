@@ -466,6 +466,7 @@ export default function MercanciaEdit() {
                   <input
                     type="checkbox"
                     id="paga_proveedor"
+                    name='paga_proveedor'
                     checked={formData.paga_proveedor}
                     onChange={handleChange}
                     className="w-4 h-4 text-indigo-600 rounded"
