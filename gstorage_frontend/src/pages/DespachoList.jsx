@@ -162,9 +162,6 @@ export default function DespachoList() {
         {/* Header y Acciones */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <Link to="/" className=" text-gray-500 transition shadow-sm">
-              <ArrowLeft className="w-7 h-7" />
-            </Link>
             <h1 className="text-3xl font-bold text-gray-900">Despachos</h1>
             <p className="mt-1 text-sm text-gray-600">Planificación y seguimiento de salidas de mercancía.</p>
           </div>

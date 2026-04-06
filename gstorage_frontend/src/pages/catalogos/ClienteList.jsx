@@ -7,6 +7,14 @@ import {
   XCircle, DollarSign, ChevronLeft, ChevronRight, ArrowLeft
 } from 'lucide-react';
 
+import {
+  normalizeRUT,
+  normalizePhone,
+  normalizeCity,
+  normalizeEmail,
+  normalizeName
+} from '../../utils/normalization';
+
 export default function ClientsCatalog() {
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -127,6 +135,16 @@ export default function ClientsCatalog() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const cleanData = {
+      ...formData,
+      nombre_cliente: normalizeName(formData.nombre_cliente),
+      rut_cliente: normalizeRUT(formData.rut_cliente),
+      email_contacto: normalizeEmail(formData.email_contacto),
+      telefono_contacto: normalizePhone(formData.telefono_contacto),
+      ciudad: normalizeCity(formData.ciudad),
+      nombre_contacto: normalizeName(formData.nombre_contacto)
+    };
     setError(null);
 
     try {
@@ -160,14 +178,22 @@ export default function ClientsCatalog() {
     }
   };
 
+  const formatearRUT = (rut) => {
+    if (!rut) return 'Sin RUT';
+    let valor = rut.replace(/\./g, '').replace(/-/g, '').trim();
+
+    if (valor.length < 2) return valor;
+    const cuerpo = valor.slice(0, -1);
+    const dv = valor.slice(-1).toUpperCase();
+    const cuerpoFormateado = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return `${cuerpoFormateado}-${dv}`;
+  };
+
   // --- RENDER ---
   if (loading) return <div className="p-8 text-center text-gray-500">Cargando cartera de clientes...</div>;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <Link to="/catalogos" className=" text-gray-500 transition shadow-sm">
-        <ArrowLeft className="w-7 h-7" />
-      </Link>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Catálogo de Clientes</h1>
         <p className="text-gray-600">Administra la información y estado de tus clientes.</p>
@@ -226,7 +252,7 @@ export default function ClientsCatalog() {
                         </div>
                         <div>
                           <p className="font-semibold text-gray-900">{client.nombre_cliente}</p>
-                          <p className="text-xs text-gray-500">{client.rut_cliente || 'Sin RUT'}</p>
+                          <p className="text-xs text-gray-500">{formatearRUT(client.rut_cliente) || 'Sin RUT'}</p>
                         </div>
                       </div>
                     </td>
@@ -391,6 +417,7 @@ export default function ClientsCatalog() {
                       <input
                         type="text"
                         value={formData.nombre_cliente}
+                        onBlur={(e) => setFormData({ ...formData, nombre_cliente: normalizeName(e.target.value) })}
                         onChange={(e) => setFormData({ ...formData, nombre_cliente: e.target.value })}
                         className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                         placeholder="Ej. Distribuidora Central Ltda."
@@ -407,6 +434,7 @@ export default function ClientsCatalog() {
                         <input
                           type="text"
                           value={formData.rut_cliente}
+                          onBlur={(e) => setFormData({ ...formData, rut_cliente: normalizeRUT(e.target.value) })}
                           onChange={(e) => setFormData({ ...formData, rut_cliente: e.target.value })}
                           className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                           placeholder="12.345.678-9"
@@ -420,6 +448,7 @@ export default function ClientsCatalog() {
                         <input
                           type="text"
                           value={formData.nombre_contacto}
+                          onBlur={(e) => setFormData({ ...formData, nombre_contacto: normalizeName(e.target.value) })}
                           onChange={(e) => setFormData({ ...formData, nombre_contacto: e.target.value })}
                           className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                           placeholder="Ej: Juan Pérez"
@@ -441,6 +470,7 @@ export default function ClientsCatalog() {
                         <input
                           type="tel"
                           value={formData.telefono_contacto}
+                          onBlur={(e) => setFormData({ ...formData, telefono_contacto: normalizePhone(e.target.value) })}
                           onChange={(e) => setFormData({ ...formData, telefono_contacto: e.target.value })}
                           className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                           placeholder="+56 9 1234 5678"
@@ -454,6 +484,7 @@ export default function ClientsCatalog() {
                         <input
                           type="email"
                           value={formData.email_contacto}
+                          onBlur={(e) => setFormData({ ...formData, email_contacto: normalizeEmail(e.target.value) })}
                           onChange={(e) => setFormData({ ...formData, email_contacto: e.target.value })}
                           className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                           placeholder="contacto@empresa.com"
@@ -483,6 +514,7 @@ export default function ClientsCatalog() {
                         <input
                           type="text"
                           value={formData.ciudad}
+                          onBlur={(e) => setFormData({ ...formData, ciudad: normalizeCity(e.target.value) })}
                           onChange={(e) => setFormData({ ...formData, ciudad: e.target.value })}
                           className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                           placeholder="Ej: Santiago"

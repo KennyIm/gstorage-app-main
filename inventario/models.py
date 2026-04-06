@@ -55,6 +55,7 @@ class RamplaManager(models.Manager):
         return super().get_queryset().filter(activo=True)
     
 class Proveedor(models.Model):
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="proveedores")
     rut = models.CharField(max_length=20, primary_key=True, verbose_name="RUT del Proveedor")
     nombre_proveedor = models.CharField(max_length=150, verbose_name="Nombre / Razón Social")
     contacto = models.CharField(max_length=100, blank=True, null=True, verbose_name="Persona de Contacto")

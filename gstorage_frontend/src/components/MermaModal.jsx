@@ -28,7 +28,7 @@ export default function MermaModal({ mercancia, onClose, onConfirm }) {
             <textarea
               className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-none resize-none"
               rows="3"
-              placeholder="Ej: Producto dañado, caducado, error de ingreso..."
+              placeholder="Ej: Producto dañado, error de ingreso..."
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
               required

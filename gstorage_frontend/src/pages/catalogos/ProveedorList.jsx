@@ -4,8 +4,15 @@ import { Link } from 'react-router-dom';
 import {
     Search, Plus, Edit, Trash2, User, Building,
     Mail, Phone, X, Briefcase, CreditCard, AlertCircle
-    , ChevronLeft, ChevronRight, ArrowLeft
+    , ChevronLeft, ChevronRight, ArrowLeft, CheckCircle,
+    XCircle,
 } from 'lucide-react';
+
+import {
+    normalizePhone,
+    normalizeEmail,
+    normalizeName
+} from '../../utils/normalization';
 
 const formatRUT = (rut) => {
     let value = rut.replace(/[^0-9kK]/g, '').toUpperCase();
@@ -129,11 +136,20 @@ export default function Proveedores() {
         }
         setSubmitting(true);
 
+        const cleanData = {
+            ...formData,
+            rut : formData.rut,
+            nombre_proveedor: normalizeName(formData.nombre_proveedor),
+            contacto: normalizeName(formData.contacto),
+            correo: normalizeEmail(formData.correo),
+            telefono: normalizePhone(formData.telefono),
+        };
+
         try {
             if (editingProveedor) {
-                await apiClient.put(`/api/inventario/proveedores/${editingProveedor.rut}/`, formData);
+                await apiClient.put(`/api/inventario/proveedores/${editingProveedor.rut}/`, cleanData);
             } else {
-                await apiClient.post('/api/inventario/proveedores/', formData);
+                await apiClient.post('/api/inventario/proveedores/', cleanData);
             }
             await fetchProveedores();
             handleCloseModal();
@@ -145,24 +161,24 @@ export default function Proveedores() {
         }
     };
 
-    const handleDelete = async (rut, nombre) => {
-        if (window.confirm(`¿Estás seguro de que deseas dar de baja al proveedor "${nombre}"?`)) {
-            try {
-                await apiClient.patch(`/api/inventario/proveedores/${rut}/`, { activo: false });
-                await fetchProveedores();
-            } catch (err) {
-                console.error(err);
-                alert('Hubo un error al intentar dar de baja al proveedor.');
+    const handleToggleStatus = async (proveedor) => {
+        const action = proveedor.activo ? 'DESACTIVAR' : 'ACTIVAR'
+        if (!window.confirm(`¿Seguro que deseas ${action} a ${proveedor.nombre_proveedor}?`)) return
+        try {
+            if (proveedor.activo) {
+                await apiClient.delete(`/api/inventario/proveedores/${proveedor.rut}/`)
+            } else {
+                await apiClient.patch(`/api/inventario/proveedores/${proveedor.rut}/`, { activo: true })
             }
+            fetchProveedores()
+        } catch (err) {
+            console.error(err)
+            alert("Error al cambiar estado.")
         }
     };
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 font-sans">
-            <Link to="/catalogos" className=" text-gray-500 transition shadow-sm">
-                <ArrowLeft className="w-7 h-7" />
-            </Link>
-
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Directorio de Proveedores</h1>
             </div>
@@ -245,11 +261,14 @@ export default function Proveedores() {
                                                         <Edit className="w-4 h-4" />
                                                     </button>
                                                     <button
-                                                        onClick={() => handleDelete(prov.rut, prov.nombre_proveedor)}
-                                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                                                        title="Dar de Baja"
+                                                        onClick={() => handleToggleStatus(prov)}
+                                                        className={`p-2 rounded-lg transition ${prov.activo
+                                                            ? 'text-red-600 hover:bg-red-50'
+                                                            : 'text-green-600 hover:bg-green-50'
+                                                            }`}
+                                                        title={prov.activo ? 'Desactivar' : 'Activar'}
                                                     >
-                                                        <Trash2 className="w-4 h-4" />
+                                                        {prov.activo ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
                                                     </button>
                                                 </div>
                                             </td>
@@ -347,6 +366,7 @@ export default function Proveedores() {
                                                 <input
                                                     type="text"
                                                     value={formData.nombre_proveedor}
+                                                    onBlur={(e) => setFormData({ ...formData, nombre_proveedor: normalizeName(e.target.value) })}
                                                     onChange={(e) => setFormData({ ...formData, nombre_proveedor: e.target.value })}
                                                     className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                                                     placeholder="Ej. Comercializadora Sur SPA"
@@ -370,6 +390,7 @@ export default function Proveedores() {
                                             <input
                                                 type="text"
                                                 value={formData.contacto}
+                                                onBlur={(e) => setFormData({ ...formData, contacto: normalizeName(e.target.value) })}
                                                 onChange={(e) => setFormData({ ...formData, contacto: e.target.value })}
                                                 className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                                                 placeholder="Ej: María Gómez"
@@ -398,6 +419,7 @@ export default function Proveedores() {
                                                 <input
                                                     type="email"
                                                     value={formData.correo}
+                                                    onBlur={(e) => setFormData({ ...formData, correo: normalizeEmail(e.target.value) })}
                                                     onChange={(e) => setFormData({ ...formData, correo: e.target.value })}
                                                     className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                                                     placeholder="contacto@empresa.cl"

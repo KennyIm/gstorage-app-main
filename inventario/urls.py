@@ -10,6 +10,7 @@ urlpatterns = [
     # --- Endpoints de Mercancia ---
     path('mercancias/', views.MercanciaListCreateAPI.as_view(), name='api-mercancia-list-create'),
     path('mercancias/<int:pk>/', views.MercanciaDetailAPI.as_view(), name='api-mercancia-detail'),
+    path('mercancias/asignar_masivo/', views.MercanciaAsignarMasivoAPI.as_view(), name='mercancias-asignar-masivo'),
 
     # --- Endpoints de Despacho ---
     path('despachos/', views.DespachoListCreateAPI.as_view(), name='api-despacho-list-create'),

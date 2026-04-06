@@ -8,12 +8,10 @@ export default function HistorialView() {
   const [sucursales, setSucursales] = useState([]);
   const [error, setError] = useState(null);
   
-  // Estados para búsqueda y filtrado
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('Todos'); // 👈 Estado del filtro activo
-  const [showFilters, setShowFilters] = useState(false); // 👈 Controla si el menú está abierto
+  const [filterType, setFilterType] = useState('Todos');
+  const [showFilters, setShowFilters] = useState(false); 
 
-  // Estados para paginación
   const [nextPageUrl, setNextPageUrl] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -69,9 +67,7 @@ export default function HistorialView() {
     return { icon: History, color: 'text-gray-600', bg: 'bg-gray-100', label: 'Movimiento' };
   };
 
-  // 👇 LÓGICA DE FILTRADO COMBINADA (Buscador + Menú) 👇
   const filteredHistory = history.filter(item => {
-    // 1. Filtro por texto
     const term = searchTerm.toLowerCase();
     const textoFila = `
       ${item.descripcion_adicional || ''} 
@@ -82,7 +78,6 @@ export default function HistorialView() {
     `.toLowerCase();
     const matchesSearch = !searchTerm || textoFila.includes(term);
 
-    // 2. Filtro por tipo de acción (Creación, Edición, etc)
     const actionType = item.accion || item.tipo_movimiento;
     const style = getStyleForAction(actionType);
     const matchesFilter = filterType === 'Todos' || style.label === filterType;
@@ -132,7 +127,7 @@ export default function HistorialView() {
 
               {showFilters && (
                 <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-lg shadow-lg z-20 py-1">
-                  {['Todos', 'Creación', 'Edición', 'Eliminación'].map(type => (
+                  {['Todos', 'Creación', 'Movimiento', 'Edición', 'Eliminación'].map(type => (
                     <button
                       key={type}
                       onClick={() => {

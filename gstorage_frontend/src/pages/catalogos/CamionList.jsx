@@ -111,9 +111,6 @@ export default function CamionList() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="mb-8">
-        <Link to="/catalogos" className=" text-gray-500 transition shadow-sm">
-          <ArrowLeft className="w-7 h-7" />
-        </Link>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Catálogo de Camiones</h1>
         <p className="text-gray-600">Gestiona la flota de vehículos de transporte</p>
       </div>

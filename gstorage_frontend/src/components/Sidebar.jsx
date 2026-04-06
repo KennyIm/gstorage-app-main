@@ -48,7 +48,6 @@ export default function Sidebar() {
       subItems: [
         { name: 'Mercancías', path: '/mercancias' },
         { name: 'Proveedores', path: '/proveedores' },
-        { name: 'Catálogos', path: '/catalogos', show: isAdmin },
       ]
     },
     { 
@@ -59,6 +58,9 @@ export default function Sidebar() {
         { name: 'Planificador', path: '/planificar' },
         { name: 'Conductores', path: '/conductores' },
         { name: 'Camiones', path: '/camiones' },
+        { name: 'Ramplas', path: '/ramplas'},
+        { name: 'Rutas', path: '/rutas'},
+        { name: 'Destinos', path: '/destinos'}
       ]
     },
     { name: 'Clientes', icon: <Users size={20} />, path: '/clientes' },

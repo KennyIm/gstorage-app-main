@@ -309,7 +309,7 @@ export default function MercanciaDetail() {
 
               </div>
               <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 text-center">
-                <button className="text-indigo-600 text-sm font-medium hover:text-indigo-700 transition">
+                <button onClick={() => navigate('/historial')} className="text-indigo-600 text-sm font-medium hover:text-indigo-700 transition">
                   Ver historial de movimientos
                 </button>
               </div>

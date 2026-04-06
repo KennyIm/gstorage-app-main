@@ -431,7 +431,7 @@ export default function MercanciaEdit() {
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="codigo_interno" className="block text-sm font-medium text-gray-700 mb-1">Volumen (m³)</label>
+                  <label htmlFor="codigo_interno" className="block text-sm font-medium text-gray-700 mb-1">Código Interno</label>
                   <div className="relative">
                     <NotebookPen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-900 pointer-events-none" />
                     <input

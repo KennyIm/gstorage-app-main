@@ -2,6 +2,7 @@ from django.shortcuts import render
 import os
 from django.conf import settings
 from django.urls import reverse_lazy
+from django.db import transaction
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
 from rest_framework.pagination import PageNumberPagination
@@ -311,6 +312,56 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         instance.id_usuario_ultima_modificacion = user
         instance.save()
 
+class MercanciaAsignarMasivoAPI(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        ids = request.data.get('ids', [])
+        id_despacho = request.data.get('id_despacho')
+        user = request.user
+        if not ids or not id_despacho:
+            return Response(
+                {"error": "Debe seleccionar mercancías y un despacho de destino."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            with transaction.atomic():
+                queryset_seguro = filtrar_por_sucursal_y_empresa(Mercancia.objects.all(), request)
+                mercancias = queryset_seguro.filter(id_mercancia__in=ids)
+
+                if not mercancias.exists():
+                    return Response(
+                        {"error": "No se encontraron mercancías válidas para procesar en su sucursal."}, 
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+                ubicaciones_ids = mercancias.exclude(id_ubicacion_actual__isnull=True)\
+                                            .values_list('id_ubicacion_actual', flat=True)
+
+                count = mercancias.update(
+                    id_despacho_id=id_despacho,
+                    id_ubicacion_actual=None,
+                    estado='Asignado',
+                    id_usuario_ultima_modificacion=user
+                )
+
+                if ubicaciones_ids:
+                    Ubicacion.objects.filter(id_ubicacion__in=ubicaciones_ids).update(estado_ocupado=False)
+
+                empresa = get_empresa_from_user(request)
+                HistorialMovimientos.objects.create(
+                    empresa=empresa,
+                    id_usuario=user,
+                    id_mercancia=None,
+                    tipo_movimiento='Asignación Masiva',
+                    descripcion_adicional=f"Asignación masiva de {mercancias.count()} ítems al Despacho #{id_despacho}."
+                    )
+
+            return Response({
+                "message": f"Éxito: {count} mercancías asignadas y ubicaciones liberadas."
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"error": f"Error en el servidor: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 # --- Vistas de API para Despacho ---
 
 class DespachoListCreateAPI(generics.ListCreateAPIView):
@@ -955,9 +1006,49 @@ class ProveedorListCreateAPI(generics.ListCreateAPIView):
     queryset = Proveedor.activos.all()
     serializer_class = ProveedorSerializer
 
+    def get_queryset(self):
+        empresa = get_empresa_from_user(self.request)
+        return Proveedor.objects.filter(empresa=empresa)
+
+    def perform_create(self, serializer):
+        empresa = get_empresa_from_user(self.request)
+        instance=serializer.save(activo=True, empresa=empresa)
+        registrar_auditoria(
+            empresa=empresa,
+            usuario=self.request.user,
+            modelo="Proveedores",
+            accion="Creación",
+            descripcion=f"Se creó el proveedor: {instance.nombre_proveedor}"
+        )
+
 class ProveedorRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
     queryset = Proveedor.objects.all()
     serializer_class = ProveedorSerializer
+    
+    def get_queryset(self):
+        empresa = get_empresa_from_user(self.request)
+        return Proveedor.objects.filter(empresa=empresa)
+    
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        registrar_auditoria(
+            empresa=instance.empresa,
+            usuario=self.request.user,
+            modelo="Proveedores",
+            accion="Edición",
+            descripcion=f"Se actualizaron datos del proveedor: {instance.nombre_proveedor}"
+        )
+    
+    def perform_destroy(self, instance):
+        instance.activo = False
+        instance.save()
+        registrar_auditoria(
+            empresa=instance.empresa,
+            usuario=self.request.user,
+            modelo="Proveedores",
+            accion="Eliminación",
+            descripcion=f"Se eliminó (lógico) al proovedor: {instance.nombre_proveedor}"
+        )
 
 class RamplaListCreateAPI(generics.ListCreateAPIView):
     queryset = Rampla.activos.all()

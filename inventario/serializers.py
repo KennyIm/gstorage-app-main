@@ -66,7 +66,7 @@ class MercanciaWriteSerializer(serializers.ModelSerializer):
             ,'paga_proveedor','codigo_interno','sucursal_id','numero_orden_entrega'
         ]
         read_only_fields = ['empresa']
-# Serializers para DESPACHO (Nuevo)
+
 class DespachoListSerializer(serializers.ModelSerializer):
     id_camion = serializers.StringRelatedField()
     id_conductor = serializers.StringRelatedField()
@@ -243,9 +243,10 @@ class ProveedorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Proveedor
         fields = '__all__'
+        read_only_fields = ['empresa']
 
 class RamplaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rampla
         fields = '__all__'
-        read_only_fields = ['empresa', 'activo']
+        read_only_fields = ['activo']

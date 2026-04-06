@@ -110,9 +110,6 @@ export default function RamplaList() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      <Link to="/catalogos" className=" text-gray-500 transition shadow-sm">
-        <ArrowLeft className="w-7 h-7" />
-      </Link>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Catálogo de Ramplas</h1>
         <p className="text-gray-600">Gestiona los remolques y sus capacidades de carga</p>

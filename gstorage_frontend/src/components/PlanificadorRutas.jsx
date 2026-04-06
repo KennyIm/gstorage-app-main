@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import * as XLSX from 'xlsx-js-style';
-import { GripVertical, FileSpreadsheet, User, Package, Building2 } from 'lucide-react';
+import { GripVertical, FileSpreadsheet, User, Package, Building2, UserStar, Hexagon } from 'lucide-react';
 import apiClient from '../services/api';
 import Select from 'react-select';
 
@@ -122,7 +122,6 @@ export default function PlanificadorRutas() {
 
     const despacho = despachos.find(d => String(d.id_despacho) === String(despachoSeleccionado));
 
-    // --- CALCULAR TOTALES ---
     const totalKilos = listaRuta.reduce((acc, item) => acc + (Number(item.kg) || 0), 0);
     const totalBultos = listaRuta.reduce((acc, item) => acc + (Number(item.cantidad_bultos) || 0), 0);
 
@@ -152,7 +151,6 @@ export default function PlanificadorRutas() {
       ]);
     });
 
-    // --- FILA DE TOTALES AL FINAL ---
     datosExcel.push([
       "", "", "TOTAL KILOS", totalKilos,
     ]);
@@ -218,7 +216,6 @@ export default function PlanificadorRutas() {
         }
       }
 
-      // --- ESTILO PARA TÍTULOS (Fila 2) ---
       if (numeroFila === 2) {
         hoja[referenciaCelda].s.font.bold = true;
         hoja[referenciaCelda].s.fill = { fgColor: { rgb: "F2F2F2" } };
@@ -239,7 +236,7 @@ export default function PlanificadorRutas() {
         <div>
           <h1 className="text-3xl font-bold text-slate-800">Planificador de Rutas</h1>
         </div>
-        <div className="min-w-[300px]"> {/* Contenedor para controlar el ancho */}
+        <div className="min-w-[300px]">
           <Select
             inputId="id_despacho"
             placeholder="Seleccionar Despacho..."
@@ -265,7 +262,7 @@ export default function PlanificadorRutas() {
             <div className="col-span-1 text-center">Mover</div>
             <div className="col-span-1">N°</div>
             <div className="col-span-4">Cliente / Proveedor</div>
-            <div className="col-span-6">Carga</div>
+            <div className="col-span-6">Código Ruta / Carga</div>
           </div>
 
           <DragDropContext onDragEnd={onDragEnd}>
@@ -289,16 +286,19 @@ export default function PlanificadorRutas() {
 
                           <div className="col-span-4 flex flex-col gap-1">
                             <span className="font-semibold text-slate-800 flex items-center gap-2 text-sm">
-                              <User size={14} className="text-indigo-500" />
+                              <UserStar size={14} className="text-indigo-500" />
                               {getNombreCliente(item.id_cliente)}
                             </span>
                             <span className="text-xs text-slate-500 flex items-center gap-2">
-                              <Building2 size={12} className="text-blue-400" />
+                              <User size={12} className="text-red-400" />
                               {getNombreProveedor(item.id_proveedor)}
                             </span>
                           </div>
-
                           <div className="col-span-6 text-sm text-slate-600 flex flex-col justify-center">
+                            <span className="flex items-center gap-2 font-medium">
+                              <Hexagon size={14} className="text-red-500" />
+                              <span className="text-slate-900">{item.codigo_interno}</span>
+                            </span>
                             <span className="flex items-center gap-2 font-medium">
                               <Package size={14} className="text-amber-500" />
                               {item.cantidad_bultos} Bultos ({item.kg} kg)
