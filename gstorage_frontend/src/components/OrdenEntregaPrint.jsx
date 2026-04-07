@@ -22,7 +22,7 @@ export default function OrdenEntregaPlantilla() {
     const [rutas, setRutas] = useState([]);
 
     const TASA_IVA = 0.19;
-    const ITEMS_POR_PAGINA = 10;
+    const ITEMS_POR_PAGINA = 5;
 
     useEffect(() => {
         const fetchData = async () => {
@@ -226,7 +226,8 @@ export default function OrdenEntregaPlantilla() {
                             {index > 0 && <div className="saltopagina" style={{ pageBreakBefore: 'always' }}></div>}
 
                             <div
-                                className={`hoja-pdf w-[210mm] h-[275mm] flex flex-col bg-white px-8 py-6 box-border mx-auto print:shadow-none print:m-0 break-inside-avoid shadow-lg mb-8`}
+                                className="hoja-pdf w-[210mm] h-[275mm] flex flex-col bg-white px-8 py-6 box-border mx-auto print:shadow-none print:m-0 shadow-lg mb-8"
+                                style={{ pageBreakAfter: 'always' }}
                             >
 
                                 {/* --- ENCABEZADO PRINCIPAL --- */}
@@ -374,30 +375,36 @@ export default function OrdenEntregaPlantilla() {
                                 </div>
 
                                 {/* --- TOTALES Y FIRMAS --- */}
-                                {pagina.esUltimaPaginaDelCliente ? (
-                                    <div className="flex justify-between items-end mt-auto shrink-0 w-full pt-4">
-                                        <div className="text-center w-72 mb-1 break-inside-avoid">
-                                            <div className="border-t-2 border-slate-400 pt-1.5 flex flex-col items-center">
-                                                <p className="font-bold text-[10px] text-slate-900 uppercase tracking-tight">Recibe Conforme, Nombre, RUT, Firma y Fecha</p>
+                                <div className="mt-4 pt-4 border-t border-slate-100 shrink-0">
+                                    <div className="flex justify-between items-end w-full">
+                                        <div className="text-center w-72 mb-1">
+                                            <div className="border-t-2 border-slate-400 pt-1.5">
+                                                <p className="font-bold text-[9px] text-slate-900 uppercase">Recibe Conforme, Nombre, RUT, Firma y Fecha</p>
                                             </div>
                                         </div>
-                                        <div className="w-48 border-t border-slate-200 pt-2 break-inside-avoid">
-                                            <div className="flex justify-between items-center mb-0.5 text-[10px] font-semibold text-slate-600">
-                                                <span>Subtotal Neto</span><span className="text-slate-900">${formatoDinero(pagina.totalNeto)}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center mb-1 text-[10px] font-semibold text-slate-600">
-                                                <span>IVA (19%)</span><span className="text-slate-900">${formatoDinero(pagina.iva)}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center pt-1 border-t border-slate-900 font-black text-sm text-slate-900">
-                                                <span>TOTAL</span><span>${formatoDinero(pagina.totalBruto)}</span>
-                                            </div>
+
+                                        {/* Los totales solo se muestran en la última página del cliente */}
+                                        <div className="w-48 text-right">
+                                            {pagina.esUltimaPaginaDelCliente ? (
+                                                <div className="border-t border-slate-200 pt-2">
+                                                    <div className="flex justify-between text-[10px] text-slate-600">
+                                                        <span>Subtotal Neto</span><span>${formatoDinero(pagina.totalNeto)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-[10px] text-slate-600">
+                                                        <span>IVA (19%)</span><span>${formatoDinero(pagina.iva)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between border-t border-slate-900 font-black text-sm text-slate-900 mt-1 pt-1">
+                                                        <span>TOTAL</span><span>${formatoDinero(pagina.totalBruto)}</span>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <p className="text-[10px] font-bold text-slate-400 italic">
+                                                    Pág. {pagina.paginaActual} de {pagina.totalPaginas} - Sigue...
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="mt-auto text-center text-xs font-semibold text-slate-400 pt-4 pb-2 break-inside-avoid">
-                                        Continúa en la siguiente hoja...
-                                    </div>
-                                )}
+                                </div>
 
                             </div>
                         </React.Fragment>

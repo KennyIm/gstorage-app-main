@@ -3,6 +3,7 @@ import { History, User, Edit, Trash2, Plus, Filter, Search, MapPin, Loader2 } fr
 import apiClient from '../services/api';
 
 export default function HistorialView() {
+  document.title = "Historial de cambios";
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sucursales, setSucursales] = useState([]);
@@ -115,7 +116,6 @@ export default function HistorialView() {
               />
             </div>
             
-            {/* 👇 BOTÓN FILTRAR FUNCIONAL CON MENÚ DESPLEGABLE 👇 */}
             <div className="relative">
               <button 
                 onClick={() => setShowFilters(!showFilters)}

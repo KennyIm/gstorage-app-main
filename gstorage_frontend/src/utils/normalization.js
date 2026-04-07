@@ -9,15 +9,13 @@ export const normalizeRUT = (rut) => {
 
 export const normalizePhone = (tel) => {
   if (!tel) return '';
-  let cleaned = tel.replace(/\D/g, ''); 
-  
-  if (cleaned.length === 9) {
+
+  let cleaned = tel.replace(/\s/g, ''); 
+  if (cleaned.startsWith('+56')) return tel.trim();
+  if (cleaned.length === 9 && /^\d+$/.test(cleaned)) {
     return `+56 9 ${cleaned.slice(1, 5)} ${cleaned.slice(5)}`;
   }
-  if (cleaned.length === 11 && cleaned.startsWith('56')) {
-    return `+56 ${cleaned.slice(2, 3)} ${cleaned.slice(3, 7)} ${cleaned.slice(7)}`;
-  }
-  return tel;
+  return tel.trim();
 };
 
 export const normalizeCity = (city) => {

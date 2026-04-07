@@ -4,13 +4,14 @@ import { Lock, AlertCircle, CheckCircle } from 'lucide-react';
 import apiClient from '../services/api';
 
 export default function ResetPassword() {
+  document.title = "Reestablecer Contraseña";
   const [newPassword1, setNewPassword1] = useState('');
   const [newPassword2, setNewPassword2] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
-  const { uid, token } = useParams(); // Obtiene params de la URL
+  const { uid, token } = useParams(); 
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {

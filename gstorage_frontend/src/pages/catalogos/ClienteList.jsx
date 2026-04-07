@@ -16,12 +16,12 @@ import {
 } from '../../utils/normalization';
 
 export default function ClientsCatalog() {
+  document.title = "Gestión de Clientes";
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState(null);
 
-  // Estados del Modal
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -470,7 +470,6 @@ export default function ClientsCatalog() {
                         <input
                           type="tel"
                           value={formData.telefono_contacto}
-                          onBlur={(e) => setFormData({ ...formData, telefono_contacto: normalizePhone(e.target.value) })}
                           onChange={(e) => setFormData({ ...formData, telefono_contacto: e.target.value })}
                           className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                           placeholder="+56 9 1234 5678"

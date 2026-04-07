@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Users, Search, Plus, Edit, UserX, UserCheck, X, Lock, Shield, KeyRound, Building } from 'lucide-react';
 
 export default function GestionarEmpleados() {
+  document.title = "Gestionar Personas";
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

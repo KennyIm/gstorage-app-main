@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 export default function DespachoList() {
+  document.title = "Listado de Despachos";
   const [despachos, setDespachos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

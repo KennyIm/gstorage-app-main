@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 export default function DriversCatalog() {
+  document.title = "Gestión de Conductores";
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

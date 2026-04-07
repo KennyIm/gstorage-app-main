@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 export default function DespachoCreate() {
+  document.title = "Creación de Despachos";
   const [formData, setFormData] = useState({
     fecha_programada: '',
     id_camion: '',

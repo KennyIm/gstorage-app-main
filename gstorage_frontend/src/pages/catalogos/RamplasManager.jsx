@@ -4,6 +4,7 @@ import { Search, Plus, Edit, Trash2, X, Truck, AlertCircle, ArrowLeft } from 'lu
 import { Link } from 'react-router-dom';
 
 export default function RamplaList() {
+  document.title = "Gestión de Ramplas";
   const [ramplas, setRamplas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

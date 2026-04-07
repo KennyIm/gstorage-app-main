@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Package, Box, FileText, History, Truck, LayoutDashboard } from 'lucide-react';
 
 export default function Home() {
+  document.title = "Inicio";
   const navigate = useNavigate();
 
   const features = [

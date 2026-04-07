@@ -5,20 +5,18 @@ import { useAuth } from '../context/AuthContext';
 import Select from 'react-select';
 import {
   Save, ArrowLeft, User, MapPin, Map, Package, Scale, Box, FileText,
-  Truck, Activity, Loader2, AlertCircle, CheckCircle, NotebookPen
+  Truck, Activity, Loader2, AlertCircle, CheckCircle, NotebookPen,
+  Calculator
 } from 'lucide-react';
 
-
 export default function MercanciaEdit() {
+  document.title = "Edición de Mercancia";
   const { id } = useParams();
   const navigate = useNavigate();
   const { logoutUser } = useAuth();
-
-  // Estado para el formulario
+  
   const [formData, setFormData] = useState(null);
-  const [precioSugerido, setPrecioSugerido] = useState(null);
 
-  // Estados para los menús desplegables
   const [clientes, setClientes] = useState([]);
   const [destinos, setDestinos] = useState([]);
   const [ubicaciones, setUbicaciones] = useState([]);
@@ -29,34 +27,46 @@ export default function MercanciaEdit() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
+  // --- LÓGICA DE CÁLCULO DE PRECIO ---
+  const calcularPrecioLogica = () => {
+    if (!formData || !formData.id_cliente) return null;
+    
+    const clienteSeleccionado = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente));
+    if (!clienteSeleccionado) return null;
+
+    const peso = parseFloat(String(formData.kg).replace(',', '.')) || 0;
+    const volumen = parseFloat(String(formData.m3).replace(',', '.')) || 0;
+    const precioKg = parseFloat(clienteSeleccionado.precio_kg) || 0;
+    const precioM3 = parseFloat(clienteSeleccionado.precio_m3) || 0;
+
+    return Math.max(peso * precioKg, volumen * precioM3).toFixed(0);
+  };
+
+  const handleRecalculate = (e) => {
+    e.preventDefault(); 
+    const nuevoTotal = calcularPrecioLogica();
+    if (nuevoTotal !== null) {
+      setFormData(prev => ({ ...prev, precio_total: nuevoTotal }));
+    }
+  };
+
+  // Calcula automáticamente SOLO si el precio está vacío o es 0
   useEffect(() => {
-    if (formData && formData.id_cliente && formData.kg && formData.m3 && (!formData.precio_total || parseFloat(formData.precio_total) === 0)) {
-      const clienteSeleccionado = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente));
-
-      if (clienteSeleccionado) {
-        const pesoLimpio = String(formData.kg).replace(',', '.');
-        const volumenLimpio = String(formData.m3).replace(',', '.');
-
-        const peso = parseFloat(pesoLimpio) || 0;
-        const volumen = parseFloat(volumenLimpio) || 0;
-
-        const precioKg = parseFloat(clienteSeleccionado.precio_kg) || 0;
-        const precioM3 = parseFloat(clienteSeleccionado.precio_m3) || 0;
-
-        const costoPorPeso = peso * precioKg;
-        const costoPorVolumen = volumen * precioM3;
-
-        const totalCalculado = Math.max(costoPorPeso, costoPorVolumen);
-
-        setPrecioSugerido(totalCalculado.toFixed(0));
-        setFormData(prev => ({
-          ...prev,
-          precio_total: totalCalculado.toFixed(0)
-        }));
+    if (formData && formData.id_cliente && (formData.kg || formData.m3)) {
+      const valorActual = parseFloat(formData.precio_total);
+      
+      if (!formData.precio_total || valorActual === 0 || isNaN(valorActual)) {
+        const sugerido = calcularPrecioLogica();
+        if (sugerido) {
+          setFormData(prev => ({ ...prev, precio_total: sugerido }));
+        }
       }
     }
-  }, [formData?.kg, formData?.m3, formData?.id_cliente, formData?.precio_total, clientes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData?.kg, formData?.m3, formData?.id_cliente, clientes]);
 
+
+  // --- CARGA DE DATOS ---
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -111,7 +121,7 @@ export default function MercanciaEdit() {
       }
     };
     fetchData();
-  }, [id]);
+  }, [id, logoutUser]); // Añadido logoutUser a dependencias por buenas prácticas
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -128,7 +138,6 @@ export default function MercanciaEdit() {
 
     const dataToSubmit = {
       ...formData,
-      // Sanitización de datos
       id_cliente: formData.id_cliente ? parseInt(formData.id_cliente) : null,
       id_destino: formData.id_destino ? parseInt(formData.id_destino) : null,
       id_ubicacion_actual: formData.id_ubicacion_actual ? parseInt(formData.id_ubicacion_actual) : null,
@@ -201,7 +210,7 @@ export default function MercanciaEdit() {
 
           <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-8">
 
-            {/* SECCIÓN 1: DATOS GENERALES */}
+            {/* DATOS GENERALES */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
                 <User className="w-5 h-5 text-indigo-600" />
@@ -308,39 +317,7 @@ export default function MercanciaEdit() {
               </div>
             </div>
 
-            {/* SECCIÓN 2: ALMACENAMIENTO 
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
-                <Map className="w-5 h-5 text-indigo-600" />
-                Ubicación
-              </h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-1">
-                  <label htmlFor="id_ubicacion_actual" className="block text-sm font-medium text-gray-700 mb-1">Ubicación Actual</label>
-                  <div className="relative">
-                    <Box className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <select
-                      name="id_ubicacion_actual"
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                      value={formData.id_ubicacion_actual}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="">Seleccionar ubicación...</option>
-                      {ubicaciones.map(u => (
-                        <option key={u.id_ubicacion} value={u.id_ubicacion}>
-                          {u.codigo_ubicacion} {u.id_ubicacion === formData.id_ubicacion_actual ? '(Actual)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">Mostrando solo ubicaciones libres y la actual.</p>
-                </div>
-              </div>
-            </div>*/}
-
-            {/* SECCIÓN 3: DETALLES DE CARGA */}
+            {/* DETALLES DE CARGA */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
                 <Package className="w-5 h-5 text-indigo-600" />
@@ -445,23 +422,38 @@ export default function MercanciaEdit() {
                     />
                   </div>
                 </div>
+                
+                {/* --- INPUT PRECIO TOTAL REFORMULADO --- */}
                 <div className="col-span-1 md:col-span-2">
-                  <label htmlFor="precio_total" className="block text-sm font-bold text-emerald-700 mb-1">
+                  <label htmlFor="precio_total" className=" text-sm font-bold text-emerald-700 mb-1 flex justify-between items-center">
                     Precio Total ($)
+                    <span className="text-[10px] font-normal text-slate-400 uppercase tracking-wider">Recalcular valores</span>
                   </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
-                    <input
-                      type="number"
-                      step="1"
-                      name="precio_total"
-                      id="precio_total"
-                      value={formData.precio_total}
-                      onChange={handleChange}
-                      className="w-full pl-8 pr-4 py-2 bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-colors"
-                    />
+                  <div className="relative flex gap-2">
+                    <div className="relative flex-grow">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
+                      <input
+                        type="number"
+                        step="1"
+                        name="precio_total"
+                        id="precio_total"
+                        value={formData.precio_total}
+                        onChange={handleChange}
+                        className="w-full pl-8 pr-4 py-2 bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-colors"
+                      />
+                    </div>
+                    
+                    <button
+                      type="button"
+                      onClick={handleRecalculate}
+                      title="Recalcular según tarifas del cliente"
+                      className="px-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center shadow-sm"
+                    >
+                      <Calculator className="w-5 h-5" />
+                    </button>
                   </div>
                 </div>
+
                 <div className="flex items-center gap-2 mt-2">
                   <input
                     type="checkbox"
@@ -493,7 +485,7 @@ export default function MercanciaEdit() {
               </div>
             </div>
 
-            {/* SECCIÓN 4: ESTADO Y DESPACHO */}
+            {/* ESTADO Y DESPACHO */}
             <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-100">
               <h3 className="text-lg font-semibold text-yellow-800 mb-4 flex items-center gap-2 border-b border-yellow-200 pb-2">
                 <Activity className="w-5 h-5" />
@@ -513,7 +505,6 @@ export default function MercanciaEdit() {
                       onChange={handleChange}
                     >
                       <option value="" disabled hidden>Seleccione estado...</option>
-
                       <option value="En Bodega">En Bodega</option>
                       <option value="Asignado">Asignado a Despacho</option>
                       <option value="En Tránsito">En Tránsito</option>

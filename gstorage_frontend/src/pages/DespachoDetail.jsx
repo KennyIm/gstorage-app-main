@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 
 export default function DespachoDetail() {
+  document.title = "Detalles Despacho";
   const [despacho, setDespacho] = useState(null);
   const [mercancias, setMercancias] = useState([]);
 

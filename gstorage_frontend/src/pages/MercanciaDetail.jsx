@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 export default function MercanciaDetail() {
+  document.title = "Detalles de Mercancia";
   const [mercancia, setMercancia] = useState(null);
 
 

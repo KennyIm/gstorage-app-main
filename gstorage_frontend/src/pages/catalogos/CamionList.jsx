@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Search, Plus, Edit, Trash2, X, Truck, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export default function CamionList() {
+  document.title = "Gestión de Camiones";
   const [trucks, setTrucks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

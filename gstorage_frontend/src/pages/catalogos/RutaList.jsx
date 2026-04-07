@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 export default function RoutesCatalog() {
+  document.title = "Gestión de Rutas";
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 export default function DestinationsCatalog() {
+  document.title = "Gestión de Destinos";
   const [destinations, setDestinations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

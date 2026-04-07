@@ -124,8 +124,14 @@ export default function Sidebar() {
                   to={item.path}
                   className={({isActive}) => `flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ${isActive ? 'bg-slate-50 text-red-800 shadow-xl font-black scale-[1.02]' : 'hover:bg-red-700 text-red-50'}`}
                 >
-                  <span className={({isActive}) => isActive ? 'text-red-800' : 'text-red-200'}>{item.icon}</span>
-                  {isOpen && <span className="text-sm tracking-wide">{item.name}</span>}
+                  {({ isActive }) => (
+                    <>
+                      <span className={isActive ? 'text-red-800' : 'text-red-200'}>
+                        {item.icon}
+                      </span>
+                      {isOpen && <span className="text-sm tracking-wide">{item.name}</span>}
+                    </>
+                  )}
                 </NavLink>
               )}
             </div>

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 export default function DespachoEdit() {
+  document.title = "Editor de Despachos";
   const { id } = useParams();
   const navigate = useNavigate();
   const { logoutUser } = useAuth();

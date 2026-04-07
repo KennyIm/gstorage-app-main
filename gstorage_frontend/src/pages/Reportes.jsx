@@ -3,6 +3,7 @@ import { Download, FileText, Calendar, TrendingUp, Package, History, FileSpreads
 import apiClient from '../services/api';
 
 export default function ReportsView() {
+  document.title = "Reportes";
   const [recentReports, setRecentReports] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);

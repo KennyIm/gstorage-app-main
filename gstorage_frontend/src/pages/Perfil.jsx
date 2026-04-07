@@ -6,6 +6,7 @@ import EditProfileModal from '../components/EditProfileModal';
 import { User, Mail, Calendar, Shield, Edit, Phone, Building, Warehouse } from 'lucide-react';
 
 export default function Perfil() {
+  document.title = "Perfil";
   const { user, authTokens } = useAuth(); 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);

@@ -4,6 +4,7 @@ import apiClient from '../../services/api';
 import { ArrowLeft } from 'lucide-react';
 
 export default function UbicacionList() {
+  document.title = "Gestión de Ubicaciones";
   const [ubicaciones, setUbicaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

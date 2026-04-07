@@ -10,6 +10,7 @@ import {
 
 
 export default function MercanciaCreate() {
+  document.title = "Creación de Mercancias";
   const [formData, setFormData] = useState({
     id_cliente: '',
     id_destino: '',

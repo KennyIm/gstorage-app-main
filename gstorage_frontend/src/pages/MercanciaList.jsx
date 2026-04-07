@@ -9,6 +9,7 @@ import {
 import MermaModal from '../components/MermaModal';
 
 export default function MercanciaList() {
+  document.title = "Listado de Mercancias";
   const [mercancias, setMercancias] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
