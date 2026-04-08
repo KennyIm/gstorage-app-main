@@ -170,7 +170,7 @@ export default function MercanciaList() {
                 }))}
                 value={bulkDispatchId ? {
                   value: bulkDispatchId,
-                  label: `Despacho #${bulkDispatchId} | Ruta: ${despachos.find(d => d.id_despacho === bulkDispatchId)?.codigo_ruta || 'S/N'}`
+                  label: `Despacho #${bulkDispatchId} | ${despachos.find(d => d.id_despacho === bulkDispatchId)?.id_ruta || 'S/N'}`
                 } : null}
                 onChange={(opt) => setBulkDispatchId(opt ? opt.value : '')}
               />
