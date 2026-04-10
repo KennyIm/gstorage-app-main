@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useUI } from '../context/UIContext';
 import {
   Plus, Search, Eye, Edit, Truck, Map, User, Calendar,
   Clock, CheckCircle, AlertCircle, Loader2, ArrowRight,
@@ -16,6 +17,7 @@ export default function DespachoList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sucursales, setSucursales] = useState([]);
   const { logoutUser } = useAuth();
+  const { showLoader, hideLoader, showToast } = useUI();
 
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
@@ -36,6 +38,7 @@ export default function DespachoList() {
         setLoading(false);
       } catch (err) {
         console.error(err);
+        showToast('Error al cargar la lista de despachos.', 'error');
         setLoading(false);
       }
     };
@@ -52,8 +55,8 @@ export default function DespachoList() {
         fecha_salida_real: newValue || null
       });
     } catch (err) {
-      alert("Error al actualizar la fecha. Recargando...");
-      fetchDespachos();
+      showToast("Error al actualizar la fecha. Recargando...", 'error');
+      fetchData();
     }
   };
 

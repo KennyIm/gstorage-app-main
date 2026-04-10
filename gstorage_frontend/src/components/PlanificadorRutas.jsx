@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import * as XLSX from 'xlsx-js-style';
-import { GripVertical, FileSpreadsheet, User, Package, Building2, UserStar, Hexagon } from 'lucide-react';
+import { GripVertical, FileSpreadsheet, User, Package, Building2, UserStar, Hexagon, Loader2 } from 'lucide-react';
 import apiClient from '../services/api';
 import Select from 'react-select';
 
@@ -229,7 +229,14 @@ export default function PlanificadorRutas() {
     XLSX.writeFile(libro, `Ruta_Despacho_${getCodigoRuta(despachoSeleccionado)}.xlsx`);
   };
 
-  if (loading) return <div className="p-10 text-center">Cargando catálogos del sistema...</div>;
+  if (loading) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500">
+          <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
+          <p>Cargando datos del sistema...</p>
+        </div>
+      );
+    }
 
   return (
     <div className="max-w-5xl mx-auto p-6">

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../services/api';
 import { Link } from 'react-router-dom';
+import { useUI } from '../../context/UIContext';
 import {
   Search, Plus, Edit, Briefcase, X, Users, Mail, Phone,
   CreditCard, User, MapPin, Building, AlertCircle, CheckCircle,
-  XCircle, DollarSign, ChevronLeft, ChevronRight, ArrowLeft
+  XCircle, DollarSign, ChevronLeft, ChevronRight, ArrowLeft, Loader2
 } from 'lucide-react';
 
 import {
@@ -21,6 +22,7 @@ export default function ClientsCatalog() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState(null);
+  const { showLoader, hideLoader, showToast } = useUI();
 
   const [showModal, setShowModal] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
@@ -50,7 +52,7 @@ export default function ClientsCatalog() {
       setError(null);
     } catch (err) {
       console.error(err);
-      setError('Error al cargar la lista de clientes.');
+      showToast('Error al cargar los datos', 'error');
     } finally {
       setLoading(false);
     }
@@ -135,7 +137,7 @@ export default function ClientsCatalog() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
+    showLoader();
     const cleanData = {
       ...formData,
       nombre_cliente: normalizeName(formData.nombre_cliente),
@@ -150,14 +152,18 @@ export default function ClientsCatalog() {
     try {
       if (editingClient) {
         await apiClient.put(`/api/inventario/clientes/${editingClient.id_cliente}/`, formData);
+        showToast('Registro actualizado con éxito', 'success');
       } else {
         await apiClient.post('/api/inventario/clientes/', formData);
+        showToast('Registro creado con éxito', 'success');
       }
       handleCloseModal();
       fetchClients();
     } catch (err) {
       console.error(err);
-      setError("Error al guardar el cliente. Verifique los datos.");
+      showToast('Error al guardar el cliente. Verifique los datos.', 'error');
+    } finally {
+      hideLoader();
     }
   };
 
@@ -174,7 +180,7 @@ export default function ClientsCatalog() {
       fetchClients();
     } catch (err) {
       console.error(err);
-      alert("Error al cambiar el estado.");
+      showToast('Error al cambiar el estado.', 'error');
     }
   };
 
@@ -190,7 +196,14 @@ export default function ClientsCatalog() {
   };
 
   // --- RENDER ---
-  if (loading) return <div className="p-8 text-center text-gray-500">Cargando cartera de clientes...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500">
+        <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
+        <p>Cargando clientes...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import apiClient from '../services/api';
 import Select from 'react-select';
+import { useUI } from '../context/UIContext';
 import { useAuth } from '../context/AuthContext';
 import {
   Save, ArrowLeft, Calendar, Clock, Truck, User, Map,
@@ -23,6 +24,7 @@ export default function DespachoEdit() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const { showLoader, hideLoader, showToast } = useUI();
 
   const formatDateForInput = (isoString) => {
     if (!isoString) return '';
@@ -67,8 +69,9 @@ export default function DespachoEdit() {
           logoutUser();
         } else {
           console.error("Error al buscar la información:", err);
-          setError("No se pudo cargar la información necesaria.");
+          showToast("No se pudo cargar la información necesaria.", 'error');
         }
+      }finally {
         setLoading(false);
       }
     };
@@ -84,6 +87,7 @@ export default function DespachoEdit() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
+    showLoader();
 
     const dataToSubmit = {
       ...formData,
@@ -108,7 +112,7 @@ export default function DespachoEdit() {
           setError(Array.isArray(firstError) ? firstError[0] : "Error en los datos enviados.");
         }
       } else {
-        setError('Error al crear el despacho. Intente nuevamente.');
+        showToast('Error al crear el despacho. Intente nuevamente.', 'error');
       }
       setSubmitting(false);
     }

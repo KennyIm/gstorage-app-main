@@ -12,7 +12,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // Paleta de colores más moderna y coherente
   const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
   useEffect(() => {
@@ -36,14 +35,13 @@ export default function Dashboard() {
   if (error) return <div className="p-8 text-center text-red-600 font-medium bg-red-50 rounded-lg m-8">{error}</div>;
   if (!data) return null;
 
-  // Agregamos valores por defecto (||) por si el backend aún no envía estos datos nuevos
   const { 
     metrics, 
     distribution_data = [], 
     movements_data = [], 
     top_clientes = [], 
     despachos_list = [],
-    alertas = [] // <- NUEVO: Lista de alertas operativas
+    alertas = [] 
   } = data;
 
   return (
@@ -61,7 +59,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* --- 1. KPIs PRINCIPALES (Ahora cruzando Logística + Finanzas) --- */}
+      {/* KPIs PRINCIPALES */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         
         {/* KPI: Stock Físico */}
@@ -79,7 +77,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* KPI: Valorización (Integración Financiera) */}
+        {/* KPI: Valorización */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 transition-all hover:shadow-md">
           <div className="flex justify-between items-start">
             <div>
@@ -95,7 +93,7 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* KPI: Ocupación (Con semáforo de riesgo) */}
+        {/* KPI: Ocupación */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 transition-all hover:shadow-md">
           <div className="flex justify-between items-start">
              <div>
@@ -131,7 +129,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* --- 2. ZONA MEDIA: GRÁFICOS Y ALERTAS --- */}
+      {/* GRÁFICOS Y ALERTAS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         
         {/* Gráfico: Volumen de Salidas */}
@@ -155,11 +153,11 @@ export default function Dashboard() {
            </div>
         </div>
 
-        {/* Panel de Alertas Operativas (NUEVO) */}
+        {/* Panel de Alertas Operativas */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col">
            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
               <h4 className="font-bold text-slate-800 flex items-center gap-2">
-                <AlertTriangle size={18} className="text-amber-500"/> Alertas del Sistema
+                <span size={18} className="text-amber-500"/> Alertas del Sistema
               </h4>
            </div>
            <div className="p-5 flex-1 overflow-y-auto max-h-[280px]">
@@ -187,7 +185,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* --- 3. ZONA INFERIOR: TABLAS Y TOP CLIENTES --- */}
+      {/* TABLAS Y TOP CLIENTES */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Tabla: Próximos Despachos */}

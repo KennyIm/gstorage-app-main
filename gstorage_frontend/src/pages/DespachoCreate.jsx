@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useUI } from '../context/UIContext';
 import Select from 'react-select';
 import {
   Save, ArrowLeft, Calendar, Truck, User, Map,
@@ -29,6 +30,7 @@ export default function DespachoCreate() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const { showLoader, hideLoader, showToast } = useUI();
 
   const navigate = useNavigate();
   const { logoutUser } = useAuth();
@@ -54,8 +56,9 @@ export default function DespachoCreate() {
           logoutUser();
         } else {
           console.error("Error al buscar la información:", err);
-          setError("No se pudo cargar la información necesaria.");
+          showToast("No se pudo cargar la información necesaria.", 'error');
         }
+      } finally{
         setLoading(false);
       }
     };
@@ -71,6 +74,7 @@ export default function DespachoCreate() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
+    showLoader();
 
     const dataToSubmit = {
       ...formData,
@@ -86,8 +90,6 @@ export default function DespachoCreate() {
       navigate('/despachos');
     } catch (err) {
       console.error(err);
-
-      // --- MANEJO DE ERRORES ---
       if (err.response?.data) {
         const serverErrors = err.response.data;
         if (serverErrors.id_camion) {
@@ -99,7 +101,7 @@ export default function DespachoCreate() {
           setError(Array.isArray(firstError) ? firstError[0] : "Error en los datos enviados.");
         }
       } else {
-        setError('Error al crear el despacho. Intente nuevamente.');
+        showToast('Error al crear el despacho. Intente nuevamente.', 'error');
       }
 
       setSubmitting(false);

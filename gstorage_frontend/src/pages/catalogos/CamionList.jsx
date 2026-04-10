@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../services/api';
 import { Link } from 'react-router-dom';
-import { Search, Plus, Edit, Trash2, X, Truck, AlertCircle, ArrowLeft } from 'lucide-react';
+import { useUI } from '../../context/UIContext';
+import { Search, Plus, Edit, Trash2, X, Truck, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function CamionList() {
   document.title = "Gestión de Camiones";
   const [trucks, setTrucks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const { showLoader, hideLoader, showToast } = useUI();
 
   const [showModal, setShowModal] = useState(false);
   const [editingTruck, setEditingTruck] = useState(null);
@@ -17,8 +19,6 @@ export default function CamionList() {
     modelo: '',
     anio: new Date().getFullYear(),
     estado_camion: 'DISPONIBLE',
-    capacidad_max_kg: '',
-    capacidad_max_m3: ''
   });
   const [error, setError] = useState(null);
 
@@ -30,6 +30,8 @@ export default function CamionList() {
       setLoading(false);
     } catch (err) {
       console.error(err);
+      showToast('Error al cargar los datos', 'error');
+    } finally {
       setLoading(false);
     }
   };
@@ -54,8 +56,6 @@ export default function CamionList() {
         modelo: truck.modelo || '',
         anio: truck.anio || new Date().getFullYear(),
         estado_camion: truck.estado_camion || 'DISPONIBLE',
-        capacidad_max_kg: truck.capacidad_max_kg,
-        capacidad_max_m3: truck.capacidad_max_m3
       });
     } else {
       setEditingTruck(null);
@@ -65,8 +65,6 @@ export default function CamionList() {
         modelo: '',
         anio: new Date().getFullYear(),
         estado_camion: 'DISPONIBLE',
-        capacidad_max_kg: '',
-        capacidad_max_m3: ''
       });
     }
     setShowModal(true);
@@ -80,19 +78,22 @@ export default function CamionList() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
-
+    showLoader();
     try {
       if (editingTruck) {
         await apiClient.put(`/api/inventario/camiones/${editingTruck.id_camion}/`, formData);
+        showToast('Registro actualizado con éxito', 'success');
       } else {
         await apiClient.post('/api/inventario/camiones/', formData);
+        showToast('Registro creado con éxito', 'success');
       }
       handleCloseModal();
       fetchTrucks();
     } catch (err) {
       console.error(err);
-      setError("Error al guardar. Verifica que la patente no esté duplicada.");
+      showToast('Error al guardar. Revisa los datos.', 'error');
+    } finally {
+      hideLoader();
     }
   };
 
@@ -100,14 +101,24 @@ export default function CamionList() {
     if (window.confirm('¿Está seguro de eliminar este camión?')) {
       try {
         await apiClient.delete(`/api/inventario/camiones/${id}/`);
+        showToast('Registro eliminado', 'success');
         fetchTrucks();
       } catch (err) {
-        alert("Error al eliminar el camión.");
+        showToast('No se pudo eliminar.', 'error');
+      } finally {
+        hideLoader();
       }
     }
   };
 
-  if (loading) return <div className="p-8 text-center">Cargando flota...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500">
+        <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
+        <p>Cargando camiones...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -145,7 +156,6 @@ export default function CamionList() {
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Placa</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Marca / Modelo</th>
-                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Capacidades</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Año</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Estado</th>
                 <th className="text-right py-4 px-4 text-sm font-semibold text-gray-600">Acciones</th>
@@ -165,17 +175,11 @@ export default function CamionList() {
                   <td className="py-4 px-4 text-gray-700">
                     {truck.marca} <span className="text-gray-400">•</span> {truck.modelo}
                   </td>
-                  <td className="py-4 px-4">
-                    <div className="text-sm">
-                      <p><span className="font-medium">{truck.capacidad_max_kg}</span> Kg</p>
-                      <p className="text-gray-500 text-xs">{truck.capacidad_max_m3} m³</p>
-                    </div>
-                  </td>
                   <td className="py-4 px-4 text-gray-600">{truck.anio || '-'}</td>
                   <td className="py-4 px-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${truck.estado_camion === 'DISPONIBLE' ? 'bg-green-100 text-green-700' :
-                        truck.estado_camion === 'EN_USO' ? 'bg-blue-100 text-blue-700' :
-                          'bg-red-100 text-red-700'
+                      truck.estado_camion === 'EN_USO' ? 'bg-blue-100 text-blue-700' :
+                        'bg-red-100 text-red-700'
                       }`}>
                       {truck.estado_camion?.replace('_', ' ')}
                     </span>
@@ -262,31 +266,6 @@ export default function CamionList() {
                     onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                     placeholder="FH16"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cap. (Kg)</label>
-                  <input
-                    type="number"
-                    value={formData.capacidad_max_kg}
-                    onChange={(e) => setFormData({ ...formData, capacidad_max_kg: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                    step="0.01"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cap. (m³)</label>
-                  <input
-                    type="number"
-                    value={formData.capacidad_max_m3}
-                    onChange={(e) => setFormData({ ...formData, capacidad_max_m3: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                    step="0.01"
-                    required
                   />
                 </div>
               </div>

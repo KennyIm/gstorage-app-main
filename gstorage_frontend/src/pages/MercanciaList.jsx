@@ -7,18 +7,19 @@ import {
   ChevronLeft, ChevronRight, ArrowLeft
 } from 'lucide-react';
 import MermaModal from '../components/MermaModal';
+import { useUI } from '../context/UIContext';
 
 export default function MercanciaList() {
   document.title = "Listado de Mercancias";
   const [mercancias, setMercancias] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { showLoader, hideLoader, showToast } = useUI();
   const [searchTerm, setSearchTerm] = useState('');
   const [despachos, setDespachos] = useState([]);
   const [sucursales, setSucursales] = useState([]);
   const [rutas, setRutas] = useState([]);
 
   // --- SELECCIÓN MASIVA ---
-  const [selectedIds, setSelectedIds] = useState([]); 
+  const [selectedIds, setSelectedIds] = useState([]);
   const [bulkDispatchId, setBulkDispatchId] = useState('');
 
   const [mermaTarget, setMermaTarget] = useState(null);
@@ -64,6 +65,7 @@ export default function MercanciaList() {
   };
 
   const fetchData = useCallback(async () => {
+    showLoader();
     try {
       const [mercRes, despRes, sucurRes, rutasRes] = await Promise.all([
         apiClient.get('/api/inventario/mercancias/'),
@@ -74,11 +76,12 @@ export default function MercanciaList() {
       setMercancias(mercRes.data);
       setDespachos(despRes.data);
       setSucursales(sucurRes.data);
-      setRutas(rutasRes);
-      setLoading(false);
+      setRutas(rutasRes.data);
     } catch (err) {
-      console.error(err);
-      setLoading(false);
+      console.error("Error al cargar datos iniciales:", err);
+      showToast('No se pudieron cargar las mercancias.', 'error');
+    } finally {
+      hideLoader();
     }
   }, []);
 
@@ -90,24 +93,10 @@ export default function MercanciaList() {
     setCurrentPage(1);
   }, [searchTerm, statusFilter]);
 
-  // --- LÓGICA DE SELECCIÓN ---
-  const toggleSelect = (id) => {
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedIds.length === paginatedItems.length) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(paginatedItems.map(item => item.id_mercancia));
-    }
-  };
 
   const handleBulkAssign = async () => {
-    if (!bulkDispatchId) return alert("Selecciona un despacho primero.");
-
+    if (!bulkDispatchId) return showToast('Selecciona un despacho primero.', 'info');
+    showLoader();
     try {
       await apiClient.post('/api/inventario/mercancias/asignar_masivo/', {
         ids: selectedIds,
@@ -116,9 +105,11 @@ export default function MercanciaList() {
       fetchData();
       setSelectedIds([]);
       setBulkDispatchId('');
-      alert(`Éxito: ${selectedIds.length} mercancías asignadas al Despacho #${bulkDispatchId}`);
+      showToast(`Éxito: ${selectedIds.length} mercancías asignadas al Despacho #${bulkDispatchId}`, 'success');
     } catch (err) {
-      alert("Error al realizar la asignación masiva. Verifica los estados de las mercancías.");
+      showToast('Error al realizar la asignación masiva. Verifica los estados de las mercancías.', 'error');
+    } finally {
+      hideLoader();
     }
   };
 
@@ -140,7 +131,27 @@ export default function MercanciaList() {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedItems = filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  if (loading) return <div className="p-8 text-center">Cargando inventario...</div>;
+  // --- LÓGICA DE SELECCIÓN ---
+  const toggleSelect = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const isAllCurrentPageSelected = paginatedItems.length > 0 && paginatedItems.every(item => selectedIds.includes(item.id_mercancia));
+
+  const toggleSelectAll = () => {
+    const currentPageIds = paginatedItems.map(item => item.id_mercancia);
+
+    if (isAllCurrentPageSelected) {
+      setSelectedIds(prev => prev.filter(id => !currentPageIds.includes(id)));
+    } else {
+      setSelectedIds(prev => {
+        const nuevosIds = currentPageIds.filter(id => !prev.includes(id));
+        return [...prev, ...nuevosIds];
+      });
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative">
@@ -197,7 +208,6 @@ export default function MercanciaList() {
 
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Visualización de Mercancía</h1>
-        <p className="text-gray-600">Selecciona múltiples ítems para asignarlos rápidamente a un despacho</p>
       </div>
 
       <div className="bg-white rounded-xl shadow-md p-6 mb-6 border border-gray-100">
@@ -231,7 +241,7 @@ export default function MercanciaList() {
                   <input
                     type="checkbox"
                     className="w-4 h-4 rounded text-red-800 focus:ring-red-800 cursor-pointer"
-                    checked={selectedIds.length === paginatedItems.length && paginatedItems.length > 0}
+                    checked={isAllCurrentPageSelected}
                     onChange={toggleSelectAll}
                   />
                 </th>

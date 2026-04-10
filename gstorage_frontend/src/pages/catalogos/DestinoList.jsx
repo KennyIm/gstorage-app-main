@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../services/api';
 import { Link } from 'react-router-dom';
+import { useUI } from '../../context/UIContext';
 import {
   Search, Plus, Edit, X, MapPin, Map,
-  Power, CheckCircle, XCircle, AlertCircle, ArrowLeft
+  Power, CheckCircle, XCircle, AlertCircle, ArrowLeft, Loader2
 } from 'lucide-react';
 
 export default function DestinationsCatalog() {
@@ -12,6 +13,7 @@ export default function DestinationsCatalog() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState(null);
+  const { showLoader, hideLoader, showToast } = useUI();
 
   const [showModal, setShowModal] = useState(false);
   const [editingDestination, setEditingDestination] = useState(null);
@@ -30,7 +32,7 @@ export default function DestinationsCatalog() {
       setError(null);
     } catch (err) {
       console.error(err);
-      setError('Error al cargar la lista de destinos.');
+      showToast('Error al cargar los datos', 'error');
     } finally {
       setLoading(false);
     }
@@ -81,19 +83,23 @@ export default function DestinationsCatalog() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
+    showLoader();
 
     try {
       if (editingDestination) {
         await apiClient.put(`/api/inventario/destinos/${editingDestination.id_destino}/`, formData);
+        showToast('Registro actualizado con éxito', 'success');
       } else {
         await apiClient.post('/api/inventario/destinos/', formData);
+        showToast('Registro creado con éxito', 'success');
       }
       handleCloseModal();
       fetchDestinations();
     } catch (err) {
       console.error(err);
-      setError("Error al guardar el destino. Verifique los datos.");
+      showToast('Error al guardar el destino Verifique los datos.', 'error');
+    } finally {
+      hideLoader();
     }
   };
 
@@ -112,11 +118,18 @@ export default function DestinationsCatalog() {
       fetchDestinations();
     } catch (err) {
       console.error(err);
-      alert("Error al cambiar el estado del destino.");
+      showToast('Error al cambiar el estado.', 'error');
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Cargando destinos...</div>;
+  if (loading) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500">
+          <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
+          <p>Cargando destinos...</p>
+        </div>
+      );
+    }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../services/api';
 import { Link } from 'react-router-dom';
+import { useUI } from '../../context/UIContext';
 import {
     Search, Plus, Edit, Trash2, User, Building,
     Mail, Phone, X, Briefcase, CreditCard, AlertCircle
     , ChevronLeft, ChevronRight, ArrowLeft, CheckCircle,
-    XCircle,
+    XCircle, Loader2
 } from 'lucide-react';
 
 import {
@@ -46,6 +47,8 @@ export default function Proveedores() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const { showLoader, hideLoader, showToast } = useUI();
+
 
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 10;
@@ -75,7 +78,7 @@ export default function Proveedores() {
             setError(null);
         } catch (err) {
             console.error(err);
-            setError('Error al cargar la lista de proveedores.');
+            showToast('Error al cargar la lista de proveedores.', 'error');
         } finally {
             setLoading(false);
         }
@@ -131,7 +134,7 @@ export default function Proveedores() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setError(null);
+        showLoader();
         if (!isValidRUT(formData.rut)) {
             setError('El RUT ingresado no es válido.');
             return;
@@ -140,7 +143,7 @@ export default function Proveedores() {
 
         const cleanData = {
             ...formData,
-            rut : formData.rut,
+            rut: formData.rut,
             nombre_proveedor: normalizeName(formData.nombre_proveedor),
             contacto: normalizeName(formData.contacto),
             correo: normalizeEmail(formData.correo),
@@ -150,16 +153,19 @@ export default function Proveedores() {
         try {
             if (editingProveedor) {
                 await apiClient.put(`/api/inventario/proveedores/${editingProveedor.rut}/`, cleanData);
+                showToast('Registro actualizado con éxito', 'success');
             } else {
                 await apiClient.post('/api/inventario/proveedores/', cleanData);
+                showToast('Registro creado con éxito', 'success');
             }
             await fetchProveedores();
             handleCloseModal();
         } catch (err) {
             console.error(err);
-            setError(err.response?.data?.rut ? 'El RUT ingresado ya existe o no es válido.' : 'Error al guardar el proveedor.');
+            showToast(err.response?.data?.rut ? 'El RUT ingresado ya existe o no es válido.' : 'Error al guardar el proveedor.', 'error');
         } finally {
             setSubmitting(false);
+            hideLoader();
         }
     };
 
@@ -175,9 +181,18 @@ export default function Proveedores() {
             fetchProveedores()
         } catch (err) {
             console.error(err)
-            alert("Error al cambiar estado.")
+            showToast('Error al cambiar el estado.', 'error');
         }
     };
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500">
+                <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
+                <p>Cargando proveedores...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 font-sans">

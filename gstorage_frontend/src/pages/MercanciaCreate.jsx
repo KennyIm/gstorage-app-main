@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Select from 'react-select';
+import { useUI } from '../context/UIContext';
 import {
   Save, X, NotebookPen, User, MapPin, Map, Package, Scale, Box, FileText, AlertCircle, Loader2, ArrowLeft, Truck
 } from 'lucide-react';
@@ -36,6 +37,7 @@ export default function MercanciaCreate() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const { showLoader, hideLoader, showToast } = useUI();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -46,6 +48,7 @@ export default function MercanciaCreate() {
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
         const [clientesRes, destinosRes, provRes] = await Promise.all([
           apiClient.get('/api/inventario/clientes/'),
@@ -59,17 +62,19 @@ export default function MercanciaCreate() {
         setLoading(false);
       } catch (err) {
         if (err.response && err.response.status === 401) {
+          showToast('Sesión caducada, ingresa nuevamente.', 'error');
           logoutUser();
         } else {
           console.error("Error al buscar la información:", err);
-          setError("No se pudo cargar la información necesaria para el formulario.");
+          showToast('No se pudo cargar la información necesaria para el formulario.', 'error');
         }
+      } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [logoutUser]);
+  }, [logoutUser, showToast]);
 
   // --- CÁLCULO DE PRECIO EN VIVO ---
   useEffect(() => {
@@ -109,8 +114,8 @@ export default function MercanciaCreate() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
     setSubmitting(true);
+    showLoader();
 
     const payload = {
       ...formData,
@@ -133,13 +138,15 @@ export default function MercanciaCreate() {
 
     try {
       await apiClient.post('/api/inventario/mercancias/', payload);
-      setSubmitting(false);
+      showToast('Mercancía registrada con éxito.', 'success');
       navigate('/mercancias');
     } catch (err) {
       console.error(err);
       console.log("Django dice que el error está en:", err.response?.data);
-      setError('Error al guardar la mercancía. Revisa los campos e intenta nuevamente.');
+      showToast('Error al guardar la mercancía. Revisa los campos e intenta nuevamente.', 'error');
+    } finally {
       setSubmitting(false);
+      hideLoader();
     }
   };
 

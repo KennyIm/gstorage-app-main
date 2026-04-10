@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom'; 
-import apiClient from '../services/api'; 
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Select from 'react-select';
+import { useUI } from '../context/UIContext';
 import {
   Save, ArrowLeft, User, MapPin, Map, Package, Scale, Box, FileText,
   Truck, Activity, Loader2, AlertCircle, CheckCircle, NotebookPen,
@@ -14,7 +15,7 @@ export default function MercanciaEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { logoutUser } = useAuth();
-  
+
   const [formData, setFormData] = useState(null);
 
   const [clientes, setClientes] = useState([]);
@@ -23,14 +24,14 @@ export default function MercanciaEdit() {
   const [despachos, setDespachos] = useState([]);
   const [proveedores, setProveedores] = useState([]);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); 
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
+  const { showLoader, hideLoader, showToast } = useUI();
 
   // --- LÓGICA DE CÁLCULO DE PRECIO ---
   const calcularPrecioLogica = () => {
     if (!formData || !formData.id_cliente) return null;
-    
+
     const clienteSeleccionado = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente));
     if (!clienteSeleccionado) return null;
 
@@ -43,18 +44,17 @@ export default function MercanciaEdit() {
   };
 
   const handleRecalculate = (e) => {
-    e.preventDefault(); 
+    e.preventDefault();
     const nuevoTotal = calcularPrecioLogica();
     if (nuevoTotal !== null) {
       setFormData(prev => ({ ...prev, precio_total: nuevoTotal }));
     }
   };
 
-  // Calcula automáticamente SOLO si el precio está vacío o es 0
   useEffect(() => {
     if (formData && formData.id_cliente && (formData.kg || formData.m3)) {
       const valorActual = parseFloat(formData.precio_total);
-      
+
       if (!formData.precio_total || valorActual === 0 || isNaN(valorActual)) {
         const sugerido = calcularPrecioLogica();
         if (sugerido) {
@@ -62,14 +62,13 @@ export default function MercanciaEdit() {
         }
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData?.kg, formData?.m3, formData?.id_cliente, clientes]);
 
 
   // --- CARGA DE DATOS ---
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
+      setLoading(true); 
       try {
         const [clientesRes, destinosRes, ubicacionesRes, despachosRes, provRes] = await Promise.all([
           apiClient.get('/api/inventario/clientes/'),
@@ -108,20 +107,20 @@ export default function MercanciaEdit() {
           paga_proveedor: currentData.paga_proveedor || false,
           codigo_interno: currentData.codigo_interno || ''
         });
-
-        setLoading(false);
       } catch (err) {
         if (err.response && err.response.status === 401) {
+          showToast('Credenciales de autenticación no válidas, por favor ingrese de nuevo.', 'error');
           logoutUser();
         } else {
           console.error("Error al buscar la información:", err);
-          setError("No se pudo cargar la información necesaria.");
+          showToast('No se pudo cargar la información necesaria.', 'error');
         }
-        setLoading(false);
+      } finally {
+        setLoading(false); 
       }
     };
     fetchData();
-  }, [id, logoutUser]); // Añadido logoutUser a dependencias por buenas prácticas
+  }, [id, logoutUser, showToast]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -133,8 +132,8 @@ export default function MercanciaEdit() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
     setSubmitting(true);
+    showLoader(); 
 
     const dataToSubmit = {
       ...formData,
@@ -155,13 +154,14 @@ export default function MercanciaEdit() {
 
     try {
       await apiClient.put(`/api/inventario/mercancias/${id}/`, dataToSubmit);
-      setSubmitting(false);
+      showToast('Mercancía actualizada exitosamente.', 'success');
       navigate(`/mercancias/${id}`);
     } catch (err) {
       console.error(err);
-      setError('Error al actualizar la mercancía. Por favor revisa los datos.');
+      showToast('Error al actualizar la mercancía. Por favor revisa los datos.', 'error');
+    } finally {
       setSubmitting(false);
-      console.log("Motivo del rechazo de Django:", err.response?.data);
+      hideLoader(); 
     }
   };
 
@@ -197,17 +197,6 @@ export default function MercanciaEdit() {
 
         {/* Formulario */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-
-          {error && (
-            <div className="bg-red-50 border-l-4 border-red-500 p-4 m-6 mb-0 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div>
-                <h3 className="text-sm font-medium text-red-800">Error de actualización</h3>
-                <p className="text-sm text-red-700 mt-1">{error}</p>
-              </div>
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-8">
 
             {/* DATOS GENERALES */}
@@ -334,7 +323,7 @@ export default function MercanciaEdit() {
                     <input
                       type="text"
                       name="factura"
-                      id = "factura"
+                      id="factura"
                       value={formData.factura}
                       onChange={handleChange}
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
@@ -366,7 +355,7 @@ export default function MercanciaEdit() {
                     <input
                       type="number"
                       name="cantidad_bultos"
-                      id = "cantidad_bultos"
+                      id="cantidad_bultos"
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
                       value={formData.cantidad_bultos}
                       onChange={handleChange}
@@ -383,7 +372,7 @@ export default function MercanciaEdit() {
                     <input
                       type="number"
                       name="kg"
-                      id = "kg"
+                      id="kg"
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
                       value={formData.kg}
                       onChange={handleChange}
@@ -399,7 +388,7 @@ export default function MercanciaEdit() {
                     <input
                       type="number"
                       name="m3"
-                      id = "m3"
+                      id="m3"
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
                       value={formData.m3}
                       onChange={handleChange}
@@ -414,7 +403,7 @@ export default function MercanciaEdit() {
                     <input
                       type="text"
                       name="codigo_interno"
-                      id= "codigo_interno"
+                      id="codigo_interno"
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
                       value={formData.codigo_interno}
                       onChange={handleChange}
@@ -422,7 +411,7 @@ export default function MercanciaEdit() {
                     />
                   </div>
                 </div>
-                
+
                 {/* --- INPUT PRECIO TOTAL REFORMULADO --- */}
                 <div className="col-span-1 md:col-span-2">
                   <label htmlFor="precio_total" className=" text-sm font-bold text-emerald-700 mb-1 flex justify-between items-center">
@@ -442,7 +431,7 @@ export default function MercanciaEdit() {
                         className="w-full pl-8 pr-4 py-2 bg-emerald-50 border border-emerald-300 text-emerald-800 font-bold rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition-colors"
                       />
                     </div>
-                    
+
                     <button
                       type="button"
                       onClick={handleRecalculate}
@@ -494,7 +483,7 @@ export default function MercanciaEdit() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="estado"className="block text-sm font-medium text-gray-700 mb-1">Estado Actual</label>
+                  <label htmlFor="estado" className="block text-sm font-medium text-gray-700 mb-1">Estado Actual</label>
                   <div className="relative">
                     <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                     <select

@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../services/api';
-import { Search, Plus, Edit, Trash2, X, Truck, AlertCircle, ArrowLeft } from 'lucide-react';
+import {
+  Search, Plus, Edit, Trash2, X, Truck, AlertCircle, ArrowLeft,
+  Loader2
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useUI } from '../../context/UIContext';
 
 export default function RamplaList() {
   document.title = "Gestión de Ramplas";
@@ -20,6 +24,7 @@ export default function RamplaList() {
     capacidad_max_m3: ''
   });
   const [error, setError] = useState(null);
+  const { showLoader, hideLoader, showToast } = useUI();
 
   const fetchRamplas = async () => {
     setLoading(true);
@@ -29,6 +34,8 @@ export default function RamplaList() {
       setLoading(false);
     } catch (err) {
       console.error(err);
+      showToast('Error al cargar la lista de proveedores.', 'error');
+    } finally {
       setLoading(false);
     }
   };
@@ -79,19 +86,23 @@ export default function RamplaList() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
+    showLoader();
 
     try {
       if (editingRampla) {
         await apiClient.put(`/api/inventario/ramplas/${editingRampla.id_rampla}/`, formData);
+        showToast('Registro actualizado con éxito', 'success');
       } else {
         await apiClient.post('/api/inventario/ramplas/', formData);
+        showToast('Registro creado con éxito', 'success');
       }
       handleCloseModal();
       fetchRamplas();
     } catch (err) {
       console.error(err);
-      setError("Error al guardar. Verifica que la patente no esté duplicada.");
+      showToast("Error al guardar. Verifica que la patente no esté duplicada.", 'error');
+    } finally {
+      hideLoader();
     }
   };
 
@@ -101,13 +112,20 @@ export default function RamplaList() {
         await apiClient.delete(`/api/inventario/ramplas/${id}/`);
         fetchRamplas();
       } catch (err) {
-        alert("Error al eliminar la rampla. Puede que esté asociada a un despacho.");
+        showToast('Error al eliminar la rampla. Puede que esté asociada a un despacho.', 'error');
       }
     }
   };
 
   // --- RENDERIZADO ---
-  if (loading) return <div className="p-8 text-center">Cargando ramplas...</div>;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500">
+        <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
+        <p>Cargando ramplas...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -174,8 +192,8 @@ export default function RamplaList() {
                   <td className="py-4 px-4 text-gray-600">{rampla.anio || '-'}</td>
                   <td className="py-4 px-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${rampla.estado_rampla === 'DISPONIBLE' ? 'bg-green-100 text-green-700' :
-                        rampla.estado_rampla === 'EN_USO' ? 'bg-blue-100 text-blue-700' :
-                          'bg-red-100 text-red-700'
+                      rampla.estado_rampla === 'EN_USO' ? 'bg-blue-100 text-blue-700' :
+                        'bg-red-100 text-red-700'
                       }`}>
                       {rampla.estado_rampla?.replace('_', ' ')}
                     </span>

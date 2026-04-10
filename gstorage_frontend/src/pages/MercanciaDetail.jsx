@@ -5,13 +5,13 @@ import { useAuth } from '../context/AuthContext';
 import {
   ArrowLeft, Edit, Trash2, Package, MapPin, User,
   Calendar, Activity, Truck, Scale, Box, FileText,
-  Loader2, AlertCircle, Info, DollarSign, Warehouse
+  Loader2, Info, DollarSign, Warehouse
 } from 'lucide-react';
+import { useUI } from '../context/UIContext';
 
 export default function MercanciaDetail() {
   document.title = "Detalles de Mercancia";
   const [mercancia, setMercancia] = useState(null);
-
 
   const [clientes, setClientes] = useState([]);
   const [destinos, setDestinos] = useState([]);
@@ -19,7 +19,8 @@ export default function MercanciaDetail() {
   const [sucursales, setSucursales] = useState([]);
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  
+  const { showToast } = useUI();
 
   const { id } = useParams();
   const navigate = useNavigate();
@@ -27,9 +28,11 @@ export default function MercanciaDetail() {
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true); 
       try {
         const mercanciaRes = await apiClient.get(`/api/inventario/mercancias/${id}/`);
         setMercancia(mercanciaRes.data);
+        
         const [clientesRes, destinosRes, ubicacionesRes, sucursalesRes] = await Promise.all([
           apiClient.get('/api/inventario/clientes/'),
           apiClient.get('/api/inventario/destinos/'),
@@ -42,20 +45,22 @@ export default function MercanciaDetail() {
         setUbicaciones(ubicacionesRes.data);
         setSucursales(sucursalesRes.data);
 
-        setLoading(false);
       } catch (err) {
         if (err.response && err.response.status === 401) {
+          showToast('Credenciales de autenticación no válidas, por favor ingrese de nuevo.', 'error');
           logoutUser();
         } else {
           console.error("Error al cargar datos:", err);
-          setError("No se pudo cargar la información completa.");
+          showToast('No se pudo cargar la información necesaria.', 'error');
         }
+      } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [id]);
+  }, [id, logoutUser, showToast]);
+
   const getNombreCliente = (id) => {
     if (!id) return 'No asignado';
     const cliente = clientes.find(c => c.id_cliente === id);
@@ -84,37 +89,22 @@ export default function MercanciaDetail() {
     if (window.confirm(`¿Estás seguro de que deseas eliminar el Lote #${mercancia?.id_mercancia}?`)) {
       try {
         await apiClient.delete(`api/inventario/mercancias/${id}/`);
+        showToast('Mercancía eliminada exitosamente.', 'success');
         navigate('/mercancias');
       } catch (err) {
         console.error("Error al eliminar:", err);
-        setError('No se pudo eliminar la mercancía.');
+        showToast('No se pudo eliminar la mercancía.', 'error');
       }
     }
   };
 
 
+  // --- RENDERIZADO DEL SPINNER LOCAL ---
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500">
         <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
         <p>Cargando detalles del lote...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-8 max-w-2xl mx-auto">
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 flex items-start gap-3 rounded-r-lg">
-          <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <h3 className="text-sm font-medium text-red-800">Error</h3>
-            <p className="text-sm text-red-700 mt-1">{error}</p>
-            <button onClick={() => navigate('/mercancias')} className="mt-3 text-sm font-medium text-red-800 hover:underline">
-              Volver al listado
-            </button>
-          </div>
-        </div>
       </div>
     );
   }
@@ -134,9 +124,10 @@ export default function MercanciaDetail() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-gray-900">Lote #{mercancia.id_mercancia || mercancia.id || id}</h1>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${mercancia.estado === 'ALMACENADO' ? 'bg-green-50 text-green-700 border-green-200' :
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                    mercancia.estado === 'ALMACENADO' ? 'bg-green-50 text-green-700 border-green-200' :
                     mercancia.estado === 'DESPACHADO' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                      'bg-gray-100 text-gray-600 border-gray-200'
+                    'bg-gray-100 text-gray-600 border-gray-200'
                   }`}>
                   {mercancia.estado}
                 </span>
@@ -210,21 +201,21 @@ export default function MercanciaDetail() {
                   </div>
                   <div className="p-4 border border-emerald-100 rounded-lg text-center hover:border-emerald-200 transition bg-blue-50">
                     <User className="w-5 h-5 text-blue-500 mx-auto mb-2" />
-                    <span className="block text-sm font-bold text-gray-600">
+                    <span className="block text-sm font-bold text-gray-600 truncate px-1">
                       {mercancia.id_proveedor || "Sin Asignar"}
                     </span>
                     <span className="text-xs text-blue-600 font-medium">Proveedor</span>
                   </div>
                   <div className="p-4 border border-emerald-100 rounded-lg text-center hover:border-emerald-200 transition bg-amber-50">
                     <FileText className="w-5 h-5 text-amber-500 mx-auto mb-2" />
-                    <span className="block text-sm font-bold text-gray-600">
+                    <span className="block text-sm font-bold text-gray-600 truncate px-1">
                       {mercancia.factura || "Sin Asignar"}
                     </span>
                     <span className="text-xs text-amber-600 font-medium">Factura</span>
                   </div>
                   <div className="p-4 border border-cyan-100 rounded-lg text-center hover:border-cyan-200 transition bg-cyan-50">
                     <Warehouse className="w-5 h-5 text-cyan-500 mx-auto mb-2" />
-                    <span className="block text-sm font-bold text-gray-600">
+                    <span className="block text-sm font-bold text-gray-600 truncate px-1">
                       {getNombreSucursal(mercancia.sucursal_id).replace('Sucursal ', '')}
                     </span>
                     <span className="text-xs text-cyan-600 font-medium">Sucursal</span>
@@ -252,9 +243,9 @@ export default function MercanciaDetail() {
                   <span className="block text-xs text-gray-500 mb-1">Creado por</span>
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
-                      {mercancia.id_usuario_creacion}
+                      {mercancia.id_usuario_creacion ? String(mercancia.id_usuario_creacion).substring(0, 2).toUpperCase() : '?'}
                     </div>
-                    <span className="text-gray-900">ID: {mercancia.id_usuario_creacion_id}</span>
+                    <span className="text-gray-900">ID: {mercancia.id_usuario_creacion_id || mercancia.id_usuario_creacion || 'N/A'}</span>
                   </div>
                 </div>
                 <div>
@@ -262,7 +253,7 @@ export default function MercanciaDetail() {
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-gray-400" />
                     <span className="text-gray-900">
-                      {mercancia.fecha_creacion || "Fecha no disponible"}
+                      {mercancia.fecha_creacion ? new Date(mercancia.fecha_creacion).toLocaleString('es-CL') : "Fecha no disponible"}
                     </span>
                   </div>
                 </div>
