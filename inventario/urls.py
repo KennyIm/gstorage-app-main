@@ -57,7 +57,10 @@ urlpatterns = [
     path('proveedores/<str:pk>/', views.ProveedorRetrieveUpdateDestroyAPI.as_view(), name='api-proveedor-detail'),
 
     path('ramplas/', views.RamplaListCreateAPI.as_view(), name='api-ramplas-lista'),
-    path('ramplas/<int:pk>', views.RamplaRetrieverUpdateDestroyAPI.as_view(), name='api-ramplas-detail')
+    path('ramplas/<int:pk>', views.RamplaRetrieverUpdateDestroyAPI.as_view(), name='api-ramplas-detail'),
+
+    path('cotizaciones/', views.CotizacionListCreateAPI.as_view(), name='cotizaciones-list-create'),
+    path('cotizaciones/<int:pk>/', views.CotizacionRetrieveUpdateDestroyAPI.as_view(), name='cotizaciones-detail'),
 
 
 

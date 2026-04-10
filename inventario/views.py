@@ -34,7 +34,7 @@ from django.views.generic import (
 from .models import (
     Mercancia, Cliente, Despacho, Conductor, 
     Camion, Ruta, Destino, Ubicacion, HistorialMovimientos, Estanteria,
-    AreaRestringida, Proveedor, Rampla
+    AreaRestringida, Proveedor, Rampla, Cotizacion
 )
 
 from .serializers import (
@@ -45,7 +45,8 @@ from .serializers import (
     HistorialSerializer,
     AreaRestringidaSerializer,
     ProveedorSerializer,
-    RamplaSerializer
+    RamplaSerializer,
+    CotizacionSerializer
 )
 from usuarios.permissions import IsAdminEmpresa, IsJefeDeBodega, IsOperario
 
@@ -1359,6 +1360,71 @@ class GenerarOrdenesDespachoAPI(APIView):
             return Response({"mensaje": "Órdenes generadas exitosamente."}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+
+
+class CotizacionListCreateAPI(generics.ListCreateAPIView):
+    serializer_class = CotizacionSerializer
+
+    def get_queryset(self):
+        empresa = get_empresa_from_user(self.request)
+        return Cotizacion.objects.filter(empresa=empresa, activo=True).order_by('-fecha_creacion')
+
+    def perform_create(self, serializer):
+        empresa = get_empresa_from_user(self.request)
+        
+        instance = serializer.save(
+            empresa=empresa,
+            id_usuario_creacion=self.request.user,
+            estado_cotizacion='En proceso'
+        )
+        
+        registrar_auditoria(
+            empresa=empresa,
+            usuario=self.request.user,
+            modelo="Cotizaciones",
+            accion="Creación",
+            descripcion=f"Se creó cotización para: {instance.nombre_cliente}"
+        )
+
+
+class CotizacionRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = CotizacionSerializer
+
+    def get_queryset(self):
+        empresa = get_empresa_from_user(self.request)
+        return Cotizacion.objects.filter(empresa=empresa)
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        nuevo_estado = serializer.validated_data.get('estado_cotizacion', instance.estado_cotizacion)
+
+        if nuevo_estado == 'Cotizado' and instance.estado_cotizacion != 'Cotizado':
+            serializer.save(fecha_confirmacion=timezone.now())
+        else:
+            serializer.save()
+
+        instance = serializer.instance 
+        
+        registrar_auditoria(
+            empresa=instance.empresa,
+            usuario=self.request.user,
+            modelo="Cotizaciones",
+            accion="Edición",
+            descripcion=f"Cotización de {instance.nombre_cliente} actualizada a estado: {instance.estado_cotizacion}"
+        )
+
+    def perform_destroy(self, instance):
+        instance.activo = False
+        instance.save()
+        
+        registrar_auditoria(
+            empresa=instance.empresa,
+            usuario=self.request.user,
+            modelo="Cotizaciones",
+            accion="Eliminación",
+            descripcion=f"Se eliminó (lógico) la cotización de: {instance.nombre_cliente}"
+        )
 #DJANGO METODO SIN REACT (FUNCIONAL)
 
 

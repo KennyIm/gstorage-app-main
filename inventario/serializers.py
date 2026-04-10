@@ -4,7 +4,7 @@ from datetime import timedelta
 from .models import (
     Mercancia, Cliente, Despacho, Conductor, 
     Camion, Ruta, Destino, Ubicacion, Estanteria, ReporteGenerado, HistorialMovimientos,
-    AreaRestringida, Proveedor, Rampla
+    AreaRestringida, Proveedor, Rampla, Cotizacion
 )
 
 class MercanciaListSerializer(serializers.ModelSerializer):
@@ -249,4 +249,16 @@ class RamplaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rampla
         fields = '__all__'
-        read_only_fields = ['activo']
+        read_only_fields = ['activo', 'empresa']
+
+
+class CotizacionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Cotizacion
+        fields = '__all__'
+        read_only_fields = [
+            'empresa', 
+            'id_usuario_creacion', 
+            'fecha_creacion', 
+            'fecha_confirmacion'
+        ]

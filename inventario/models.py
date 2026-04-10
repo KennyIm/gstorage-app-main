@@ -54,6 +54,10 @@ class RamplaManager(models.Manager):
     def get_queryset(self):
         return super().get_queryset().filter(activo=True)
     
+class CotizacionManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(activo=True)
+    
 class Proveedor(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="proveedores")
     rut = models.CharField(max_length=20, primary_key=True, verbose_name="RUT del Proveedor")
@@ -423,3 +427,33 @@ class AreaRestringida(models.Model):
 
     def __str__(self):
         return f"{self.nombre} ({self.empresa.nombre_empresa})"
+    
+class Cotizacion(models.Model):
+    ESTADOS_COTIZACION = [
+        ('En proceso', 'En proceso'),
+        ('Cotizado', 'Cotizado')
+    ]
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="cotizaciones")
+    id_usuario_creacion = models.ForeignKey(User, related_name='cotizaciones_creadas', on_delete=models.PROTECT, verbose_name="Usuario Creación", null=True, blank=True)
+    id_cotizacion = models.AutoField(primary_key=True)
+    rut_cliente = models.CharField(max_length=12, verbose_name="RUT cliente")
+    rut_proveedor = models.CharField(max_length=12, verbose_name="RUT proveedor")
+    nombre_cliente = models.CharField(max_length=150, verbose_name="Nombre o Razón Social")
+    proveedor = models.CharField(max_length=150, verbose_name="Nombre o Razón Social")
+    contacto = models.CharField(max_length=50, null=True, blank=True, verbose_name="Contacto cotización")
+    destino = models.CharField(max_length=100, blank=True, null=True, verbose_name="Dirección de destino")
+    cantidad = models.IntegerField(default=1, verbose_name="Cantidad de bultos")
+    tipo_bultos = models.CharField(max_length=50, blank=True, null=True, verbose_name="Tipo de bultos")
+    kg = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Peso (Kg)")
+    m3 = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, verbose_name="Volumen (m³)")
+    monto = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Monto Cotizado")
+    estado_cotizacion = models.CharField(max_length=50, choices=ESTADOS_COTIZACION)
+    fecha_confirmacion = models.DateTimeField(null=True, blank=True, verbose_name="Fecha confirmación")
+    fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
+    cotiza_proveedor = models.BooleanField(default=False, verbose_name="¿Cotiza proveedor?")
+    activo = models.BooleanField(default=True)
+    objects = models.Manager() 
+    activos = CotizacionManager
+
+    def __str__(self):
+        return f"Cotización #{self.id_cotizacion} - {self.nombre_cliente}"

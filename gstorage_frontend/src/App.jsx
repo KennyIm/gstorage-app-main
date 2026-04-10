@@ -65,6 +65,10 @@ import RamplasManager from './pages/catalogos/RamplasManager'
 
 import PlanificadorRutas from './components/PlanificadorRutas'
 
+import CotizacionList from './pages/CotizacionList'
+import CotizacionCreate from './pages/CotizacionCreate'
+import CotizacionEdit from './pages/CotizacionEdit'
+
 function App() {
   return (
     <Routes>
@@ -128,6 +132,11 @@ function App() {
 
           <Route path="proveedores" element={<Proveedores />} />
           <Route path="ramplas" element={<RamplasManager />} />
+
+
+          <Route path="/cotizaciones" element={<CotizacionList />} />
+          <Route path="/cotizaciones/crear" element={<CotizacionCreate />} />
+          <Route path="/cotizaciones/editar/:id" element={<CotizacionEdit />} />
         </Route>
       </Route>
     </Routes>
