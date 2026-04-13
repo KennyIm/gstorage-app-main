@@ -149,7 +149,6 @@ export default function CotizacionEdit() {
 
                     {isReadOnly && (
                         <div className="bg-amber-50 p-4 border-b border-amber-200 flex items-center gap-3">
-                            <AlertCircle className="w-5 h-5 text-amber-600" />
                             <p className="text-sm font-bold text-amber-800">
                                 {formData.estado_cotizacion === 'Cotizado'
                                     ? 'Modo Lectura: Esta cotización ya ha sido confirmada y cerrada.'
@@ -159,7 +158,6 @@ export default function CotizacionEdit() {
                     )}
 
                     <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-8">
-                        {/* Toda la estructura visual es idéntica al Create, pero bloqueada si isReadOnly es true */}
                         {/* SECCIÓN 1: CLIENTE */}
                         <div>
                             <h3 className="text-sm font-bold text-red-800 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">

@@ -23,6 +23,7 @@ from openpyxl.worksheet.page import PageMargins
 from django.http import HttpResponse
 from rest_framework import status
 from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import PermissionDenied
 from django.db.models import Q
 from django.views.generic import (
     ListView, 
@@ -67,11 +68,19 @@ def filtrar_por_sucursal_y_empresa(queryset, request):
         
     perfil = user.perfil
     qs = queryset.filter(empresa=perfil.empresa)
-    if perfil.rol != 'DUENO':
-        if perfil.sucursal:
-            qs = qs.filter(sucursal=perfil.sucursal)
+    sucursal_id_solicitada = request.query_params.get('sucursal_id')
+
+    if perfil.rol == 'DUENO':
+        if sucursal_id_solicitada:
+            qs = qs.filter(sucursal_id=sucursal_id_solicitada)
+    else:
+        if sucursal_id_solicitada:
+            qs = qs.filter(sucursal_id=sucursal_id_solicitada)
         else:
-            return queryset.none()
+            if perfil.sucursal:
+                qs = qs.filter(sucursal=perfil.sucursal)
+            else:
+                return queryset.none()
             
     return qs
 # --- Vistas de API para Mercancia ---
@@ -176,25 +185,19 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         empresa = get_empresa_from_user(self.request)
         user = self.request.user if self.request.user.is_authenticated else None
 
-        # 1. OBTENER DATOS ACTUALES 
         instance = self.get_object() 
         ubicacion_original = instance.id_ubicacion_actual
         estado_original = instance.estado
 
-        # 2. OBTENER DATOS ENTRANTES (Lo que se quiere guardar)
         datos_nuevos = serializer.validated_data
         
-        # Determinamos los valores finales (Si no vienen en el request, usamos los actuales)
         nueva_ubicacion = datos_nuevos.get('id_ubicacion_actual', instance.id_ubicacion_actual)
         nuevo_estado = datos_nuevos.get('estado', instance.estado)
         nuevo_kg = datos_nuevos.get('kg', instance.kg)
         nuevo_m3 = datos_nuevos.get('m3', instance.m3)
 
-        # --- 3. VALIDACIONES DE NEGOCIO  ---
-        
         if nueva_ubicacion and (nueva_ubicacion != ubicacion_original or nuevo_estado in ['En Bodega', 'Asignado']):
             
-            # A. Validar si está ocupada por OTRO lote
             if nueva_ubicacion.estado_ocupado:
                 ocupante = Mercancia.activos.filter(id_ubicacion_actual=nueva_ubicacion).exclude(pk=instance.pk).first()
                 if ocupante:
@@ -202,18 +205,15 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
                         "id_ubicacion_actual": f"¡Conflicto! La ubicación {nueva_ubicacion.codigo_ubicacion} ya está ocupada por el Lote #{ocupante.id_mercancia}."
                     })
             
-            # B. Validar que la ubicación pertenezca a la empresa
             if nueva_ubicacion.empresa != empresa:
                 raise ValidationError({"id_ubicacion_actual": "Esta ubicación no pertenece a su empresa."})
 
-            # C. VALIDAR PESO (KG)
             if nuevo_kg and nueva_ubicacion.capacidad_maxima_kg:
                 if float(nuevo_kg) > float(nueva_ubicacion.capacidad_maxima_kg):
                     raise ValidationError({
                         "id_ubicacion_actual": f"Exceso de Peso: El lote ({nuevo_kg}kg) supera la capacidad de la ubicación ({nueva_ubicacion.capacidad_maxima_kg}kg)."
                     })
 
-            # D. VALIDAR VOLUMEN (M3)
             if nuevo_m3 and nueva_ubicacion.capacidad_max_m3:
                 if float(nuevo_m3) > float(nueva_ubicacion.capacidad_max_m3):
                     raise ValidationError({
@@ -225,7 +225,6 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
 
 
 
-        # --- Caso Especial: Merma / Eliminado ---
         if nuevo_estado in ['Merma', 'Eliminado']:
             if ubicacion_original:
                 try:
@@ -234,7 +233,6 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
                 except Exception as e:
                     print(f"Error liberando: {e}")
             
-            # Limpiar datos
             instance_actualizada.id_despacho = None
             instance_actualizada.id_ubicacion_actual = None
             instance_actualizada.save()
@@ -242,11 +240,11 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             HistorialMovimientos.objects.create(
                 empresa=empresa, id_mercancia=instance_actualizada, id_usuario=user,
                 id_ubicacion_anterior=ubicacion_original, id_ubicacion_nueva=None,
+                modelo=instance._meta.verbose_name.capitalize(),
                 tipo_movimiento='Modificación Manual', descripcion_adicional=f"Mercancía marcada como {nuevo_estado}"
             )
             return
 
-        # --- Movimiento Normal  ---
         if ubicacion_original != nueva_ubicacion:
             if ubicacion_original:
                 ubicacion_original.estado_ocupado = False
@@ -259,11 +257,11 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             HistorialMovimientos.objects.create(
                 empresa=empresa, id_mercancia=instance_actualizada, id_usuario=user,
                 id_ubicacion_anterior=ubicacion_original, id_ubicacion_nueva=nueva_ubicacion,
-                tipo_movimiento='Modificación Manual', 
+                tipo_movimiento='Modificación Manual',
+                modelo=instance._meta.verbose_name.capitalize(), 
                 descripcion_adicional=f"Movido de {ubicacion_original.codigo_ubicacion if ubicacion_original else 'Nada'} a {nueva_ubicacion.codigo_ubicacion if nueva_ubicacion else 'Nada'}"
             )
 
-        # --- Cambio de Estado en el mismo lugar ---
         elif estado_original != nuevo_estado:
             if nuevo_estado in ['En Tránsito', 'Entregado']:
                 if ubicacion_original:
@@ -281,22 +279,20 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
                 empresa=empresa, id_mercancia=instance_actualizada, id_usuario=user,
                 id_ubicacion_anterior=ubicacion_original, id_ubicacion_nueva=instance_actualizada.id_ubicacion_actual,
                 accion='Modificación Manual',
+                modelo=instance._meta.verbose_name.capitalize(),
                 descripcion_adicional=f"Cambio de estado de '{estado_original}' a '{nuevo_estado}'"
             )
 
     def perform_destroy(self, instance):
         empresa = get_empresa_from_user(self.request)
         user = self.request.user if self.request.user.is_authenticated else None
-        
-        # Historial
         HistorialMovimientos.objects.create(
             empresa=empresa, id_mercancia=instance, id_usuario=user,
             id_ubicacion_anterior=instance.id_ubicacion_actual, id_ubicacion_nueva=None,
             accion='Borrado Lógico',
+            modelo=instance._meta.verbose_name.capitalize(),
             descripcion_adicional=f"Mercancía eliminada (Motivo: {instance.motivo_baja or 'No especificado'})"
         )
-
-        # Liberar Ubicación
         if instance.id_ubicacion_actual:
             try:
                 ubicacion = instance.id_ubicacion_actual
@@ -305,7 +301,6 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             except Exception as e:
                 print(f"Error al liberar ubicación en destroy: {e}")
 
-        # Borrado Lógico
         instance.id_despacho = None
         instance.id_ubicacion_actual = None
         instance.activo = False
@@ -394,6 +389,7 @@ class DespachoListCreateAPI(generics.ListCreateAPIView):
             empresa=empresa,
             usuario=user,
             modelo="Despacho",
+            sucursal=self.request.user.perfil.sucursal,
             accion="Creación",
             descripcion=f"Despacho programado para {instance.fecha_programada}"
         )
@@ -405,10 +401,17 @@ class DespachoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         #empresa = get_empresa_from_user(self.request)
         #return Despacho.objects.filter(empresa=empresa, activo=True)
-        return filtrar_por_sucursal_y_empresa(Despacho.objects.all(), self.request)
+        empresa = get_empresa_from_user(self.request)
+        return Despacho.objects.filter(empresa=empresa, activo=True)
     
     def perform_update(self, serializer):
-        prev_estado = self.get_object().estado_despacho
+        instance = self.get_object()
+        user_perfil = self.request.user.perfil
+
+        if user_perfil.rol != 'DUENO' and instance.sucursal_id != user_perfil.sucursal_id:
+            raise PermissionDenied("No tienes permisos para modificar despachos de otras sucursales.")
+
+        prev_estado = instance.estado_despacho
         instance = serializer.save(id_usuario_ultima_modificacion=self.request.user)
         
         desc = f"Despacho #{instance.id_despacho} actualizado."
@@ -420,16 +423,24 @@ class DespachoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             usuario=self.request.user,
             modelo="Despacho",
             accion="Edición",
+            sucursal=self.request.user.perfil.sucursal,
             descripcion=desc
         )
 
     def perform_destroy(self, instance):
+        user_perfil = self.request.user.perfil
+
+        if user_perfil.rol != 'DUENO' and instance.sucursal_id != user_perfil.sucursal_id:
+            raise PermissionDenied("No tienes permisos para eliminar despachos de otras sucursales.")
+
         instance.activo = False
         instance.id_usuario_ultima_modificacion = self.request.user
         instance.save()
+        
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Despacho",
             accion="Eliminación",
             descripcion=f"Se eliminó (lógico) al despacho: {instance.id_despacho}"
@@ -451,6 +462,7 @@ class ClienteListCreateAPI(generics.ListCreateAPIView):
         registrar_auditoria(
             empresa=empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Cliente",
             accion="Creación",
             descripcion=f"Se creó el cliente: {instance.nombre_cliente}"
@@ -469,6 +481,7 @@ class ClienteDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Cliente",
             accion="Edición",
             descripcion=f"Se actualizaron datos del cliente: {instance.nombre_cliente}"
@@ -480,6 +493,7 @@ class ClienteDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Cliente",
             accion="Eliminación",
             descripcion=f"Se eliminó (lógico) al cliente: {instance.nombre_cliente}"
@@ -501,6 +515,7 @@ class ConductorListCreateAPI(generics.ListCreateAPIView):
         registrar_auditoria(
             empresa=empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Conductor",
             accion="Creación",
             descripcion=f"Se creó el conductor: {instance.nombre_completo}"
@@ -519,6 +534,7 @@ class ConductorDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Conductor",
             accion="Edición",
             descripcion=f"Se actualizarón datos del conductor: {instance.nombre_completo}"
@@ -530,6 +546,7 @@ class ConductorDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Conductor",
             accion="Eliminación",
             descripcion=f"Se eliminó al conductor: {instance.nombre_completo}"
@@ -551,6 +568,7 @@ class CamionListCreateAPI(generics.ListCreateAPIView):
         registrar_auditoria(
             empresa=empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Camion",
             accion="Creación",
             descripcion=f"Se creó el camión: {instance.patente}"
@@ -570,6 +588,7 @@ class CamionDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Camion",
             accion="Edición",
             descripcion=f"Se actualizarón datos del camión: {instance.patente}"
@@ -581,6 +600,7 @@ class CamionDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Camion",
             accion="Eliminación",
             descripcion=f"Se eliminó el camión: {instance.patente}"
@@ -609,6 +629,7 @@ class RutaListCreateAPI(generics.ListCreateAPIView):
         registrar_auditoria(
             empresa=empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Ruta",
             accion="Creación",
             descripcion=f"Se creó la ruta: {instance.nombre_ruta}"
@@ -628,6 +649,7 @@ class RutaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Ruta",
             accion="Edición",
             descripcion=f"Se actualizarón datos de la ruta: {instance.nombre_ruta}"
@@ -639,6 +661,7 @@ class RutaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Ruta",
             accion="Eliminación",
             descripcion=f"Se eliminó la ruta: {instance.nombre_ruta}"
@@ -660,6 +683,7 @@ class DestinoListCreateAPI(generics.ListCreateAPIView):
         registrar_auditoria(
             empresa=empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Destino",
             accion="Creación",
             descripcion=f"Se creó el destino: {instance.nombre_ciudad}"
@@ -678,6 +702,7 @@ class DestinoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Destino",
             accion="Edición",
             descripcion=f"Se actualizarón datos del destino: {instance.nombre_ciudad}"
@@ -689,6 +714,7 @@ class DestinoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Destino",
             accion="Eliminación",
             descripcion=f"Se eliminó el destino: {instance.nombre_ciudad}"
@@ -852,7 +878,7 @@ class HistorialPagination(PageNumberPagination):
 class HistorialListAPI(generics.ListAPIView):
     serializer_class = HistorialSerializer
     permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
-    pagination_class = HistorialPagination # 👈 Le inyectamos el paginador directamente
+    pagination_class = HistorialPagination 
 
     def get_queryset(self):
         qs = HistorialMovimientos.objects.all()
@@ -1017,6 +1043,7 @@ class ProveedorListCreateAPI(generics.ListCreateAPIView):
         registrar_auditoria(
             empresa=empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Proveedores",
             accion="Creación",
             descripcion=f"Se creó el proveedor: {instance.nombre_proveedor}"
@@ -1035,6 +1062,7 @@ class ProveedorRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Proveedores",
             accion="Edición",
             descripcion=f"Se actualizaron datos del proveedor: {instance.nombre_proveedor}"
@@ -1046,6 +1074,7 @@ class ProveedorRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Proveedores",
             accion="Eliminación",
             descripcion=f"Se eliminó (lógico) al proovedor: {instance.nombre_proveedor}"
@@ -1073,6 +1102,7 @@ class RamplaListCreateAPI(generics.ListCreateAPIView):
         registrar_auditoria(
             empresa=empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Rampla",
             accion="Creación",
             descripcion=f"Se creó la rampla: {instance.patente}"
@@ -1092,6 +1122,7 @@ class RamplaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Rampla",
             accion="Edición",
             descripcion=f"Se actualizaron datos de la rampla: {instance.patente}"
@@ -1103,6 +1134,7 @@ class RamplaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Rampla",
             accion="Eliminación",
             descripcion=f"Se eliminó la rampla: {instance.patente}"
@@ -1382,6 +1414,7 @@ class CotizacionListCreateAPI(generics.ListCreateAPIView):
         registrar_auditoria(
             empresa=empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Cotizaciones",
             accion="Creación",
             descripcion=f"Se creó cotización para: {instance.nombre_cliente}"
@@ -1409,6 +1442,7 @@ class CotizacionRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Cotizaciones",
             accion="Edición",
             descripcion=f"Cotización de {instance.nombre_cliente} actualizada a estado: {instance.estado_cotizacion}"
@@ -1421,6 +1455,7 @@ class CotizacionRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
+            sucursal=self.request.user.perfil.sucursal,
             modelo="Cotizaciones",
             accion="Eliminación",
             descripcion=f"Se eliminó (lógico) la cotización de: {instance.nombre_cliente}"

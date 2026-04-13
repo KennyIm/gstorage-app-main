@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useUI } from '../context/UIContext';
+import Select from 'react-select';
 import {
   Plus, Search, Eye, Edit, Truck, Map, User, Calendar,
   Clock, CheckCircle, AlertCircle, Loader2, ArrowRight,
@@ -16,6 +17,8 @@ export default function DespachoList() {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sucursales, setSucursales] = useState([]);
+  const { user } = useAuth();
+  const [sucursalVisualizada, setSucursalVisualizada] = useState(user?.perfil?.sucursal_id)
   const { logoutUser } = useAuth();
   const { showLoader, hideLoader, showToast } = useUI();
 
@@ -24,26 +27,30 @@ export default function DespachoList() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [sucursalVisualizada, searchTerm]);
 
   useEffect(() => {
     const fetchData = async () => {
+      showLoader(); 
+      setDespachos([]); 
       try {
         const [despRes, sucurRes] = await Promise.all([
-          apiClient.get('/api/inventario/despachos/'),
+          apiClient.get(`/api/inventario/despachos/?sucursal_id=${sucursalVisualizada}`),
           apiClient.get('/api/usuarios/sucursales/')
         ]);
         setDespachos(despRes.data);
         setSucursales(sucurRes.data);
-        setLoading(false);
       } catch (err) {
         console.error(err);
-        showToast('Error al cargar la lista de despachos.', 'error');
+        showToast('Error al cargar la lista.', 'error');
+      } finally {
+        hideLoader();
         setLoading(false);
       }
     };
-    fetchData();
-  }, []);
+
+    if (sucursalVisualizada) fetchData();
+  }, [sucursalVisualizada]);
 
   const handleDateChange = async (id, newValue) => {
     setDespachos(prev => prev.map(d =>
@@ -127,12 +134,14 @@ export default function DespachoList() {
     return `${formattedBody}-${dv}`;
   };
 
-  // Filtrado local simple
-  const filteredDespachos = despachos.filter(d =>
-    (String(d.id_ruta || '')).toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (String(d.id_conductor || '')).toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (String(d.id_camion || '')).toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredDespachos = despachos.filter(d => {
+    const term = searchTerm.toLowerCase().trim();
+    return (
+      (String(d.id_ruta || '')).toLowerCase().includes(term) ||
+      (String(d.id_conductor || '')).toLowerCase().includes(term) ||
+      (String(d.id_camion || '')).toLowerCase().includes(term)
+    );
+  });
   const totalPages = Math.ceil(filteredDespachos.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedDespachos = filteredDespachos.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -185,9 +194,27 @@ export default function DespachoList() {
             <input
               type="text"
               placeholder="Buscar por ruta, conductor o camión..."
-              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
+              className="w-100 pl-10 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className='relative w-full md:w-72'>
+            <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Sucursal a Visualizar</label>
+            <Select
+              placeholder="Cambiar de sucursal..."
+              options={sucursales.map(s => ({ value: s.id, label: s.nombre }))}
+              value={
+                sucursalVisualizada
+                  ? { value: sucursalVisualizada, label: sucursales.find(s => String(s.id) === String(sucursalVisualizada))?.nombre }
+                  : null
+              }
+              onChange={(opt) => {
+                setSucursalVisualizada(opt ? opt.value : null);
+                setCurrentPage(1);
+              }}
+              className="text-sm"
+              isClearable={true}
             />
           </div>
         </div>
@@ -213,6 +240,7 @@ export default function DespachoList() {
                     const sucursalObj = sucursales.find(s => s.id === despacho.sucursal_id);
                     const nombreLugar = sucursalObj ? sucursalObj.ciudad : 'Sin Asignar';
                     const iniciales = sucursalObj ? nombreLugar.substring(0, 3).toUpperCase() : '---';
+                    const isReadOnly = String(sucursalVisualizada) !== String(user?.perfil?.sucursal_id)
 
                     return (
                       <tr key={despacho.id_despacho} className="hover:bg-gray-50/50 transition">
@@ -293,13 +321,15 @@ export default function DespachoList() {
                             >
                               <Eye className="w-4 h-4" />
                             </Link>
-                            <Link
-                              to={`/despachos/${despacho.id_despacho}/editar`}
-                              className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
-                              title="Editar"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Link>
+                            {!isReadOnly && (
+                              <Link
+                                to={`/despachos/${despacho.id_despacho}/editar`}
+                                className="p-2 text-gray-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                                title="Editar"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Link>
+                            )}
                           </div>
                         </td>
                       </tr>

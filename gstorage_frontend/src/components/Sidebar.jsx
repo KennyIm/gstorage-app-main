@@ -3,7 +3,7 @@ import { NavLink, Link } from 'react-router-dom';
 import { 
   ChevronDown, ChevronRight, LayoutDashboard, Package, 
   Truck, Users, Settings, Menu, X, DollarSign, 
-  UserCircle, LogOut, ShieldCheck, Home 
+  UserCircle, LogOut, ShieldCheck, Home, DiamondPlus 
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../services/api';
@@ -64,6 +64,7 @@ export default function Sidebar() {
       ]
     },
     { name: 'Clientes', icon: <Users size={20} />, path: '/clientes' },
+    { name: 'Cotizaciones', icon: <DiamondPlus size={20}/>, path: '/cotizaciones'},
     { name: 'Gestión Usuarios', icon: <ShieldCheck size={20} />, path: '/gestionar-empleados', show: isAdmin },
   ];
 
@@ -164,8 +165,6 @@ export default function Sidebar() {
               </div>
             </div>
           )}
-
-          {/* Botón Logout con efecto hover agresivo */}
           <button 
             onClick={logoutUser}
             className="p-2.5 text-red-200 hover:text-white hover:bg-red-600 rounded-xl transition-all"

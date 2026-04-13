@@ -23,7 +23,8 @@ from .serializers import (
     ChangePasswordSerializer,
     PasswordResetRequestSerializer, 
     PasswordResetConfirmSerializer,
-    SucursalSerializer
+    SucursalSerializer,
+    AdminPasswordResetSerializer
 )
 class EmpresaViewSet(viewsets.ModelViewSet):
     queryset = Empresa.objects.all()
@@ -184,3 +185,24 @@ class SucursalListAPI(generics.ListAPIView):
             return Sucursal.objects.filter(empresa=empresa)
         except AttributeError:
             return Sucursal.objects.none()
+        
+
+class AdminResetPasswordView(generics.UpdateAPIView):
+    queryset = User.objects.all()
+    serializer_class = AdminPasswordResetSerializer
+    permission_classes = [permissions.IsAuthenticated] 
+
+    def update(self, request, *args, **kwargs):
+        user = self.get_object() 
+        serializer = self.get_serializer(data=request.data)
+        
+        if serializer.is_valid():
+            user.set_password(serializer.validated_data['password'])
+            user.save()
+            
+            return Response(
+                {"detail": f"Contraseña de {user.username} actualizada correctamente."}, 
+                status=status.HTTP_200_OK
+            )
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

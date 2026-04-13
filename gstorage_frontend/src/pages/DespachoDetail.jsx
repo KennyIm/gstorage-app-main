@@ -12,7 +12,6 @@ export default function DespachoDetail() {
   const [despacho, setDespacho] = useState(null);
   const [mercancias, setMercancias] = useState([]);
 
-  // Estados para catálogos (Diccionarios)
   const [rutas, setRutas] = useState([]);
   const [camiones, setCamiones] = useState([]);
   const [conductores, setConductores] = useState([]);
@@ -22,14 +21,18 @@ export default function DespachoDetail() {
   const [error, setError] = useState(null);
 
   const { id } = useParams();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { logoutUser } = useAuth();
+
+  const isReadOnly =
+    user?.perfil?.rol !== 'DUENO' &&
+    String(despacho?.sucursal_id) !== String(user?.perfil?.sucursal_id);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Carga paralela de TODO lo necesario para mostrar nombres en lugar de IDs
         const [despachoRes, mercanciasRes, rutasRes, camionesRes, conductoresRes, clientesRes] = await Promise.all([
           apiClient.get(`/api/inventario/despachos/${id}/`),
           apiClient.get(`/api/inventario/mercancias/?id_despacho=${id}`),
@@ -162,6 +165,11 @@ export default function DespachoDetail() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 font-sans">
+      {isReadOnly && (
+                <div className="bg-amber-100 text-amber-800 p-3 mb-4 rounded-lg border border-amber-200 font-bold text-center">
+                  Estás visualizando un despacho de otra sucursal. No tienes permisos para editarlo.
+                </div>
+              )}
       <div className="max-w-6xl mx-auto">
 
         {/* Header de Navegación */}
@@ -177,23 +185,26 @@ export default function DespachoDetail() {
                   {despacho.estado_despacho}
                 </span>
               </div>
-              <p className="text-sm text-gray-500 mt-1">Detalles de logística y carga asignada.</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
+            {!isReadOnly && (
             <Link
               to={`/despachos/${id}/editar`}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition shadow-sm"
             >
               <Edit className="w-4 h-4" /> Editar
             </Link>
+            )}
+            {!isReadOnly && (
             <button
               onClick={handleDelete}
               className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 text-red-700 font-medium rounded-lg hover:bg-red-100 transition shadow-sm"
             >
               <Trash2 className="w-4 h-4" /> Eliminar
             </button>
+            )}
             <button
               onClick={() => navigate(`/despachos/${id}/imprimir-plantilla`)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 font-medium rounded-lg hover:bg-blue-100 transition shadow-sm"
@@ -319,11 +330,10 @@ export default function DespachoDetail() {
                     {mercancias.map(m => (
                       <div key={m.id_mercancia} className="group relative bg-white border border-gray-200 rounded-lg p-3 hover:border-indigo-300 hover:shadow-sm transition-all">
 
-                        {/* ENCABEZADO DE LA TARJETA: Lote y Factura */}
+                        {/* ENCABEZADO DE LA TARJETA */}
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex flex-col">
                             <span className="text-xs font-black text-indigo-600">Lote #{m.id_mercancia}</span>
-                            {/* 👇 AQUÍ AGREGAMOS LA FACTURA 👇 */}
                             <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">
                               Factura: {m.factura || 'S/N'}
                             </span>

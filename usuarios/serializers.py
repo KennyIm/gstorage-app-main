@@ -145,3 +145,9 @@ class SucursalSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sucursal
         fields = ['id', 'nombre', 'ciudad', 'empresa']
+
+class AdminPasswordResetSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate_password(self, value):
+        return value

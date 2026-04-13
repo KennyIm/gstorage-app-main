@@ -66,18 +66,22 @@ def actualizar_estados_automaticos(empresa):
             
     return count_actualizados
 
-def registrar_auditoria(empresa, usuario, modelo, accion, descripcion, mercancia=None):
+def registrar_auditoria(empresa, usuario, modelo, accion, descripcion, mercancia=None, sucursal=None):
     try:
+        if sucursal is None and usuario and hasattr(usuario, 'perfil'):
+            sucursal = usuario.perfil.sucursal_id
+
         HistorialMovimientos.objects.create(
             empresa=empresa,
             id_usuario=usuario if usuario and usuario.is_authenticated else None,
+            sucursal=sucursal, 
             modelo_afectado=modelo,
             accion=accion,
             descripcion_adicional=descripcion,
             id_mercancia=mercancia 
         )
     except Exception as e:
-        print(f"Error al registrar auditoría: {e}")
+        print(f"Error crítico al registrar auditoría en el modelo {modelo}: {e}")
 
 def generar_numeros_orden_despacho(despacho):
     mercancias = Mercancia.activos.filter(id_despacho=despacho).order_by(

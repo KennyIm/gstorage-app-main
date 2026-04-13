@@ -183,14 +183,12 @@ export default function CotizacionList() {
 
                             return (
                                 <div key={cot.id_cotizacion} className="rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all border border-gray-800">
-
                                     {/* BARRA SUPERIOR */}
                                     <div
                                         onClick={() => handleToggleExpand(cot.id_cotizacion)}
                                         className={`flex flex-col sm:flex-row items-center justify-between p-4 cursor-pointer select-none transition-colors ${isExpanded ? 'bg-slate-900 text-white' : 'bg-slate-800 text-gray-100 hover:bg-slate-700'}`}
                                     >
                                         <div className="flex items-center gap-4 w-full sm:w-auto sm:mb-0">
-                                            {/* Badge Estado */}
                                             <span className={`px-3 py-1 text-xs font-black uppercase tracking-wider rounded-md border ${isCotizado ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50' : 'bg-amber-500/20 text-amber-300 border-amber-500/50'
                                                 }`}>
                                                 {cot.estado_cotizacion}
@@ -216,10 +214,7 @@ export default function CotizacionList() {
                                     {/* CUERPO EXPANDIDO */}
                                     {isExpanded && (
                                         <div className="bg-white p-6 border-t border-gray-200 animate-in slide-in-from-top-2 duration-200">
-
-                                            {/* Grid de Detalles */}
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-
                                                 {/* Bloque Cliente */}
                                                 <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                                                     <h4 className="text-xs font-bold text-red-800 uppercase mb-3 flex items-center gap-2">
@@ -258,7 +253,6 @@ export default function CotizacionList() {
                                                         <div><span className="text-gray-500 text-xs">Peso:</span> <br /><span className="font-bold">{cot.kg} Kg</span></div>
                                                         <div><span className="text-gray-500 text-xs">Medidas:</span> <br /><span className="font-bold">{cot.m3} m³</span></div>
                                                         <div><span className="text-gray-500 text-xs">Tipo:</span> <br /><span className="font-bold">{cot.tipo_bultos}</span></div>
-                                                        {/* NUEVO CAMPO MONTO */}
                                                         <div className="col-span-2 mt-1 pt-2 border-t border-gray-200">
                                                             <span className="text-gray-500 text-xs uppercase">Presupuesto Cotizado:</span> <br />
                                                             <span className="text-lg font-black text-emerald-700">
@@ -285,16 +279,14 @@ export default function CotizacionList() {
 
                                             {/* BOTONES DE ACCIÓN */}
                                             <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-gray-100">
-
-                                                {/* Botón Eliminar */}
+                                                {isCreator && (
                                                 <button
                                                     onClick={() => handleEliminar(cot.id_cotizacion, cot.nombre_cliente)}
                                                     className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-red-600 font-medium rounded-lg hover:bg-red-50 transition shadow-sm"
                                                 >
                                                     <Trash2 className="w-4 h-4" /> Eliminar
                                                 </button>
-
-                                                {/* Botón Editar */}
+                                                )}
                                                 {!isCotizado && (
                                                     <Link
                                                         to={`/cotizaciones/editar/${cot.id_cotizacion}`}
@@ -303,8 +295,6 @@ export default function CotizacionList() {
                                                         <Edit className="w-4 h-4" /> Editar
                                                     </Link>
                                                 )}
-
-                                                {/* Botón Confirmar */}
                                                 {!isCotizado && isCreator && (
                                                     <button
                                                         onClick={() => handleConfirmarCotizacion(cot.id_cotizacion)}
@@ -313,7 +303,6 @@ export default function CotizacionList() {
                                                         <CheckCircle className="w-4 h-4" /> Confirmar y Cerrar Cotización
                                                     </button>
                                                 )}
-
                                             </div>
                                         </div>
                                     )}

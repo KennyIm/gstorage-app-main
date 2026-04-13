@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useUI } from '../context/UIContext';
 import { Users, Search, Plus, Edit, UserX, UserCheck, X, Lock, Shield, KeyRound, Building } from 'lucide-react';
 
 export default function GestionarEmpleados() {
@@ -9,10 +10,11 @@ export default function GestionarEmpleados() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [sucursales, setSucursales] = useState([]);
+  const { showLoader, hideLoader, showToast } = useUI();
 
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  
+
   const [formData, setFormData] = useState({
     username: '',
     first_name: '',
@@ -20,7 +22,7 @@ export default function GestionarEmpleados() {
     email: '',
     password: '',
     role: 'OPERARIO',
-    sucursal: '' 
+    sucursal: ''
   });
   const [modalError, setModalError] = useState(null);
 
@@ -75,7 +77,7 @@ export default function GestionarEmpleados() {
     setModalError(null);
     if (userToEdit) {
       setEditingUser(userToEdit);
-      
+
       const nombreSuc = userToEdit.perfil?.sucursal_nombre || userToEdit.perfil?.sucursal;
       const sucursalObj = sucursales.find(s => s.nombre === nombreSuc);
       const idSucursal = sucursalObj ? sucursalObj.id : '';
@@ -128,7 +130,7 @@ export default function GestionarEmpleados() {
         await apiClient.patch(`/api/usuarios/perfil/${newUserId}/`, {
           empresa: currentUser.perfil.empresa,
           rol: formData.role,
-          sucursal: formData.sucursal 
+          sucursal: formData.sucursal
         });
       }
 
@@ -169,19 +171,27 @@ export default function GestionarEmpleados() {
 
   const handleAdminPasswordReset = async (userId, userName) => {
     const newPassword = window.prompt(`Ingresa la nueva contraseña para ${userName}:`);
-    if (newPassword) {
-      if (newPassword.length < 8) {
-        alert("La contraseña debe tener al menos 8 caracteres.");
-        return;
+    if (!newPassword) return;
+    if (newPassword.length < 8) {
+      showToast("La contraseña debe tener al menos 8 caracteres.", "error");
+      return;
+    }
+    showLoader();
+    try {
+      const response = await apiClient.put(`/api/usuarios/admin-reset-password/${userId}/`, {
+        password: newPassword
+      });
+
+      showToast(response.data.detail || "Contraseña actualizada exitosamente.", "success");
+    } catch (err) {
+      console.error("Error en reset password:", err.response?.data);
+      if (err.response?.status === 403) {
+        showToast("No tienes permisos suficientes para esta acción.", "error");
+      } else {
+        showToast("No se pudo cambiar la contraseña. Revisa la consola.", "error");
       }
-      try {
-        await apiClient.put(`/api/usuarios/admin-reset-password/${userId}/`, {
-          new_password: newPassword
-        });
-        alert("Contraseña actualizada exitosamente.");
-      } catch (err) {
-        alert("Error al cambiar la contraseña.");
-      }
+    } finally {
+      hideLoader();
     }
   };
 
@@ -386,9 +396,9 @@ export default function GestionarEmpleados() {
                   <div className="relative">
                     <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <select
-                      name="sucursal" 
+                      name="sucursal"
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 appearance-none bg-white"
-                      value={formData.sucursal} 
+                      value={formData.sucursal}
                       onChange={handleChange}
                       required
                     >
