@@ -221,6 +221,16 @@ export default function OrdenEntregaPlantilla() {
                 {paginas.map((pagina, index) => {
                     const isLastPageGlobal = index === paginas.length - 1;
                     const codigoOrden = pagina.cargas.length > 0 ? pagina.cargas[0].numero_orden_entrega : 'Sin N/O';
+                    const destinoNombre = pagina.destino || '';
+                    const ciudadSecundaria = pagina.clienteObj.ciudad2 || '';
+
+                    let direccionMostrar = pagina.clienteObj.direccion || 'Sin dirección';
+                    let ciudadMostrar = pagina.clienteObj.ciudad || 'Sin ciudad';
+
+                    if (ciudadSecundaria && destinoNombre.toLowerCase().includes(ciudadSecundaria.toLowerCase())) {
+                        direccionMostrar = pagina.clienteObj.direccion2 || direccionMostrar;
+                        ciudadMostrar = pagina.clienteObj.ciudad2 || ciudadMostrar;
+                    }
                     return (
                         <React.Fragment key={`pagina-wrapper-${index}`}>
                             {index > 0 && <div className="saltopagina" style={{ pageBreakBefore: 'always' }}></div>}
@@ -297,7 +307,7 @@ export default function OrdenEntregaPlantilla() {
                                             <p className="flex items-start gap-1 flex-1 min-w-[50%]">
                                                 <MapPin className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
                                                 <span className='text-slate-900 font-bold leading-tight break-words'>
-                                                    {pagina.clienteObj.direccion ? `${pagina.clienteObj.direccion}, ` : ''}{pagina.clienteObj.ciudad}
+                                                    {direccionMostrar}, {ciudadMostrar}
                                                 </span>
                                             </p>
                                         </div>

@@ -29,6 +29,8 @@ class MercanciaListSerializer(serializers.ModelSerializer):
     ubicacion_codigo = serializers.CharField(source='id_ubicacion_actual.codigo_ubicacion', read_only=True)
     destino_nombre = serializers.CharField(source='id_destino.nombre_ciudad', read_only=True)
     despacho_str = serializers.CharField(source='id_despacho.__str__', read_only=True)
+    es_colaborador = serializers.SerializerMethodField()
+    id_ruta = serializers.StringRelatedField()
 
     class Meta:
         model = Mercancia
@@ -52,10 +54,25 @@ class MercanciaListSerializer(serializers.ModelSerializer):
             'tipo',
             'paga_proveedor',
             'sucursal_id',
-            'numero_orden_entrega'                
+            'numero_orden_entrega',
+            'es_colaborador',
+            'id_ruta',        
         ]
+    
+    def get_es_colaborador(self, obj):
+        user = self.context.get('request').user
+        if obj.id_despacho:
+            return obj.id_despacho.colaboradores_invitados.filter(
+                usuario_invitado=user, 
+                activo=True
+            ).exists()
+        return False
+
 
 class MercanciaWriteSerializer(serializers.ModelSerializer):
+    creador_nombre = serializers.SerializerMethodField(read_only=True)
+    ultima_modificacion = serializers.SerializerMethodField(read_only=True)
+    colaboradores_activos = serializers.SerializerMethodField(read_only=True)
     class Meta:
         model = Mercancia
         fields = [
@@ -63,14 +80,44 @@ class MercanciaWriteSerializer(serializers.ModelSerializer):
             'kg', 'm3', 'id_ubicacion_actual', 'id_destino',
             'estado', 'id_despacho', 
             'motivo_baja', 'precio_total','id_usuario_creacion_id','id_proveedor','factura','tipo'
-            ,'paga_proveedor','codigo_interno','sucursal_id','numero_orden_entrega'
+            ,'paga_proveedor','codigo_interno','sucursal_id','numero_orden_entrega','creador_nombre',
+            'ultima_modificacion', 'colaboradores_activos'   
         ]
-        read_only_fields = ['empresa']
+        read_only_fields = ['empresa', 'sucursal', 'sucursal_id', 'id_usuario_creacion']
+    
+    def update(self, instance, validated_data):
+        validated_data.pop('sucursal', None)
+        validated_data.pop('sucursal_id', None)
+        validated_data.pop('empresa', None)
+        validated_data.pop('id_usuario_creacion', None)
+        
+        return super().update(instance, validated_data)
+    
+    def get_colaboradores_activos(self, obj):
+        if obj.id_despacho:
+            invitados = obj.id_despacho.colaboradores_invitados.filter(activo=True)
+            return [p.usuario_invitado.username for p in invitados]
+        return []
+
+    def get_creador_nombre(self, obj):
+        if obj.id_usuario_creacion:
+            return obj.id_usuario_creacion.username 
+        return "Desconocido"
+
+    def get_ultima_modificacion(self, obj):
+        ultimo_movimiento = HistorialMovimientos.objects.filter(
+            id_mercancia=obj
+        ).order_by('-fecha_hora_movimiento').first()
+
+        if ultimo_movimiento:
+            return ultimo_movimiento.fecha_hora_movimiento
+        return obj.fecha_ingreso
 
 class DespachoListSerializer(serializers.ModelSerializer):
     id_camion = serializers.StringRelatedField()
     id_conductor = serializers.StringRelatedField()
     id_ruta = serializers.StringRelatedField()
+    es_colaborador = serializers.SerializerMethodField()
     nombre_conductor = serializers.CharField(source='id_conductor.nombre_completo', read_only=True)
     nombre_sucursal = serializers.CharField(source='sucursal_id.nombre', read_only=True)
 
@@ -79,20 +126,43 @@ class DespachoListSerializer(serializers.ModelSerializer):
         fields = [
             'id_despacho', 'fecha_programada', 'fecha_salida_real',
             'id_camion', 'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor',
-            'origen','destino','id_rampla','sucursal_id','nombre_sucursal'
+            'origen','destino','id_rampla','sucursal_id','nombre_sucursal','es_colaborador'
         ]
+    
+    def get_es_colaborador(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            user = request.user
+            return obj.colaboradores_invitados.filter(usuario_invitado=user, activo=True).exists()
+        return False
 
 class DespachoWriteSerializer(serializers.ModelSerializer):
     nombre_conductor = serializers.CharField(source='id_conductor.nombre_completo', read_only=True)
+    colaboradores_activos = serializers.SerializerMethodField(read_only=True)
     class Meta:
         model = Despacho
         fields = [
             'id_despacho',
             'fecha_programada', 'fecha_salida_real', 'id_camion', 
             'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor',
-            'origen','destino','id_rampla','sucursal_id'
+            'origen','destino','id_rampla','sucursal_id', 'colaboradores_activos'
         ]
         read_only_fields = ['empresa']
+
+    def get_colaboradores_activos(self, obj):
+        permisos = obj.colaboradores_invitados.filter(activo=True)
+        
+        lista_colaboradores = []
+        for permiso in permisos:
+            usuario = permiso.usuario_invitado
+            lista_colaboradores.append({
+                "id": usuario.id,
+                "username": usuario.username,
+                "nombre_completo": f"{usuario.first_name} {usuario.last_name}".strip() or usuario.username,
+                "otorgado_por": permiso.otorgado_por.username if permiso.otorgado_por else "Sistema"
+            })
+            
+        return lista_colaboradores
     
     def validate(self, data):
         camion = data.get('id_camion')
@@ -102,7 +172,6 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
         instance_id = self.instance.id_despacho if self.instance else None
 
         if camion and fecha_nueva_prog:
-            # Excluimos el despacho actual si es una edición
             despachos_previos = Despacho.objects.filter(
                 id_camion=camion
             ).exclude(
@@ -262,3 +331,8 @@ class CotizacionSerializer(serializers.ModelSerializer):
             'fecha_creacion', 
             'fecha_confirmacion'
         ]
+
+class InvitacionColaboradorSerializer(serializers.Serializer):
+    usuario_invitado_id = serializers.IntegerField(
+        help_text="ID del usuario al que se le dará acceso al despacho."
+    )

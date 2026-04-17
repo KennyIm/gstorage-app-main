@@ -17,6 +17,7 @@ urlpatterns = [
     path('despachos/<int:pk>/', views.DespachoDetailAPI.as_view(), name='api-despacho-detail'),
     path('despachos/<int:id_despacho>/excel/', views.GenerarHojaRutaExcelAPI.as_view(), name='generar-excel-ruta'),
     path('despachos/<int:id_despacho>/generar-ordenes/', views.GenerarOrdenesDespachoAPI.as_view(), name='generar-ordenes-despacho'),
+    path('despachos/<int:id_despacho>/invitar/', views.InvitarColaboradorAPI.as_view(), name='despacho-invitar'),
     
     # --- Endpoints de Cliente ---
     path('clientes/', views.ClienteListCreateAPI.as_view(), name='api-cliente-list-create'),

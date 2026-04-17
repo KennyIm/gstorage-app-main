@@ -19,7 +19,7 @@ export default function MercanciaDetail() {
   const [sucursales, setSucursales] = useState([]);
 
   const [loading, setLoading] = useState(true);
-  
+
   const { showToast } = useUI();
 
   const { id } = useParams();
@@ -28,11 +28,11 @@ export default function MercanciaDetail() {
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true); 
+      setLoading(true);
       try {
         const mercanciaRes = await apiClient.get(`/api/inventario/mercancias/${id}/`);
         setMercancia(mercanciaRes.data);
-        
+
         const [clientesRes, destinosRes, ubicacionesRes, sucursalesRes] = await Promise.all([
           apiClient.get('/api/inventario/clientes/'),
           apiClient.get('/api/inventario/destinos/'),
@@ -124,9 +124,8 @@ export default function MercanciaDetail() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-gray-900">Lote #{mercancia.id_mercancia || mercancia.id || id}</h1>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                    mercancia.estado === 'ALMACENADO' ? 'bg-green-50 text-green-700 border-green-200' :
-                    mercancia.estado === 'DESPACHADO' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${mercancia.estado === 'ALMACENADO' ? 'bg-green-50 text-green-700 border-green-200' :
+                  mercancia.estado === 'DESPACHADO' ? 'bg-blue-50 text-blue-700 border-blue-200' :
                     'bg-gray-100 text-gray-600 border-gray-200'
                   }`}>
                   {mercancia.estado}
@@ -238,28 +237,45 @@ export default function MercanciaDetail() {
                 <Info className="w-4 h-4 text-gray-400" />
                 <h3 className="font-semibold text-gray-700 text-sm">Información de Auditoría</h3>
               </div>
-              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="block text-xs text-gray-500 mb-1">Creado por</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
-                      {mercancia.id_usuario_creacion ? String(mercancia.id_usuario_creacion).substring(0, 2).toUpperCase() : '?'}
-                    </div>
-                    <span className="text-gray-900">ID: {mercancia.id_usuario_creacion_id || mercancia.id_usuario_creacion || 'N/A'}</span>
-                  </div>
-                </div>
-                <div>
-                  <span className="block text-xs text-gray-500 mb-1">Última Modificación</span>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-900">
-                      {mercancia.fecha_creacion ? new Date(mercancia.fecha_creacion).toLocaleString('es-CL') : "Fecha no disponible"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
+              {(() => {
+                const nombreCreador = mercancia.creador_nombre || 'N/A';
+                const iniciales = nombreCreador !== 'N/A' && nombreCreador !== 'Desconocido'
+                  ? nombreCreador.substring(0, 2).toUpperCase()
+                  : '?';
 
+                return (
+                  <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+
+                    {/* Sección Creado Por */}
+                    <div>
+                      <span className="block text-xs text-gray-500 mb-1">Creado por</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
+                          {iniciales}
+                        </div>
+                        <span className="text-gray-900 font-medium">{nombreCreador}</span>
+                      </div>
+                    </div>
+
+                    {/* Sección Última Modificación */}
+                    <div>
+                      <span className="block text-xs text-gray-500 mb-1">Última Modificación</span>
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        <span className="text-gray-900 font-medium">
+                          {mercancia.ultima_modificacion
+                            ? new Date(mercancia.ultima_modificacion).toLocaleString('es-CL', {
+                              day: '2-digit', month: '2-digit', year: 'numeric',
+                              hour: '2-digit', minute: '2-digit'
+                            })
+                            : "Fecha no disponible"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
           </div>
 
           <div className="space-y-6">

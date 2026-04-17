@@ -54,14 +54,17 @@ class RegisterView(generics.CreateAPIView):
 
 class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminEmpresa]
-
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated(), IsAdminEmpresa()]
+    
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
-        return User.objects.filter(perfil__empresa=empresa)
+        return User.objects.filter(perfil__empresa=empresa, is_active=True)
     
     def perform_destroy(self, instance):
-        instance.is_active = False # El campo 'activo' de Django
+        instance.is_active = False 
         instance.save()
         if hasattr(instance, 'perfil'):
              instance.perfil.rol = None

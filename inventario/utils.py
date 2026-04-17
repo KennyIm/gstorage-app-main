@@ -69,11 +69,11 @@ def actualizar_estados_automaticos(empresa):
 def registrar_auditoria(empresa, usuario, modelo, accion, descripcion, mercancia=None, sucursal=None):
     try:
         if sucursal is None and usuario and hasattr(usuario, 'perfil'):
-            sucursal = usuario.perfil.sucursal_id
+            sucursal = usuario.perfil.sucursal 
 
         HistorialMovimientos.objects.create(
             empresa=empresa,
-            id_usuario=usuario if usuario and usuario.is_authenticated else None,
+            id_usuario=usuario if usuario and hasattr(usuario, 'is_authenticated') and usuario.is_authenticated else None,
             sucursal=sucursal, 
             modelo_afectado=modelo,
             accion=accion,
@@ -81,7 +81,13 @@ def registrar_auditoria(empresa, usuario, modelo, accion, descripcion, mercancia
             id_mercancia=mercancia 
         )
     except Exception as e:
-        print(f"Error crítico al registrar auditoría en el modelo {modelo}: {e}")
+        print("\n" + "="*50)
+        print(f"🚨 ERROR CRÍTICO AL GUARDAR AUDITORÍA 🚨")
+        print(f"Modelo: {modelo} | Acción: {accion}")
+        print(f"Detalle del error de Django: {e}")
+        print("="*50 + "\n")
+        
+        #raise e
 
 def generar_numeros_orden_despacho(despacho):
     mercancias = Mercancia.activos.filter(id_despacho=despacho).order_by(

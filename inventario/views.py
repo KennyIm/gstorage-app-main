@@ -35,7 +35,7 @@ from django.views.generic import (
 from .models import (
     Mercancia, Cliente, Despacho, Conductor, 
     Camion, Ruta, Destino, Ubicacion, HistorialMovimientos, Estanteria,
-    AreaRestringida, Proveedor, Rampla, Cotizacion
+    AreaRestringida, Proveedor, Rampla, Cotizacion, PermisoColaboracion
 )
 
 from .serializers import (
@@ -47,9 +47,12 @@ from .serializers import (
     AreaRestringidaSerializer,
     ProveedorSerializer,
     RamplaSerializer,
-    CotizacionSerializer
+    CotizacionSerializer,
+    InvitacionColaboradorSerializer,
 )
 from usuarios.permissions import IsAdminEmpresa, IsJefeDeBodega, IsOperario
+
+from django.contrib.auth.models import User
 
 from django import forms
 
@@ -89,25 +92,36 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        #empresa = get_empresa_from_user(self.request)
-        #queryset = Mercancia.activos.filter(empresa=empresa).order_by('-fecha_ingreso')
-        queryset = filtrar_por_sucursal_y_empresa(Mercancia.activos.all(), self.request).order_by('-fecha_ingreso')
+        user = self.request.user
+        empresa = get_empresa_from_user(self.request)
+        qs = Mercancia.activos.filter(empresa=empresa)
+        
         despacho_id = self.request.query_params.get('id_despacho')
         estado = self.request.query_params.get('estado')
-        estado_in = self.request.query_params.get('estado_in') 
-        
+        estado_in = self.request.query_params.get('estado_in')
+
+        if user.perfil.rol != 'DUENO':
+            sucursal_empleado = user.perfil.sucursal
+            condicion_propia = Q(sucursal=sucursal_empleado)
+            
+            if despacho_id:
+                condicion_invitado = Q(
+                    id_despacho__colaboradores_invitados__usuario_invitado=user,
+                    id_despacho__colaboradores_invitados__activo=True
+                )
+                qs = qs.filter(condicion_propia | condicion_invitado).distinct()
+            else:
+                qs = qs.filter(condicion_propia)
+
+        if despacho_id:
+            qs = qs.filter(id_despacho=despacho_id)
         if estado:
-            queryset = queryset.filter(estado=estado)
+            qs = qs.filter(estado=estado)
         if estado_in:
             estados = estado_in.split(',')
-            queryset = queryset.filter(estado__in=estados)
-        if despacho_id:
-            queryset = queryset.filter(id_despacho=despacho_id)
-        
-        estado = self.request.query_params.get('estado')
-        if estado:
-            queryset = queryset.filter(estado=estado)
-        return queryset
+            qs = qs.filter(estado__in=estados)
+
+        return qs.order_by('-fecha_ingreso')
     
 
     def get_serializer_class(self):
@@ -147,12 +161,14 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
                     raise ValidationError({
                         "id_ubicacion_actual": f"Exceso de Volumen: El lote ({nuevo_m3}m³) supera la capacidad de la ubicación ({ubicacion_seleccionada.capacidad_max_m3}m³)."
                     })
+        id_despacho = nuevos_datos.get('id_despacho')
+        sucursal_final = id_despacho.sucursal if id_despacho else sucursal_empleado
         instance = serializer.save(
             id_usuario_creacion=user,
             estado='En Bodega',
             activo=True,
             empresa=empresa,
-            sucursal=sucursal_empleado
+            sucursal=sucursal_final
         )
         try:
             if instance.id_ubicacion_actual:
@@ -177,13 +193,33 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        #empresa = get_empresa_from_user(self.request)
-        #return Mercancia.activos.filter(empresa=empresa)
-        return filtrar_por_sucursal_y_empresa(Mercancia.objects.all(), self.request)
+        user = self.request.user
+        empresa = get_empresa_from_user(self.request)
+        
+        if not hasattr(user, 'perfil'):
+            return Mercancia.objects.none()
+
+        qs = Mercancia.objects.filter(empresa=empresa)
+
+        if user.perfil.rol == 'DUENO':
+            return qs
+
+        sucursal_empleado = user.perfil.sucursal
+
+        condicion_sucursal = Q(sucursal=sucursal_empleado)
+
+        condicion_invitacion = Q(
+            id_despacho__colaboradores_invitados__usuario_invitado=user,
+            id_despacho__colaboradores_invitados__activo=True
+        )
+
+        return qs.filter(condicion_sucursal | condicion_invitacion).distinct()
 
     def perform_update(self, serializer):
         empresa = get_empresa_from_user(self.request)
         user = self.request.user if self.request.user.is_authenticated else None
+        
+        sucursal_empleado = user.perfil.sucursal if hasattr(user, 'perfil') else None
 
         instance = self.get_object() 
         ubicacion_original = instance.id_ubicacion_actual
@@ -197,7 +233,6 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         nuevo_m3 = datos_nuevos.get('m3', instance.m3)
 
         if nueva_ubicacion and (nueva_ubicacion != ubicacion_original or nuevo_estado in ['En Bodega', 'Asignado']):
-            
             if nueva_ubicacion.estado_ocupado:
                 ocupante = Mercancia.activos.filter(id_ubicacion_actual=nueva_ubicacion).exclude(pk=instance.pk).first()
                 if ocupante:
@@ -220,10 +255,9 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
                         "id_ubicacion_actual": f"Exceso de Volumen: El lote ({nuevo_m3}m³) supera la capacidad de la ubicación ({nueva_ubicacion.capacidad_max_m3}m³)."
                     })
 
-
         instance_actualizada = serializer.save(id_usuario_ultima_modificacion=user)
 
-
+        log_especial_creado = False
 
         if nuevo_estado in ['Merma', 'Eliminado']:
             if ubicacion_original:
@@ -238,10 +272,15 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             instance_actualizada.save()
             
             HistorialMovimientos.objects.create(
-                empresa=empresa, id_mercancia=instance_actualizada, id_usuario=user,
-                id_ubicacion_anterior=ubicacion_original, id_ubicacion_nueva=None,
-                modelo=instance._meta.verbose_name.capitalize(),
-                tipo_movimiento='Modificación Manual', descripcion_adicional=f"Mercancía marcada como {nuevo_estado}"
+                empresa=empresa, 
+                sucursal=sucursal_empleado, 
+                id_mercancia=instance_actualizada, 
+                id_usuario=user,
+                id_ubicacion_anterior=ubicacion_original, 
+                id_ubicacion_nueva=None,
+                modelo_afectado="Mercancía", 
+                accion='Edición (Baja)', 
+                descripcion_adicional=f"Mercancía marcada como {nuevo_estado}"
             )
             return
 
@@ -255,12 +294,17 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
                 nueva_ubicacion.save()
             
             HistorialMovimientos.objects.create(
-                empresa=empresa, id_mercancia=instance_actualizada, id_usuario=user,
-                id_ubicacion_anterior=ubicacion_original, id_ubicacion_nueva=nueva_ubicacion,
-                tipo_movimiento='Modificación Manual',
-                modelo=instance._meta.verbose_name.capitalize(), 
+                empresa=empresa, 
+                sucursal=sucursal_empleado, 
+                id_mercancia=instance_actualizada, 
+                id_usuario=user,
+                id_ubicacion_anterior=ubicacion_original, 
+                id_ubicacion_nueva=nueva_ubicacion,
+                modelo_afectado="Mercancía", 
+                accion='Reubicación', 
                 descripcion_adicional=f"Movido de {ubicacion_original.codigo_ubicacion if ubicacion_original else 'Nada'} a {nueva_ubicacion.codigo_ubicacion if nueva_ubicacion else 'Nada'}"
             )
+            log_especial_creado = True
 
         elif estado_original != nuevo_estado:
             if nuevo_estado in ['En Tránsito', 'Entregado']:
@@ -276,23 +320,48 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
                     ubicacion_original.save()
 
             HistorialMovimientos.objects.create(
-                empresa=empresa, id_mercancia=instance_actualizada, id_usuario=user,
-                id_ubicacion_anterior=ubicacion_original, id_ubicacion_nueva=instance_actualizada.id_ubicacion_actual,
-                accion='Modificación Manual',
-                modelo=instance._meta.verbose_name.capitalize(),
+                empresa=empresa, 
+                sucursal=sucursal_empleado, 
+                id_mercancia=instance_actualizada, 
+                id_usuario=user,
+                id_ubicacion_anterior=ubicacion_original, 
+                id_ubicacion_nueva=instance_actualizada.id_ubicacion_actual,
+                modelo_afectado="Mercancía", 
+                accion='Cambio de Estado',
                 descripcion_adicional=f"Cambio de estado de '{estado_original}' a '{nuevo_estado}'"
+            )
+            log_especial_creado = True
+
+        if not log_especial_creado:
+            HistorialMovimientos.objects.create(
+                empresa=empresa, 
+                sucursal=instance_actualizada.sucursal,
+                id_mercancia=instance_actualizada, 
+                id_usuario=user,
+                id_ubicacion_anterior=ubicacion_original, 
+                id_ubicacion_nueva=instance_actualizada.id_ubicacion_actual,
+                modelo_afectado="Mercancía",
+                accion='Edición General',
+                descripcion_adicional=f"Se actualizaron datos generales de la mercancía con el código: {instance_actualizada.codigo_interno or 'Sin código'}, pertenece al cliente: {instance_actualizada.id_cliente or 'N/N'}. N° Factura: {instance_actualizada.factura or 'N/N'}"
             )
 
     def perform_destroy(self, instance):
         empresa = get_empresa_from_user(self.request)
         user = self.request.user if self.request.user.is_authenticated else None
+        sucursal_empleado = user.perfil.sucursal if hasattr(user, 'perfil') else None
+
         HistorialMovimientos.objects.create(
-            empresa=empresa, id_mercancia=instance, id_usuario=user,
-            id_ubicacion_anterior=instance.id_ubicacion_actual, id_ubicacion_nueva=None,
+            empresa=empresa, 
+            sucursal=sucursal_empleado,
+            id_mercancia=instance, 
+            id_usuario=user,
+            id_ubicacion_anterior=instance.id_ubicacion_actual, 
+            id_ubicacion_nueva=None,
             accion='Borrado Lógico',
-            modelo=instance._meta.verbose_name.capitalize(),
+            modelo_afectado="Mercancía", 
             descripcion_adicional=f"Mercancía eliminada (Motivo: {instance.motivo_baja or 'No especificado'})"
         )
+        
         if instance.id_ubicacion_actual:
             try:
                 ubicacion = instance.id_ubicacion_actual
@@ -364,10 +433,26 @@ class DespachoListCreateAPI(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
+        user = self.request.user
         empresa = get_empresa_from_user(self.request)
+        perfil = user.perfil
         actualizar_estados_automaticos(empresa)
-        base_qs = Despacho.objects.filter(activo=True)
-        return filtrar_por_sucursal_y_empresa(base_qs, self.request).order_by('-fecha_programada')
+        qs = Despacho.objects.filter(empresa=empresa)
+        sucursal_id_solicitada = self.request.query_params.get('sucursal_id')
+
+        if perfil.rol == 'DUENO':
+            if sucursal_id_solicitada and sucursal_id_solicitada != 'null':
+                qs = qs.filter(sucursal_id=sucursal_id_solicitada)
+            return qs.order_by('-fecha_programada')
+        if sucursal_id_solicitada and sucursal_id_solicitada != 'null':
+            return qs.filter(sucursal_id=sucursal_id_solicitada).order_by('-fecha_programada')
+        else:
+            condicion_propio = Q(sucursal=perfil.sucursal)
+            condicion_invitado = Q(
+                colaboradores_invitados__usuario_invitado=user,
+                colaboradores_invitados__activo=True
+            )
+            return qs.filter(condicion_propio | condicion_invitado).distinct().order_by('-fecha_programada')
     
     def get_serializer_class(self):
         if self.request.method == 'GET':
@@ -1460,6 +1545,68 @@ class CotizacionRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
             accion="Eliminación",
             descripcion=f"Se eliminó (lógico) la cotización de: {instance.nombre_cliente}"
         )
+
+
+class InvitarColaboradorAPI(generics.CreateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = InvitacionColaboradorSerializer 
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        usuario_que_invita = request.user
+        despacho_id = self.kwargs.get('id_despacho') 
+        despacho = get_object_or_404(Despacho, pk=despacho_id)
+        usuario_invitado_id = serializer.validated_data['usuario_invitado_id']
+        usuario_invitado = get_object_or_404(User, pk=usuario_invitado_id)
+
+        if usuario_invitado.perfil.sucursal == despacho.sucursal:
+            return Response(
+                {"error": "El usuario ya pertenece a la sucursal de este despacho y tiene acceso por defecto."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if usuario_que_invita.perfil.rol != 'DUENO' and despacho.sucursal != usuario_que_invita.perfil.sucursal:
+            return Response(
+                {"error": "No tienes permiso para invitar colaboradores a un despacho que no pertenece a tu sucursal."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        empresa_actual = get_empresa_from_user(request)
+        if despacho.empresa != empresa_actual:
+            return Response(
+                {"error": "No puedes compartir un despacho de otra empresa."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        invitacion, created = PermisoColaboracion.objects.get_or_create(
+            despacho=despacho,
+            usuario_invitado=usuario_invitado,
+            defaults={
+                'otorgado_por': usuario_que_invita,
+                'activo': True
+            }
+        )
+
+        if not created:
+            if not invitacion.activo:
+                invitacion.activo = True
+                invitacion.otorgado_por = usuario_que_invita
+                invitacion.save()
+                return Response(
+                    {"mensaje": f"Se reactivó el acceso a {usuario_invitado.username}."}, 
+                    status=status.HTTP_200_OK
+                )
+            else:
+                return Response(
+                    {"mensaje": f"{usuario_invitado.username} ya tiene acceso a este despacho."}, 
+                    status=status.HTTP_200_OK
+                )
+
+        return Response({
+            "mensaje": f"Se otorgó permiso exitosamente a {usuario_invitado.username} para el despacho #{despacho.id_despacho}."
+        }, status=status.HTTP_201_CREATED)
 #DJANGO METODO SIN REACT (FUNCIONAL)
 
 

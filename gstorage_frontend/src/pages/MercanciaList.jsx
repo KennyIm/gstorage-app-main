@@ -18,6 +18,18 @@ export default function MercanciaList() {
   const [sucursales, setSucursales] = useState([]);
   const [rutas, setRutas] = useState([]);
 
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+
+  const [filtros, setFiltros] = useState({
+    cliente: '',
+    estado: 'TODOS',
+    fechaDesde: '',
+    fechaHasta: '',
+    codigoInterno: '',
+    destino: '',
+    despacho: ''
+  });
+
   // --- SELECCIÓN MASIVA ---
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkDispatchId, setBulkDispatchId] = useState('');
@@ -62,6 +74,12 @@ export default function MercanciaList() {
       ...base,
       color: '#94a3b8',
     }),
+  };
+
+  const handleFiltroChange = (e) => {
+    const { name, value } = e.target;
+    setFiltros(prev => ({ ...prev, [name]: value }));
+    setCurrentPage(1);
   };
 
   const fetchData = useCallback(async () => {
@@ -113,18 +131,77 @@ export default function MercanciaList() {
     }
   };
 
-  // --- FILTRADO Y PAGINACIÓN ---
+  const limpiarFiltros = () => {
+    setFiltros({
+      cliente: '',
+      estado: 'TODOS',
+      fechaDesde: '',
+      fechaHasta: '',
+      codigoInterno: '',
+      destino: '',
+      despacho: ''
+    });
+    setCurrentPage(1);
+  };
+
+  const uniqueClientes = [...new Set(mercancias.map(m => m.cliente_nombre).filter(Boolean))];
+  const uniqueDestinos = [...new Set(mercancias.map(m => m.destino_nombre).filter(Boolean))];
+  const uniqueDespachos = [...new Set(mercancias.map(m => m.id_despacho).filter(Boolean))];
+
+  const opcionesClientes = uniqueClientes.map(cli => ({
+    value: cli,
+    label: cli
+  }));
+
+  const opcionSeleccionada = opcionesClientes.find(op => op.value === filtros.cliente) || null;
+
+  const opcionesDespachos = [
+    { value: 'null', label: 'Sin Despacho Asignado' },
+    ...uniqueDespachos
+      .filter(id => id !== null && id !== undefined)
+      .map(id => {
+        const despachoObj = despachos.find(d => String(d.id_despacho || d.id) === String(id));
+
+        const nombreRuta = despachoObj?.ruta_nombre || despachoObj?.id_ruta || 'Sin Ruta';
+
+        return {
+          value: id,
+          label: `${nombreRuta}`
+        };
+      })
+  ];
+
+  const opcionSeleccionadaDespach = opcionesDespachos.find(op => String(op.value) === String(filtros.despacho)) || null;
+
   const filteredItems = mercancias.filter(item => {
     if (!item) return false;
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      (item.cliente_nombre?.toLowerCase() || '').includes(term) ||
-      (item.descripcion_carga?.toLowerCase() || '').includes(term) ||
-      (String(item.codigo_interno || '')).includes(term) ||
-      (item.factura?.toLowerCase() || '').includes(term);
+    const matchCliente = filtros.cliente === '' || item.cliente_nombre === filtros.cliente;
+    const matchEstado = filtros.estado === 'TODOS' || item.estado === filtros.estado;
+    const matchCodigo = filtros.codigoInterno === '' || String(item.codigo_interno || '').toLowerCase().includes(filtros.codigoInterno.toLowerCase());
+    const matchDestino = filtros.destino === '' || item.destino_nombre === filtros.destino;
+    let matchDespacho = true;
+    if (filtros.despacho !== '') {
+      if (filtros.despacho === 'null') {
+        matchDespacho = item.id_despacho === null || item.id_despacho === undefined;
+      } else {
+        matchDespacho = String(item.id_despacho) === String(filtros.despacho);
+      }
+    }
 
-    const matchesStatus = statusFilter === 'TODOS' || item.estado === statusFilter;
-    return matchesSearch && matchesStatus;
+    let matchFecha = true;
+    if (filtros.fechaDesde || filtros.fechaHasta) {
+      const itemDate = new Date(item.fecha_ingreso).getTime();
+
+      if (filtros.fechaDesde) {
+        const desde = new Date(filtros.fechaDesde).getTime();
+        if (itemDate < desde) matchFecha = false;
+      }
+      if (filtros.fechaHasta) {
+        const hasta = new Date(filtros.fechaHasta).getTime() + 86400000;
+        if (itemDate >= hasta) matchFecha = false;
+      }
+    }
+    return matchCliente && matchEstado && matchCodigo && matchDestino && matchDespacho && matchFecha;
   });
 
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
@@ -206,31 +283,204 @@ export default function MercanciaList() {
         </div>
       )}
 
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Visualización de Mercancía</h1>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-md p-6 mb-6 border border-gray-100">
-        {/* BARRA SUPERIOR IGUAL ... */}
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+        <div className="flex items-center gap-3 w-full md:w-auto">
           <Link to="/" className="p-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 transition shadow-sm">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition"
-            />
-          </div>
-          {/* Botones de filtro y nueva mercancía ... */}
-          <Link to="/mercancias/nueva" className="flex items-center gap-2 px-4 py-2.5 bg-red-800 text-white rounded-lg hover:bg-red-900 transition font-medium shadow-sm">
-            <Plus className="w-4 h-4" /> Nueva Mercancía
+          <h1 className="text-2xl font-bold text-gray-800">Gestión de Mercancías</h1>
+        </div>
+
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <button
+            onClick={() => setMostrarFiltros(!mostrarFiltros)}
+            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium transition shadow-sm border w-full md:w-auto ${mostrarFiltros
+              ? 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+              }`}
+          >
+            <Filter className={`w-4 h-4 ${mostrarFiltros ? 'text-red-800' : 'text-gray-400'}`} />
+            {mostrarFiltros ? 'Ocultar Filtros' : 'Filtros Avanzados'}
+          </button>
+
+          <Link to="/mercancias/nueva" className="flex items-center justify-center gap-2 w-full md:w-auto px-5 py-2.5 bg-red-800 text-white rounded-lg hover:bg-red-900 transition font-medium shadow-sm whitespace-nowrap">
+            <Plus className="w-5 h-5" /> Nueva Mercancía
           </Link>
         </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-md p-6 mb-6 border border-gray-100">
+        {mostrarFiltros && (
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mb-6 animate-in slide-in-from-top-2 fade-in duration-200">
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
+              <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                <Filter className="w-5 h-5 text-red-800" /> Filtros de Búsqueda
+              </h3>
+              <button
+                onClick={limpiarFiltros}
+                className="text-sm text-gray-500 hover:text-red-700 flex items-center gap-1 font-medium transition"
+              >
+                <X className="w-4 h-4" /> Limpiar Filtros
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Código Interno */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Código Interno</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    name="codigoInterno"
+                    placeholder=""
+                    value={filtros.codigoInterno}
+                    onChange={handleFiltroChange}
+                    className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm"
+                  />
+                </div>
+              </div>
+              {/* Cliente */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cliente</label>
+                <Select
+                  name="cliente"
+                  options={opcionesClientes}
+                  value={opcionSeleccionada}
+                  isClearable={true}
+                  isSearchable={true}
+                  placeholder="Todos los clientes..."
+                  noOptionsMessage={() => "No se encontraron clientes"}
+                  className="text-sm"
+                  onChange={(opcion) => {
+                    handleFiltroChange({
+                      target: {
+                        name: 'cliente',
+                        value: opcion ? opcion.value : ''
+                      }
+                    });
+                  }}
+                  styles={{
+                    control: (base, state) => ({
+                      ...base,
+                      backgroundColor: '#F9FAFB',
+                      borderColor: state.isFocused ? '#991B1B' : '#E5E7EB',
+                      boxShadow: state.isFocused ? '0 0 0 2px rgba(153, 27, 27, 0.2)' : 'none',
+                      borderRadius: '0.5rem',
+                      padding: '1px',
+                      '&:hover': {
+                        borderColor: state.isFocused ? '#991B1B' : '#D1D5DB'
+                      }
+                    }),
+                    menu: (base) => ({
+                      ...base,
+                      borderRadius: '0.5rem',
+                      overflow: 'hidden',
+                      zIndex: 50
+                    })
+                  }}
+                />
+              </div>
+              {/* Estado */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label>
+                <select
+                  name="estado"
+                  value={filtros.estado}
+                  onChange={handleFiltroChange}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm"
+                >
+                  <option value="TODOS">Todos los estados</option>
+                  <option value="Bodega">En Bodega</option>
+                  <option value="Transito">En Tránsito</option>
+                  <option value="Entregado">Entregado</option>
+                </select>
+              </div>
+              {/* Destino */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Destino</label>
+                <select
+                  name="destino"
+                  value={filtros.destino}
+                  onChange={handleFiltroChange}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm"
+                >
+                  <option value="">Todos los destinos</option>
+                  {uniqueDestinos.map((dest, idx) => (
+                    <option key={idx} value={dest}>{dest}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Despacho */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Ruta</label>
+                <Select
+                  name="despacho"
+                  options={opcionesDespachos}
+                  value={opcionSeleccionadaDespach}
+                  isClearable={true}
+                  isSearchable={true}
+                  placeholder="Cualquier despacho..."
+                  noOptionsMessage={() => "No se encontraron despachos"}
+                  className="text-sm"
+                  onChange={(opcion) => {
+                    handleFiltroChange({
+                      target: {
+                        name: 'despacho',
+                        value: opcion ? opcion.value : ''
+                      }
+                    });
+                  }}
+                  styles={{
+                    control: (base, state) => ({
+                      ...base,
+                      backgroundColor: '#F9FAFB',
+                      borderColor: state.isFocused ? '#991B1B' : '#E5E7EB',
+                      boxShadow: state.isFocused ? '0 0 0 2px rgba(153, 27, 27, 0.2)' : 'none',
+                      borderRadius: '0.5rem',
+                      padding: '1px',
+                      '&:hover': {
+                        borderColor: state.isFocused ? '#991B1B' : '#D1D5DB'
+                      }
+                    }),
+                    menu: (base) => ({
+                      ...base,
+                      borderRadius: '0.5rem',
+                      zIndex: 50
+                    }),
+                    option: (base, state) => ({
+                      ...base,
+                      backgroundColor: state.isSelected ? '#991B1B' : state.isFocused ? '#FEF2F2' : 'white',
+                      color: state.isSelected ? 'white' : '#374151',
+                      '&:active': {
+                        backgroundColor: '#991B1B'
+                      }
+                    })
+                  }}
+                />
+              </div>
+              {/* Fechas */}
+              <div className="lg:col-span-2">
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rango de Ingreso</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    name="fechaDesde"
+                    value={filtros.fechaDesde}
+                    onChange={handleFiltroChange}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm text-gray-600"
+                  />
+                  <span className="text-gray-400 font-bold">-</span>
+                  <input
+                    type="date"
+                    name="fechaHasta"
+                    value={filtros.fechaHasta}
+                    onChange={handleFiltroChange}
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm text-gray-600"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>)}
 
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -250,7 +500,7 @@ export default function MercanciaList() {
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Suc</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Proveedor</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Valor</th>
-                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Despacho Actual</th>
+                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Despacho</th>
                 <th className="text-center py-4 px-4 text-sm font-semibold text-gray-600">Estado</th>
                 <th className="text-right py-4 px-4 text-sm font-semibold text-gray-600">Acciones</th>
               </tr>
@@ -308,8 +558,21 @@ export default function MercanciaList() {
 
                     <td className="py-4 px-4 text-center">
                       {item.id_despacho ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-100 text-xs font-bold">
-                          <Truck className="w-3 h-3" /> #{item.id_despacho}
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-100 text-xs font-bold"
+                          title={`ID de Despacho en Base de Datos: ${item.id_despacho}`}
+                        >
+                          {(() => {
+                            const despObj = despachos.find(d => String(d.id_despacho || d.id) === String(item.id_despacho));
+
+                            if (despObj?.id_ruta) {
+                              const rutaCorta = String(despObj.id_ruta).split('-')[0].trim();
+
+                              return rutaCorta.toLowerCase().includes('ruta') ? rutaCorta : `Ruta ${rutaCorta}`;
+                            }
+
+                            return `Viaje #${item.id_despacho}`;
+                          })()}
                         </span>
                       ) : (
                         <span className="text-gray-400 text-xs italic">Sin asignar</span>
@@ -328,7 +591,6 @@ export default function MercanciaList() {
                     <td className="py-4 px-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Link to={`/mercancias/${item.id_mercancia}`} className="p-2 text-gray-400 hover:text-red-800 transition"><Eye size={18} /></Link>
-                        <button onClick={() => setMermaTarget(item)} className="p-2 text-gray-400 hover:text-red-600 transition"><Trash2 size={18} /></button>
                       </div>
                     </td>
                   </tr>

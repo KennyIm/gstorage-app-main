@@ -9,14 +9,14 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [authTokens, setAuthTokens] = useState(() => 
+  const [authTokens, setAuthTokens] = useState(() =>
     localStorage.getItem('authTokens') ? JSON.parse(localStorage.getItem('authTokens')) : null
   );
-  
+
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  const navigate = useNavigate(); 
+
+  const navigate = useNavigate();
 
   const loginUser = async (username, password) => {
     setLoading(true);
@@ -25,14 +25,14 @@ export const AuthProvider = ({ children }) => {
         username: username,
         password: password
       });
-      
+
       const data = response.data;
       setAuthTokens(data);
       localStorage.setItem('authTokens', JSON.stringify(data));
-      
+
       const userResponse = await apiClient.get('/api/usuarios/me/');
       setUser(userResponse.data);
-      
+
       setLoading(false);
       navigate('/');
 
@@ -44,20 +44,22 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logoutUser = async () => {
-  try {
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (refreshToken) {
-      await apiClient.post('/api/logout/', { refresh: refreshToken });
+    try {
+      const storedTokens = JSON.parse(localStorage.getItem('authTokens'));
+
+      if (storedTokens && storedTokens.refresh) {
+        await apiClient.post('/api/logout/', { refresh: storedTokens.refresh });
+      }
+    } catch (error) {
+      console.warn("No se pudo hacer blacklist del token en el servidor.");
+    } finally {
+      localStorage.clear();
+      delete apiClient.defaults.headers.common['Authorization'];
+      setAuthTokens(null);
+      setUser(null);
+      window.location.href = '/login';
     }
-  } catch (error) {
-    console.error("Error en blacklist:", error);
-  } finally {
-    localStorage.clear(); 
-    delete apiClient.defaults.headers.common['Authorization'];
-    setUser(null); 
-    window.location.href = '/login'; 
-  }
-};
+  };
 
   useEffect(() => {
     if (authTokens) {
@@ -66,15 +68,15 @@ export const AuthProvider = ({ children }) => {
           setUser(response.data);
           setLoading(false);
         })
-        .catch(error => {
-          console.error("Token inválido, cerrando sesión:", error);
-          logoutUser();
+        .catch(() => {
+          setAuthTokens(null);
+          setUser(null);
           setLoading(false);
         });
     } else {
       setLoading(false);
     }
-  }, [authTokens]);
+  }, []);
 
   const contextData = {
     authTokens: authTokens,

@@ -147,7 +147,7 @@ export default function Proveedores() {
             nombre_proveedor: normalizeName(formData.nombre_proveedor),
             contacto: normalizeName(formData.contacto),
             correo: normalizeEmail(formData.correo),
-            telefono: normalizePhone(formData.telefono),
+            telefono: formData.telefono,
         };
 
         try {

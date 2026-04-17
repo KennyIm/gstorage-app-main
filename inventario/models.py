@@ -84,6 +84,8 @@ class Cliente(models.Model):
     nombre_contacto = models.CharField(max_length=100, blank=True, null=True, verbose_name="Persona de Contacto")
     direccion = models.CharField(max_length=255, blank=True, null=True, verbose_name="Calle y Número")
     ciudad = models.CharField(max_length=100, blank=True, null=True, verbose_name="Ciudad o Comuna")
+    direccion2 = models.CharField(max_length=255, blank=True, null=True, verbose_name="Calle y Número (Secundaria)")
+    ciudad2 = models.CharField(max_length=100, blank=True, null=True, verbose_name="Ciudad o Comuna (Secundaria)")
     activo = models.BooleanField(default=True)
     objects = models.Manager() 
     activos = ClienteManager() 
@@ -457,3 +459,21 @@ class Cotizacion(models.Model):
 
     def __str__(self):
         return f"Cotización #{self.id_cotizacion} - {self.nombre_cliente}"
+    
+
+class PermisoColaboracion(models.Model):
+    despacho = models.ForeignKey('Despacho', on_delete=models.CASCADE, related_name='colaboradores_invitados')
+    usuario_invitado = models.ForeignKey(User, on_delete=models.CASCADE, related_name='despachos_compartidos')
+    otorgado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='invitaciones_enviadas', help_text="El usuario (jefe/admin) que concedió este permiso.")
+    fecha_invitacion = models.DateTimeField(auto_now_add=True)
+    activo = models.BooleanField(default=True, help_text="Si es False, el usuario pierde el acceso inmediatamente.")
+
+    class Meta:
+        unique_together = ('despacho', 'usuario_invitado')
+        verbose_name = 'Permiso de Colaboración'
+        verbose_name_plural = 'Permisos de Colaboración'
+
+    def __str__(self):
+        return f"Permiso para {self.usuario_invitado.username} en Despacho #{self.despacho.id_despacho}" 
+    
+    

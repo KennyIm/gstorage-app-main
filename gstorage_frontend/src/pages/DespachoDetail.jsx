@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import {
+  Listbox, ListboxButton, ListboxOption, ListboxOptions, Transition,
+  Menu, MenuButton, MenuItem, MenuItems,
+} from '@headlessui/react';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   ArrowLeft, Edit, Trash2, Truck, MapPin, User, Calendar,
-  Clock, Package, CheckCircle, AlertCircle, Loader2, Map, Printer
+  Clock, Package, CheckCircle, AlertCircle, Loader2, Map, Printer,
+  Share2, X, ChevronsUpDown, Check, Download, ChevronDown
 } from 'lucide-react';
 
 export default function DespachoDetail() {
@@ -25,9 +30,24 @@ export default function DespachoDetail() {
   const navigate = useNavigate();
   const { logoutUser } = useAuth();
 
+  const [modalInvitacionOpen, setModalInvitacionOpen] = useState(false);
+  const [usuarioAInvitar, setUsuarioAInvitar] = useState('');
+  const [mensajeInvitacion, setMensajeInvitacion] = useState({ tipo: '', texto: '' });
+  const [usuarios, setUsuarios] = useState([]);
+  const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
+
+  const esColaboradorInvitado = despacho?.colaboradores_activos?.some(
+    (colab) => String(colab.id) === String(user?.id)
+  );
+
   const isReadOnly =
     user?.perfil?.rol !== 'DUENO' &&
-    String(despacho?.sucursal_id) !== String(user?.perfil?.sucursal_id);
+    String(despacho?.sucursal_id) !== String(user?.perfil?.sucursal_id) &&
+    !esColaboradorInvitado;
+
+  const puedeCompartir =
+    user?.perfil?.rol === 'DUENO' ||
+    String(despacho?.sucursal_id) === String(user?.perfil?.sucursal_id);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -62,6 +82,35 @@ export default function DespachoDetail() {
     };
     fetchData();
   }, [id]);
+
+  useEffect(() => {
+    if (modalInvitacionOpen && despacho) {
+      const fetchUsuarios = async () => {
+        try {
+          const res = await apiClient.get('/api/usuarios/users');
+          const listaUsuarios = res.data.results || res.data;
+          const usuariosElegibles = listaUsuarios.filter((u) => {
+            const sucursalUsuario = u?.perfil?.sucursal_id || u?.perfil?.sucursal;
+            const sucursalDespacho = despacho?.sucursal_id || despacho?.sucursal;
+
+            return String(sucursalUsuario) !== String(sucursalDespacho);
+          });
+
+          setUsuarios(usuariosElegibles);
+
+          if (usuariosElegibles.length > 0) {
+            setUsuarioSeleccionado(usuariosElegibles[0]);
+          } else {
+            setUsuarioSeleccionado(null);
+          }
+
+        } catch (error) {
+          console.error("Error cargando usuarios", error);
+        }
+      };
+      fetchUsuarios();
+    }
+  }, [modalInvitacionOpen, despacho]);
 
   // --- Helpers para obtener Nombres ---
   const getNombreRuta = (id) => {
@@ -100,6 +149,30 @@ export default function DespachoDetail() {
       }
     }
   };
+  const handleInvitarColaborador = async (e) => {
+    e.preventDefault();
+    if (!usuarioSeleccionado) return;
+    setMensajeInvitacion({ tipo: 'loading', texto: 'Procesando...' });
+
+    try {
+      const response = await apiClient.post(`/api/inventario/despachos/${id}/invitar/`, {
+        usuario_invitado_id: usuarioSeleccionado.id
+      });
+
+      setMensajeInvitacion({ tipo: 'success', texto: response.data.mensaje });
+      setUsuarioAInvitar('');
+      setTimeout(() => {
+        setModalInvitacionOpen(false);
+        setMensajeInvitacion({ tipo: '', texto: '' });
+      }, 2000);
+
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || "Error al otorgar permiso.";
+      setMensajeInvitacion({ tipo: 'error', texto: errorMsg });
+    }
+  };
+
+  const getIniciales = (nombre) => nombre ? String(nombre).substring(0, 2).toUpperCase() : '??';
 
   // Helper para colores de estado
   const getStatusStyle = (status) => {
@@ -166,10 +239,10 @@ export default function DespachoDetail() {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 font-sans">
       {isReadOnly && (
-                <div className="bg-amber-100 text-amber-800 p-3 mb-4 rounded-lg border border-amber-200 font-bold text-center">
-                  Estás visualizando un despacho de otra sucursal. No tienes permisos para editarlo.
-                </div>
-              )}
+        <div className="bg-amber-100 text-amber-800 p-3 mb-4 rounded-lg border border-amber-200 font-bold text-center">
+          Estás visualizando un despacho de otra sucursal. No tienes permisos para editarlo.
+        </div>
+      )}
       <div className="max-w-6xl mx-auto">
 
         {/* Header de Navegación */}
@@ -188,36 +261,95 @@ export default function DespachoDetail() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            {!isReadOnly && (
-            <Link
-              to={`/despachos/${id}/editar`}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition shadow-sm"
-            >
-              <Edit className="w-4 h-4" /> Editar
-            </Link>
+          <div className="flex items-center gap-2 sm:gap-3">
+
+            {/* BOTONES PRINCIPALES */}
+            {puedeCompartir && (
+              <button
+                onClick={() => setModalInvitacionOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition font-medium text-sm shadow-sm"
+              >
+                <Share2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Compartir</span>
+              </button>
             )}
+
             {!isReadOnly && (
-            <button
-              onClick={handleDelete}
-              className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 text-red-700 font-medium rounded-lg hover:bg-red-100 transition shadow-sm"
-            >
-              <Trash2 className="w-4 h-4" /> Eliminar
-            </button>
+              <Link
+                to={`/despachos/${id}/editar`}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition shadow-sm text-sm"
+              >
+                <Edit className="w-4 h-4" />
+                <span className="hidden sm:inline">Editar</span>
+              </Link>
             )}
-            <button
-              onClick={() => navigate(`/despachos/${id}/imprimir-plantilla`)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 font-medium rounded-lg hover:bg-blue-100 transition shadow-sm"
-            >
-              <Printer className="w-5 h-5" />
-              Imprimir Órdenes
-            </button>
-            <button
-              onClick={() => handleDescargarExcel(despacho.id_despacho)}
-              className="flex items-center gap-2 px-4 py-2 bg-green-50 border border-blue-200 text-green-700 font-medium rounded-lg hover:bg-green-100 transition shadow-sm"
-            >
-              Descargar Excel
-            </button>
+
+            {/* MENÚ DESPLEGABLE*/}
+            <Menu as="div" className="relative inline-block text-left">
+              <MenuButton className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition shadow-sm text-sm">
+                Acciones
+                <ChevronDown className="w-4 h-4 text-gray-500" />
+              </MenuButton>
+
+              <Transition
+                enter="transition ease-out duration-100"
+                enterFrom="transform opacity-0 scale-95"
+                enterTo="transform opacity-100 scale-100"
+                leave="transition ease-in duration-75"
+                leaveFrom="transform opacity-100 scale-100"
+                leaveTo="transform opacity-0 scale-95"
+              >
+                <MenuItems className="absolute right-0 z-50 mt-2 w-48 origin-top-right rounded-lg bg-white shadow-lg ring-1 ring-black/5 focus:outline-none divide-y divide-gray-100">
+
+                  {/* Exportaciones */}
+                  <div className="p-1">
+                    <MenuItem>
+                      {({ focus }) => (
+                        <button
+                          onClick={() => navigate(`/despachos/${id}/imprimir-plantilla`)}
+                          className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm ${focus ? 'bg-gray-100 text-gray-900' : 'text-gray-700'
+                            }`}
+                        >
+                          <Printer className="w-4 h-4 text-gray-500" />
+                          Imprimir Órdenes
+                        </button>
+                      )}
+                    </MenuItem>
+                    <MenuItem>
+                      {({ focus }) => (
+                        <button
+                          onClick={() => handleDescargarExcel(despacho.id_despacho)}
+                          className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm ${focus ? 'bg-green-50 text-green-700' : 'text-gray-700'
+                            }`}
+                        >
+                          <Download className="w-4 h-4 text-green-600" /> {/* Cambié a icono genérico de descarga */}
+                          Descargar Excel
+                        </button>
+                      )}
+                    </MenuItem>
+                  </div>
+
+                  {/* Eliminar */}
+                  {!isReadOnly && (
+                    <div className="p-1">
+                      <MenuItem>
+                        {({ focus }) => (
+                          <button
+                            onClick={handleDelete}
+                            className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm font-medium ${focus ? 'bg-red-50 text-red-700' : 'text-red-600'
+                              }`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Eliminar Despacho
+                          </button>
+                        )}
+                      </MenuItem>
+                    </div>
+                  )}
+                </MenuItems>
+              </Transition>
+            </Menu>
+
           </div>
         </div>
 
@@ -309,7 +441,33 @@ export default function DespachoDetail() {
                 </div>
               </div>
             </div>
+            {despacho.colaboradores_activos && despacho.colaboradores_activos.length > 0 && (
+              <div className="mt-6 p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                    <Share2 className="w-4 h-4 text-blue-600" />
+                    Acceso Compartido (Colaboradores)
+                  </h3>
+                </div>
 
+                <div className="flex items-center gap-4">
+                  <div className="flex -space-x-3 overflow-hidden">
+                    {despacho.colaboradores_activos.map((colab) => (
+                      <div
+                        key={colab.id}
+                        title={`${colab.nombre_completo} (Invitado por: ${colab.otorgado_por})`}
+                        className="inline-flex items-center justify-center w-10 h-10 rounded-full border-2 border-white bg-blue-600 text-white text-xs font-bold shadow-sm cursor-help transition-transform hover:scale-110 hover:z-10"
+                      >
+                        {colab.nombre_completo.substring(0, 2).toUpperCase()}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-xs text-blue-700">
+                    <span className="font-semibold">{despacho.colaboradores_activos.length} usuario(s)</span> de otra sucursal tienen permiso para editar este despacho.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* COLUMNA DERECHA: MERCANCÍAS */}
@@ -388,6 +546,131 @@ export default function DespachoDetail() {
           </div>
         </div>
       </div>
+      {modalInvitacionOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+
+            <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                <Share2 className="w-5 h-5 text-blue-600" />
+                Colaboración Transversal
+              </h3>
+              <button
+                onClick={() => {
+                  setModalInvitacionOpen(false);
+                  setMensajeInvitacion({ tipo: '', texto: '' });
+                }}
+                className="text-gray-400 hover:text-gray-600 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleInvitarColaborador} className="p-5">
+              <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+                Otorga permisos de edición a un usuario de otra sucursal para que pueda gestionar este despacho y su carga asociada.
+              </p>
+
+              <div className="mb-6">
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                  Seleccionar Usuario a Invitar
+                </label>
+
+                <Listbox value={usuarioSeleccionado} onChange={setUsuarioSeleccionado}>
+                  <div className="relative mt-1">
+                    <ListboxButton className="relative w-full cursor-pointer rounded-lg bg-white py-2.5 pl-3 pr-10 text-left border border-gray-300 focus:outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 sm:text-sm shadow-sm transition">
+                      {usuarioSeleccionado ? (
+                        <span className="flex items-center gap-3">
+                          {/* Avatar Círculo */}
+                          <div className="w-6 h-6 shrink-0 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700">
+                            {getIniciales(usuarioSeleccionado.username)}
+                          </div>
+                          <span className="block truncate font-medium text-gray-700">
+                            {usuarioSeleccionado.username}
+                            {usuarioSeleccionado.first_name ? ` (${usuarioSeleccionado.first_name} ${usuarioSeleccionado.last_name})` : ''}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="block truncate text-gray-400">
+                          {usuarios.length === 0 ? "No hay usuarios elegibles" : "Cargando usuarios..."}
+                        </span>
+                      )}
+
+                      <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                        <ChevronsUpDown className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                      </span>
+                    </ListboxButton>
+
+                    <Transition
+                      leave="transition ease-in duration-100"
+                      leaveFrom="opacity-100"
+                      leaveTo="opacity-0"
+                    >
+                      <ListboxOptions className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm">
+                        {usuarios.map((usuario) => (
+                          <ListboxOption
+                            key={usuario.id}
+                            className={({ focus }) =>
+                              `relative cursor-pointer select-none py-2 pl-10 pr-4 transition-colors ${focus ? 'bg-blue-50 text-blue-900' : 'text-gray-700'
+                              }`
+                            }
+                            value={usuario}
+                          >
+                            {({ selected }) => (
+                              <>
+                                <div className="flex items-center gap-3">
+                                  <div className="w-6 h-6 shrink-0 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
+                                    {getIniciales(usuario.username)}
+                                  </div>
+                                  <span className={`block truncate ${selected ? 'font-bold' : 'font-normal'}`}>
+                                    {usuario.username}
+                                  </span>
+                                </div>
+
+                                {selected ? (
+                                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-blue-600">
+                                    <Check className="h-4 w-4" aria-hidden="true" />
+                                  </span>
+                                ) : null}
+                              </>
+                            )}
+                          </ListboxOption>
+                        ))}
+                      </ListboxOptions>
+                    </Transition>
+                  </div>
+                </Listbox>
+              </div>
+              {mensajeInvitacion.texto && (
+                <div className={`p-3 rounded-lg text-sm mb-4 ${mensajeInvitacion.tipo === 'success' ? 'bg-green-50 text-green-800 border border-green-200' :
+                  mensajeInvitacion.tipo === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
+                    'bg-blue-50 text-blue-800'
+                  }`}>
+                  {mensajeInvitacion.texto}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setModalInvitacionOpen(false)}
+                  className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={mensajeInvitacion.tipo === 'loading'}
+                  className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
+                >
+                  {mensajeInvitacion.tipo === 'loading' ? 'Enviando...' : 'Otorgar Acceso'}
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,7 +7,8 @@ import Select from 'react-select';
 import {
   Plus, Search, Eye, Edit, Truck, Map, User, Calendar,
   Clock, CheckCircle, AlertCircle, Loader2, ArrowRight,
-  PlayCircle, PackageCheck, ChevronLeft, ChevronRight, ArrowLeft
+  PlayCircle, PackageCheck, ChevronLeft, ChevronRight, ArrowLeft,
+  Share2
 } from 'lucide-react';
 
 export default function DespachoList() {
@@ -31,13 +32,18 @@ export default function DespachoList() {
 
   useEffect(() => {
     const fetchData = async () => {
-      showLoader(); 
-      setDespachos([]); 
+      showLoader();
+      setDespachos([]);
       try {
+        const urlDespachos = sucursalVisualizada
+          ? `/api/inventario/despachos/?sucursal_id=${sucursalVisualizada}`
+          : `/api/inventario/despachos/`;
+
         const [despRes, sucurRes] = await Promise.all([
-          apiClient.get(`/api/inventario/despachos/?sucursal_id=${sucursalVisualizada}`),
+          apiClient.get(urlDespachos),
           apiClient.get('/api/usuarios/sucursales/')
         ]);
+
         setDespachos(despRes.data);
         setSucursales(sucurRes.data);
       } catch (err) {
@@ -49,7 +55,7 @@ export default function DespachoList() {
       }
     };
 
-    if (sucursalVisualizada) fetchData();
+    fetchData();
   }, [sucursalVisualizada]);
 
   const handleDateChange = async (id, newValue) => {
@@ -252,6 +258,11 @@ export default function DespachoList() {
                               <div className="font-semibold text-gray-900 flex items-center gap-1.5">
                                 Ruta {despacho.id_ruta}
                               </div>
+                              {despacho.es_colaborador && (
+                                <span className="px-3 py-0.5 text-xs bg-purple-100 text-purple-700 font-bold rounded-full border border-purple-200 shadow-sm flex items-center gap-1">
+                                  <Share2 className="w-3 h-3" /> Compartido
+                                </span>
+                              )}
                             </div>
                           </div>
                         </td>

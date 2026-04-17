@@ -39,6 +39,8 @@ export default function ClientsCatalog() {
     nombre_contacto: '',
     direccion: '',
     ciudad: '',
+    direccion2: '',
+    ciudad2: '',
     activo: true
   });
 
@@ -96,6 +98,8 @@ export default function ClientsCatalog() {
         precio_m3: client.precio_m3 || '',
         nombre_contacto: client.nombre_contacto || '',
         direccion: client.direccion || '',
+        direccion2: client.direccion2 || '',
+        ciudad2: client.ciudad2 || '',
         ciudad: client.ciudad || '',
         activo: client.activo !== undefined ? client.activo : true
       });
@@ -111,6 +115,8 @@ export default function ClientsCatalog() {
         nombre_contacto: '',
         direccion: '',
         ciudad: '',
+        direccion2: '',
+        ciudad2: '',
         activo: true
       });
     }
@@ -130,6 +136,8 @@ export default function ClientsCatalog() {
       nombre_contacto: '',
       direccion: '',
       ciudad: '',
+      direccion2: '',
+      ciudad2: '',
       activo: true
     });
     setError(null);
@@ -143,8 +151,9 @@ export default function ClientsCatalog() {
       nombre_cliente: normalizeName(formData.nombre_cliente),
       rut_cliente: normalizeRUT(formData.rut_cliente),
       email_contacto: normalizeEmail(formData.email_contacto),
-      telefono_contacto: normalizePhone(formData.telefono_contacto),
+      telefono_contacto: formData.telefono_contacto,
       ciudad: normalizeCity(formData.ciudad),
+      ciudad2: normalizeCity(formData.ciudad2),
       nombre_contacto: normalizeName(formData.nombre_contacto)
     };
     setError(null);
@@ -504,7 +513,6 @@ export default function ClientsCatalog() {
                       </div>
                     </div>
                   </div>
-
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
@@ -530,6 +538,35 @@ export default function ClientsCatalog() {
                           onChange={(e) => setFormData({ ...formData, ciudad: e.target.value })}
                           className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                           placeholder="Ej: Santiago"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                    <div className="sm:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Dirección Alternativa</label>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={formData.direccion2}
+                          onChange={(e) => setFormData({ ...formData, direccion2: e.target.value })}
+                          className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                          placeholder="Ej: Av. Prat 123"
+                        />
+                      </div>
+                    </div>
+                    <div className="sm:col-span-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad Alternativa</label>
+                      <div className="relative">
+                        <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          value={formData.ciudad2}
+                          onBlur={(e) => setFormData({ ...formData, ciudad2: normalizeCity(e.target.value) })}
+                          onChange={(e) => setFormData({ ...formData, ciudad2: e.target.value })}
+                          className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                          placeholder="Ej: Iquique"
                         />
                       </div>
                     </div>

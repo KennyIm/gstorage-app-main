@@ -69,6 +69,8 @@ import CotizacionList from './pages/CotizacionList'
 import CotizacionCreate from './pages/CotizacionCreate'
 import CotizacionEdit from './pages/CotizacionEdit'
 
+import ManualUsuario from './pages/ManualUsuario'
+
 function App() {
   return (
     <Routes>
@@ -137,6 +139,8 @@ function App() {
           <Route path="/cotizaciones" element={<CotizacionList />} />
           <Route path="/cotizaciones/crear" element={<CotizacionCreate />} />
           <Route path="/cotizaciones/editar/:id" element={<CotizacionEdit />} />
+
+          <Route path="/ayuda" element={<ManualUsuario />} />
         </Route>
       </Route>
     </Routes>

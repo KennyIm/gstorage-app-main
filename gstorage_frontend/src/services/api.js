@@ -13,7 +13,7 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     if (
-      config.url === '/api/token/' || 
+      config.url === '/api/token/' ||
       config.url === '/api/token/refresh/' ||
       config.url.includes('/password-reset/')
     ) {
@@ -30,8 +30,8 @@ apiClient.interceptors.request.use(
     return Promise.reject(error);
   }
 );
-let isRefreshing = false; 
-let failedQueue = []; 
+let isRefreshing = false;
+let failedQueue = [];
 
 const processQueue = (error, token = null) => {
   failedQueue.forEach(prom => {
@@ -52,9 +52,9 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
     if (error.response && error.response.status === 401 && !originalRequest._retry) {
       if (
-        originalRequest.url === '/api/token/' || 
+        originalRequest.url === '/api/token/' ||
         originalRequest.url === '/api/token/refresh/' ||
-        originalRequest.url.includes('/password-reset/') 
+        originalRequest.url.includes('/password-reset/')
       ) {
         return Promise.reject(error);
       }
@@ -84,18 +84,22 @@ apiClient.interceptors.response.use(
         const rs = await axios.post(`${API_BASE_URL}/api/token/refresh/`, {
           refresh: authTokens.refresh
         });
-        
         const newTokens = rs.data;
-        
-        localStorage.setItem('authTokens', JSON.stringify(newTokens));
 
-        apiClient.defaults.headers.common['Authorization'] = `Bearer ${newTokens.access}`;
-        originalRequest.headers['Authorization'] = `Bearer ${newTokens.access}`;
-        
-        processQueue(null, newTokens.access);
-        
+        const tokensActualizados = {
+          ...authTokens, 
+          access: newTokens.access 
+        };
+
+        localStorage.setItem('authTokens', JSON.stringify(tokensActualizados));
+
+        apiClient.defaults.headers.common['Authorization'] = `Bearer ${tokensActualizados.access}`;
+        originalRequest.headers['Authorization'] = `Bearer ${tokensActualizados.access}`;
+
+        processQueue(null, tokensActualizados.access);
+
         return apiClient(originalRequest);
-        
+
       } catch (_error) {
         console.error("Refresh token falló. Cerrando sesión.", _error);
         processQueue(_error, null);
