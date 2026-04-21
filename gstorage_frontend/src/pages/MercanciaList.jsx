@@ -288,7 +288,6 @@ export default function MercanciaList() {
           <Link to="/" className="p-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 transition shadow-sm">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <h1 className="text-2xl font-bold text-gray-800">Gestión de Mercancías</h1>
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto">

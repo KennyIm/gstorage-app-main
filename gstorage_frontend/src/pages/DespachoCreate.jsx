@@ -135,8 +135,7 @@ export default function DespachoCreate() {
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Crear Nuevo Despacho</h1>
-            <p className="mt-2 text-sm text-gray-600">Planifica un nuevo viaje asignando ruta y recursos.</p>
+            <h1 className="text-3xl font-bold text-gray-900">Nuevo Despacho</h1>
           </div>
           <Link to="/despachos" className="hidden sm:flex items-center gap-2 text-gray-500 hover:text-gray-700 transition">
             <ArrowLeft className="w-4 h-4" /> Volver al listado

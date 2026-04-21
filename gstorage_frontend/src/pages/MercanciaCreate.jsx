@@ -332,7 +332,7 @@ export default function MercanciaCreate() {
                   </div>
                 </div>
                 <div>
-                  <label htmlFor="cantidad_bultos" className="block text-sm font-medium text-gray-700 mb-1">Cantidad Bultos *</label>
+                  <label htmlFor="cantidad_bultos" className="block text-sm font-medium text-gray-700 mb-1">Cantidad Bultos</label>
                   <div className="relative">
                     <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
                     <input

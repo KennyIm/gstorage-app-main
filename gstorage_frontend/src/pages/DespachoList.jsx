@@ -8,7 +8,8 @@ import {
   Plus, Search, Eye, Edit, Truck, Map, User, Calendar,
   Clock, CheckCircle, AlertCircle, Loader2, ArrowRight,
   PlayCircle, PackageCheck, ChevronLeft, ChevronRight, ArrowLeft,
-  Share2
+  Share2, Filter,
+  X
 } from 'lucide-react';
 
 export default function DespachoList() {
@@ -23,12 +24,26 @@ export default function DespachoList() {
   const { logoutUser } = useAuth();
   const { showLoader, hideLoader, showToast } = useUI();
 
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
 
   useEffect(() => {
     setCurrentPage(1);
   }, [sucursalVisualizada, searchTerm]);
+
+  const [filtros, setFiltros] = useState({
+    ruta: '',
+    camion: '',
+    conductor: '',
+    estado: 'TODOS',
+    fechaProgDesde: '',
+    fechaProgHasta: '',
+    fechaRealDesde: '',
+    fechaRealHasta: '',
+    verCompartidos: false
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -44,6 +59,7 @@ export default function DespachoList() {
           apiClient.get('/api/usuarios/sucursales/')
         ]);
 
+        console.log("Primer despacho recibido:", despRes.data[0]);
         setDespachos(despRes.data);
         setSucursales(sucurRes.data);
       } catch (err) {
@@ -64,12 +80,20 @@ export default function DespachoList() {
     ));
 
     try {
+      let fechaFormateada = null;
+      if (newValue) {
+        fechaFormateada = new Date(newValue).toISOString();
+      }
+
       await apiClient.patch(`/api/inventario/despachos/${id}/`, {
-        fecha_salida_real: newValue || null
+        fecha_salida_real: fechaFormateada
       });
+      
     } catch (err) {
-      showToast("Error al actualizar la fecha. Recargando...", 'error');
-      fetchData();
+      console.error("Detalle del Error 400 de Django:", err.response?.data || err.message);
+      showToast("Error al actualizar la fecha. Revisa la consola.", 'error');
+      
+      fetchData(); 
     }
   };
 
@@ -105,6 +129,10 @@ export default function DespachoList() {
       'Finalizado': {
         bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200',
         icon: <CheckCircle className="w-3.5 h-3.5" />
+      },
+      'Eliminado': {
+        bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200',
+        icon: <X className='w-3.5 h-3.5' />
       }
     };
 
@@ -140,13 +168,116 @@ export default function DespachoList() {
     return `${formattedBody}-${dv}`;
   };
 
+  const uniqueRutas = [...new Set(despachos.map(d => String(d.id_ruta)).filter(Boolean))];
+  const uniqueCamiones = [...new Set(despachos.map(d => String(d.id_camion)).filter(Boolean))];
+  const uniqueConductores = [...new Set(despachos.map(d => String(d.id_conductor)).filter(Boolean))];
+
+  const opcionesRutas = uniqueRutas.map(ruta => ({ value: ruta, label: `Ruta ${ruta}` }));
+  const opcionesCamiones = uniqueCamiones.map(camion => ({ value: camion, label: camion }));
+
+  const opcionesConductores = uniqueConductores.map(cond => ({
+    value: cond,
+    label: formatRUT(cond)
+  }));
+
+  const opcionRutaSeleccionada = opcionesRutas.find(op => op.value === filtros.ruta) || null;
+  const opcionCamionSeleccionada = opcionesCamiones.find(op => op.value === filtros.camion) || null;
+  const opcionConductorSeleccionada = opcionesConductores.find(op => op.value === filtros.conductor) || null;
+
+  const handleFiltroChange = (e) => {
+    const { name, value } = e.target;
+    setFiltros(prev => ({ ...prev, [name]: value }));
+    setCurrentPage(1);
+  };
+
+  const limpiarFiltros = () => {
+    setFiltros({
+      ruta: '',
+      camion: '',
+      conductor: '',
+      estado: 'TODOS',
+      fechaProgDesde: '',
+      fechaProgHasta: '',
+      fechaRealDesde: '',
+      fechaRealHasta: '',
+      verCompartidos: false
+    });
+    setSearchTerm('');
+    setCurrentPage(1);
+  };
+
+  const selectStyles = {
+    control: (base, state) => ({
+      ...base,
+      backgroundColor: '#F9FAFB',
+      borderColor: state.isFocused ? '#991B1B' : '#E5E7EB',
+      boxShadow: state.isFocused ? '0 0 0 2px rgba(153, 27, 27, 0.2)' : 'none',
+      borderRadius: '0.5rem',
+      minHeight: '38px',
+      '&:hover': {
+        borderColor: state.isFocused ? '#991B1B' : '#D1D5DB'
+      }
+    }),
+    menu: (base) => ({
+      ...base,
+      borderRadius: '0.5rem',
+      overflow: 'hidden',
+      zIndex: 50
+    }),
+    option: (base, state) => ({
+      ...base,
+      backgroundColor: state.isSelected ? '#991B1B' : state.isFocused ? '#FEF2F2' : 'white',
+      color: state.isSelected ? 'white' : '#374151',
+      '&:active': {
+        backgroundColor: '#991B1B'
+      }
+    })
+  };
+
   const filteredDespachos = despachos.filter(d => {
-    const term = searchTerm.toLowerCase().trim();
-    return (
-      (String(d.id_ruta || '')).toLowerCase().includes(term) ||
-      (String(d.id_conductor || '')).toLowerCase().includes(term) ||
-      (String(d.id_camion || '')).toLowerCase().includes(term)
-    );
+    if (!d) return false;
+
+    const matchRuta = filtros.ruta === '' || String(d.id_ruta || '') === filtros.ruta;
+    const matchCamion = filtros.camion === '' || String(d.id_camion || '') === filtros.camion;
+    const matchConductor = filtros.conductor === '' || String(d.id_conductor || '') === filtros.conductor;
+    const matchEstado = filtros.estado === 'TODOS' || d.estado_despacho === filtros.estado;
+    const matchCompartido = !filtros.verCompartidos || Boolean(d.es_colaborador);
+
+    let matchFechaProg = true;
+    if (filtros.fechaProgDesde || filtros.fechaProgHasta) {
+      if (!d.fecha_programada) {
+        matchFechaProg = false;
+      } else {
+        const itemDate = new Date(d.fecha_programada).getTime();
+        if (filtros.fechaProgDesde) {
+          const desde = new Date(`${filtros.fechaProgDesde}T00:00:00`).getTime();
+          if (itemDate < desde) matchFechaProg = false;
+        }
+        if (filtros.fechaProgHasta) {
+          const hasta = new Date(`${filtros.fechaProgHasta}T23:59:59`).getTime();
+          if (itemDate > hasta) matchFechaProg = false;
+        }
+      }
+    }
+
+    let matchFechaReal = true;
+    if (filtros.fechaRealDesde || filtros.fechaRealHasta) {
+      if (!d.fecha_salida_real) {
+        matchFechaReal = false;
+      } else {
+        const itemDate = new Date(d.fecha_salida_real).getTime();
+        if (filtros.fechaRealDesde) {
+          const desde = new Date(`${filtros.fechaRealDesde}T00:00:00`).getTime();
+          if (itemDate < desde) matchFechaReal = false;
+        }
+        if (filtros.fechaRealHasta) {
+          const hasta = new Date(`${filtros.fechaRealHasta}T23:59:59`).getTime();
+          if (itemDate > hasta) matchFechaReal = false;
+        }
+      }
+    }
+
+    return matchRuta && matchCamion && matchConductor && matchEstado && matchCompartido && matchFechaProg && matchFechaReal;
   });
   const totalPages = Math.ceil(filteredDespachos.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -181,8 +312,16 @@ export default function DespachoList() {
         {/* Header y Acciones */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Despachos</h1>
-            <p className="mt-1 text-sm text-gray-600">Planificación y seguimiento de salidas de mercancía.</p>
+            <button
+              onClick={() => setMostrarFiltros(!mostrarFiltros)}
+              className={`flex items-center gap-2 px-4 py-2 font-medium rounded-lg transition shadow-sm w-full sm:w-auto justify-center border ${mostrarFiltros
+                ? 'bg-gray-100 text-gray-700 border-gray-300'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+            >
+              <Filter className="w-5 h-5" />
+              {mostrarFiltros ? 'Ocultar Filtros' : 'Mostrar Filtros'}
+            </button>
           </div>
 
           <Link
@@ -193,37 +332,179 @@ export default function DespachoList() {
           </Link>
         </div>
 
-        {/* Filtros y Buscador */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar por ruta, conductor o camión..."
-              className="w-100 pl-10 pr-4 py-1.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        {mostrarFiltros && (
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200 mb-6 animate-in slide-in-from-top-2 fade-in duration-200">
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
+              <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                <Filter className="w-5 h-5 text-red-800" /> Filtros
+              </h3>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-100 hover:bg-purple-100 transition">
+                  <input
+                    type="checkbox"
+                    name="verCompartidos"
+                    checked={filtros.verCompartidos}
+                    onChange={(e) => {
+                      setFiltros(prev => ({ ...prev, verCompartidos: e.target.checked }));
+                      setCurrentPage(1);
+                    }}
+                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-medium text-purple-700 flex items-center gap-1">
+                    <Share2 className="w-4 h-4" /> Ver Solo Compartidos
+                  </span>
+                </label>
+                {user?.perfil?.rol === 'DUENO' && (
+                  <div className='relative w-48 md:w-64'>
+                    <Select
+                      placeholder="Ver sucursal..."
+                      options={sucursales.map(s => ({ value: s.id, label: s.nombre }))}
+                      value={sucursalVisualizada ? { value: sucursalVisualizada, label: sucursales.find(s => String(s.id) === String(sucursalVisualizada))?.nombre } : null}
+                      onChange={(opt) => {
+                        setSucursalVisualizada(opt ? opt.value : null);
+                        setCurrentPage(1);
+                      }}
+                      className="text-xs"
+                      isClearable={true}
+                      styles={{
+                        control: (base) => ({ ...base, minHeight: '32px', borderRadius: '0.5rem' })
+                      }}
+                    />
+                  </div>
+                )}
+
+                <button
+                  onClick={limpiarFiltros} // Asegúrate de tener esta función definida en tu componente
+                  className="text-sm text-gray-500 hover:text-red-700 flex items-center gap-1 font-medium transition"
+                >
+                  <X className="w-4 h-4" /> Limpiar Todo
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+              {/* 1. Ruta */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Ruta</label>
+                <Select
+                  name="ruta"
+                  options={opcionesRutas} // [{value: 1, label: 'RT-155 (Santiago - Iquique)'}, ...]
+                  value={opcionRutaSeleccionada}
+                  isClearable={true}
+                  isSearchable={true}
+                  placeholder="Buscar ruta..."
+                  noOptionsMessage={() => "Sin resultados"}
+                  className="text-sm"
+                  onChange={(opcion) => {
+                    handleFiltroChange({ target: { name: 'ruta', value: opcion ? opcion.value : '' } });
+                  }}
+                  styles={selectStyles} // Asume que extrajiste los estilos a una constante (ver abajo)
+                />
+              </div>
+
+              {/* 2. Camión */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Camión</label>
+                <Select
+                  name="camion"
+                  options={opcionesCamiones} // [{value: 4, label: 'Patente: AB-CD-12'}, ...]
+                  value={opcionCamionSeleccionada}
+                  isClearable={true}
+                  isSearchable={true}
+                  placeholder="Buscar camión..."
+                  noOptionsMessage={() => "Sin resultados"}
+                  className="text-sm"
+                  onChange={(opcion) => {
+                    handleFiltroChange({ target: { name: 'camion', value: opcion ? opcion.value : '' } });
+                  }}
+                  styles={selectStyles}
+                />
+              </div>
+
+              {/* 3. Conductor */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Conductor</label>
+                <Select
+                  name="conductor"
+                  options={opcionesConductores} // [{value: 2, label: 'Juan Pérez'}, ...]
+                  value={opcionConductorSeleccionada}
+                  isClearable={true}
+                  isSearchable={true}
+                  placeholder="Buscar conductor..."
+                  noOptionsMessage={() => "Sin resultados"}
+                  className="text-sm"
+                  onChange={(opcion) => {
+                    handleFiltroChange({ target: { name: 'conductor', value: opcion ? opcion.value : '' } });
+                  }}
+                  styles={selectStyles}
+                />
+              </div>
+
+              {/* 4. Estado */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label>
+                <select
+                  name="estado"
+                  value={filtros.estado || "TODOS"}
+                  onChange={handleFiltroChange}
+                  className="w-full px-3 py-[7px] bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm"
+                >
+                  <option value="TODOS">Todos los estados</option>
+                  <option value="Programado">Programado</option>
+                  <option value="En Carga">En Carga</option>
+                  <option value="En Tránsito">En Tránsito</option>
+                  <option value="Finalizado">Finalizado</option>
+                </select>
+              </div>
+
+              {/* 5. Fecha Programada */}
+              <div className="lg:col-span-2">
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rango: Fecha Programada</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    name="fechaProgDesde"
+                    value={filtros.fechaProgDesde}
+                    onChange={handleFiltroChange}
+                    className="w-full px-3 py-[7px] bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm text-gray-600"
+                  />
+                  <span className="text-gray-400 font-bold">-</span>
+                  <input
+                    type="date"
+                    name="fechaProgHasta"
+                    value={filtros.fechaProgHasta}
+                    onChange={handleFiltroChange}
+                    className="w-full px-3 py-[7px] bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm text-gray-600"
+                  />
+                </div>
+              </div>
+
+              {/* 6. Fecha de Salida Real */}
+              <div className="lg:col-span-2">
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rango: Salida Real</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    name="fechaRealDesde"
+                    value={filtros.fechaRealDesde}
+                    onChange={handleFiltroChange}
+                    className="w-full px-3 py-[7px] bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm text-gray-600"
+                  />
+                  <span className="text-gray-400 font-bold">-</span>
+                  <input
+                    type="date"
+                    name="fechaRealHasta"
+                    value={filtros.fechaRealHasta}
+                    onChange={handleFiltroChange}
+                    className="w-full px-3 py-[7px] bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm text-gray-600"
+                  />
+                </div>
+              </div>
+
+            </div>
           </div>
-          <div className='relative w-full md:w-72'>
-            <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Sucursal a Visualizar</label>
-            <Select
-              placeholder="Cambiar de sucursal..."
-              options={sucursales.map(s => ({ value: s.id, label: s.nombre }))}
-              value={
-                sucursalVisualizada
-                  ? { value: sucursalVisualizada, label: sucursales.find(s => String(s.id) === String(sucursalVisualizada))?.nombre }
-                  : null
-              }
-              onChange={(opt) => {
-                setSucursalVisualizada(opt ? opt.value : null);
-                setCurrentPage(1);
-              }}
-              className="text-sm"
-              isClearable={true}
-            />
-          </div>
-        </div>
+        )}
 
         {/* Tabla de Resultados */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

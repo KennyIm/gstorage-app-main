@@ -117,7 +117,7 @@ class DespachoListSerializer(serializers.ModelSerializer):
     id_camion = serializers.StringRelatedField()
     id_conductor = serializers.StringRelatedField()
     id_ruta = serializers.StringRelatedField()
-    es_colaborador = serializers.SerializerMethodField()
+    es_colaborador = serializers.SerializerMethodField(read_only=True)
     nombre_conductor = serializers.CharField(source='id_conductor.nombre_completo', read_only=True)
     nombre_sucursal = serializers.CharField(source='sucursal_id.nombre', read_only=True)
 
@@ -181,20 +181,18 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
             )
 
             for previo in despachos_previos:
-                # El despacho previo ni siquiera ha salido.
-                # El camión está totalmente bloqueado.
                 if not previo.fecha_salida_real:
                      raise serializers.ValidationError({
                         "id_camion": f"El camión {camion} está ocupado en el Despacho #{previo.id_despacho} (Aún no sale)."
                     })
                 
-                # El despacho previo ya salió.
-                # Aplicamos la regla de los 4 días.
                 else:
-                    fecha_liberacion = previo.fecha_salida_real.date() + timedelta(days=4)
+                    fecha_liberacion_exacta = previo.fecha_salida_real + timedelta(days=1, hours=4)
+                    fecha_liberacion = fecha_liberacion_exacta.date()
+                    
                     if fecha_nueva_prog < fecha_liberacion:
                         raise serializers.ValidationError({
-                            "id_camion": f"El camión no estará disponible hasta el {fecha_liberacion.strftime('%d/%m/%Y')} (4 días después del Despacho #{previo.id_despacho})."
+                            "id_camion": f"El camión no estará disponible hasta el {fecha_liberacion.strftime('%d/%m/%Y')} (Despacho #{previo.id_despacho})."
                         })
         
         if conductor and fecha_nueva_prog:
@@ -207,18 +205,21 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
                     })
                 
                 if previo.fecha_salida_real:
-                    fecha_liberacion = previo.fecha_salida_real.date() + timedelta(days=4)
+                    fecha_liberacion_exacta = previo.fecha_salida_real + timedelta(days=1, hours=4)
+                    fecha_liberacion = fecha_liberacion_exacta.date()
+                    
                     if fecha_nueva_prog < fecha_liberacion:
                         raise serializers.ValidationError({
                             "id_conductor": f"Conductor no disponible. Debe esperar hasta el {fecha_liberacion.strftime('%d/%m/%Y')}."
                         })
+        
         return data
 
     def validate_fecha_salida_real(self, value):
         if value:
             now = timezone.now()
-            if value < (now - timedelta(days=30)):
-                raise serializers.ValidationError("La fecha de salida real no puede ser tan antigua (máx 30 días atrás).")
+            if value < (now - timedelta(days=365)):
+                raise serializers.ValidationError("La fecha de salida real no puede ser tan antigua (máx 1 año atrás).")
         return value
 
 # Serializers para CATÁLOGOS

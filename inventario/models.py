@@ -261,6 +261,7 @@ class Despacho(models.Model):
         ('En Carga', 'En Carga'),
         ('En Tránsito', 'En Tránsito'),
         ('Finalizado', 'Finalizado'),
+        ('Eliminado', 'Eliminado')
     ]
 
     UBICACIONES_CHOICES = [

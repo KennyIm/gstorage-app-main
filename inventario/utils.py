@@ -17,13 +17,14 @@ def actualizar_estados_automaticos(empresa):
         cambio_realizado = False
         tiempo_transcurrido = now - d.fecha_salida_real
         
-        cinco_horas = timedelta(hours=5)
-        tiempo_viaje = timedelta(days=2) # 2 días de viaje
-        tiempo_total_para_fin = cinco_horas + tiempo_viaje
+        # --- AJUSTE DE TIEMPOS ---
+        # 4 horas para cargar/documentar + 1 día de viaje = 1 día y 4 horas total
+        tiempo_carga = timedelta(hours=4) 
+        tiempo_total_para_fin = timedelta(days=1, hours=4) 
 
         # --- LÓGICA DE ESTADOS ---
 
-        # 1(Pasaron 5h + 2 días)
+        # 1. FINALIZADO 
         if tiempo_transcurrido >= tiempo_total_para_fin:
             if d.estado_despacho != 'Finalizado':
                 d.estado_despacho = 'Finalizado'
@@ -33,11 +34,15 @@ def actualizar_estados_automaticos(empresa):
                     d.id_camion.estado_camion = 'DISPONIBLE'
                     d.id_camion.save()
                 
-                # (La mercancía se actualiza a 'Entregado')
+                # Liberar Rampla 
+                if d.id_rampla:
+                    d.id_rampla.estado_rampla = 'Disponible'
+                    d.id_rampla.save()
+                
                 cambio_realizado = True
 
-        # (Pasaron más de 5 horas, pero menos del total)
-        elif tiempo_transcurrido >= cinco_horas:
+        # 2. EN TRÁNSITO 
+        elif tiempo_transcurrido >= tiempo_carga:
             if d.estado_despacho != 'En Tránsito':
                 d.estado_despacho = 'En Tránsito'
                 
@@ -45,10 +50,15 @@ def actualizar_estados_automaticos(empresa):
                 if d.id_camion:
                     d.id_camion.estado_camion = 'EN_USO' 
                     d.id_camion.save()
+                
+                # Ocupar Rampla 
+                if d.id_rampla:
+                    d.id_rampla.estado_rampla = 'En Uso'
+                    d.id_rampla.save()
                     
                 cambio_realizado = True
 
-        # (Ya pasó la hora de salida, pero son menos de 5 horas)
+        # 3. EN CARGA
         elif tiempo_transcurrido >= timedelta(seconds=0):
             if d.estado_despacho != 'En Carga':
                 d.estado_despacho = 'En Carga'
@@ -57,6 +67,11 @@ def actualizar_estados_automaticos(empresa):
                 if d.id_camion:
                     d.id_camion.estado_camion = 'EN_USO' 
                     d.id_camion.save()
+                
+                # Ocupar Rampla 
+                if d.id_rampla:
+                    d.id_rampla.estado_rampla = 'En Uso'
+                    d.id_rampla.save()
                 
                 cambio_realizado = True
 

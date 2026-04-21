@@ -49,14 +49,6 @@ export default function Dashboard() {
       
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-1">Centro de Control Operativo</h1>
-          <p className="text-slate-500 text-sm">Panorama de bodega y despachos en tiempo real.</p>
-        </div>
-        <div className="text-sm font-medium text-slate-500 bg-white px-4 py-2 rounded-lg shadow-sm border border-slate-200 flex items-center gap-2">
-          <Activity size={16} className="text-emerald-500 animate-pulse" />
-          Sistema en línea
-        </div>
       </div>
 
       {/* KPIs PRINCIPALES */}

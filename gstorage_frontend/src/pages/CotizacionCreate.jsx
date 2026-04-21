@@ -94,6 +94,17 @@ export default function CotizacionCreate() {
         }
     };
 
+    const formatearRUT = (rut) => {
+        if (!rut) return 'Sin RUT';
+        let valor = rut.replace(/\./g, '').replace(/-/g, '').trim();
+
+        if (valor.length < 2) return valor;
+        const cuerpo = valor.slice(0, -1);
+        const dv = valor.slice(-1).toUpperCase();
+        const cuerpoFormateado = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        return `${cuerpoFormateado}-${dv}`;
+    };
+
     if (loadingInicial) {
         return (
             <div className="flex justify-center items-center h-screen bg-gray-50">
@@ -165,7 +176,7 @@ export default function CotizacionCreate() {
                                     <input
                                         type="text"
                                         name="rut_cliente"
-                                        value={formData.rut_cliente}
+                                        value={formatearRUT(formData.rut_cliente)}
                                         onChange={handleChange}
                                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-red-800 outline-none transition"
                                         placeholder="12.345.678-9"

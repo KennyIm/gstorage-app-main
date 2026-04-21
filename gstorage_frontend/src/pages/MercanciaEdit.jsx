@@ -7,14 +7,14 @@ import { useUI } from '../context/UIContext';
 import {
   Save, ArrowLeft, User, MapPin, Map, Package, Scale, Box, FileText,
   Truck, Activity, Loader2, AlertCircle, CheckCircle, NotebookPen,
-  Calculator
+  Calculator, Info
 } from 'lucide-react';
 
 export default function MercanciaEdit() {
   document.title = "Edición de Mercancia";
   const { id } = useParams();
   const navigate = useNavigate();
-  const { logoutUser } = useAuth();
+  const { user, logoutUser } = useAuth();
 
   const [formData, setFormData] = useState(null);
 
@@ -23,8 +23,11 @@ export default function MercanciaEdit() {
   const [ubicaciones, setUbicaciones] = useState([]);
   const [despachos, setDespachos] = useState([]);
   const [proveedores, setProveedores] = useState([]);
+  const [sucursales, setSucursales] = useState([]);
 
-  const [loading, setLoading] = useState(true); 
+  const [mercanciaOriginal, setMercanciaOriginal] = useState(null);
+
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const { showLoader, hideLoader, showToast } = useUI();
 
@@ -68,27 +71,32 @@ export default function MercanciaEdit() {
   // --- CARGA DE DATOS ---
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true); 
+      setLoading(true);
       try {
-        const [clientesRes, destinosRes, ubicacionesRes, despachosRes, provRes] = await Promise.all([
+        const [mercanciaoriginalRes, clientesRes, destinosRes, ubicacionesRes, despachosRes, provRes, sucursalesRes] = await Promise.all([
+          apiClient.get(`/api/inventario/mercancias/${id}/`),
           apiClient.get('/api/inventario/clientes/'),
           apiClient.get('/api/inventario/destinos/'),
           apiClient.get('/api/inventario/ubicaciones/'),
           apiClient.get('/api/inventario/despachos/'),
-          apiClient.get('/api/inventario/proveedores/')
+          apiClient.get('/api/inventario/proveedores/'),
+          apiClient.get('/api/usuarios/sucursales/')
         ]);
         const mercanciaRes = await apiClient.get(`/api/inventario/mercancias/${id}/`);
         const currentData = mercanciaRes.data;
+
 
         const ubicacionesFiltradas = ubicacionesRes.data.filter(u =>
           !u.estado_ocupado || u.id_ubicacion === currentData.id_ubicacion_actual
         );
 
+        setMercanciaOriginal(mercanciaoriginalRes.data);
         setClientes(clientesRes.data);
         setDestinos(destinosRes.data);
         setUbicaciones(ubicacionesFiltradas);
         setDespachos(despachosRes.data);
         setProveedores(provRes.data);
+        setSucursales(sucursalesRes.data);
 
         setFormData({
           id_cliente: currentData.id_cliente,
@@ -116,7 +124,7 @@ export default function MercanciaEdit() {
           showToast('No se pudo cargar la información necesaria.', 'error');
         }
       } finally {
-        setLoading(false); 
+        setLoading(false);
       }
     };
     fetchData();
@@ -133,7 +141,7 @@ export default function MercanciaEdit() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-    showLoader(); 
+    showLoader();
 
     const dataToSubmit = {
       ...formData,
@@ -161,9 +169,16 @@ export default function MercanciaEdit() {
       showToast('Error al actualizar la mercancía. Por favor revisa los datos.', 'error');
     } finally {
       setSubmitting(false);
-      hideLoader(); 
+      hideLoader();
     }
   };
+
+  const getNombreSucursal = (id) => {
+    if (!id) return 'Sin sucursal';
+    const sucursal = sucursales.find(s => String(s.id) === String(id));
+    return sucursal ? sucursal.nombre : `Suc ${id}`
+  }
+
 
   // --- RENDERIZADO ---
 
@@ -183,12 +198,24 @@ export default function MercanciaEdit() {
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-4xl mx-auto">
+        {user?.perfil?.sucursal_id && mercanciaOriginal?.sucursal_id && String(user.perfil.sucursal_id) !== String(mercanciaOriginal.sucursal_id) && (
+          <div className="mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg flex items-start gap-3 shadow-sm animate-fade-down animate-duration-300">
+            <Info className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-amber-800 font-bold text-sm">
+                Estás editando una mercancía de otra sucursal
+              </h3>
+              <p className="text-amber-700 text-xs mt-1">
+                Ten en cuenta que esta carga no pertenece a tu sucursal actual. Todo cambio, modificación o eliminación de información quedará estrictamente registrado en la auditoría del sistema.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Editar Mercancía #{id}</h1>
-            <p className="mt-2 text-sm text-gray-600">Modifica los detalles de la carga o actualiza su estado logístico.</p>
+            <h1 className="text-3xl font-bold text-gray-900">Mercancía #{id}</h1>
           </div>
           <Link to={`/mercancias/${id}`} className="hidden sm:flex items-center gap-2 text-gray-500 hover:text-gray-700 transition">
             <ArrowLeft className="w-4 h-4" /> Cancelar

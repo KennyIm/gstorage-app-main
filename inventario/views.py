@@ -24,7 +24,7 @@ from django.http import HttpResponse
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import PermissionDenied
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef
 from django.views.generic import (
     ListView, 
     DetailView, 
@@ -436,22 +436,33 @@ class DespachoListCreateAPI(generics.ListCreateAPIView):
         user = self.request.user
         empresa = get_empresa_from_user(self.request)
         perfil = user.perfil
+        
         actualizar_estados_automaticos(empresa)
-        qs = Despacho.objects.filter(empresa=empresa)
+
+        es_colaborador_subquery = PermisoColaboracion.objects.filter(
+            despacho_id=OuterRef('pk'),
+            usuario_invitado=user,
+            activo=True
+        )
+
+        qs = Despacho.objects.filter(empresa=empresa, activo=True).annotate(
+            es_colaborador=Exists(es_colaborador_subquery)
+        )
+
         sucursal_id_solicitada = self.request.query_params.get('sucursal_id')
 
         if perfil.rol == 'DUENO':
             if sucursal_id_solicitada and sucursal_id_solicitada != 'null':
                 qs = qs.filter(sucursal_id=sucursal_id_solicitada)
             return qs.order_by('-fecha_programada')
+
+        condicion_invitado = Q(es_colaborador=True)
+
         if sucursal_id_solicitada and sucursal_id_solicitada != 'null':
-            return qs.filter(sucursal_id=sucursal_id_solicitada).order_by('-fecha_programada')
+            condicion_sucursal = Q(sucursal_id=sucursal_id_solicitada)
+            return qs.filter(condicion_sucursal | condicion_invitado).distinct().order_by('-fecha_programada')
         else:
             condicion_propio = Q(sucursal=perfil.sucursal)
-            condicion_invitado = Q(
-                colaboradores_invitados__usuario_invitado=user,
-                colaboradores_invitados__activo=True
-            )
             return qs.filter(condicion_propio | condicion_invitado).distinct().order_by('-fecha_programada')
     
     def get_serializer_class(self):
@@ -515,20 +526,39 @@ class DespachoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     def perform_destroy(self, instance):
         user_perfil = self.request.user.perfil
 
+        if instance.estado_despacho == 'Finalizado':
+            raise ValidationError({
+                "error": "No se puede eliminar un despacho Finalizado. La mercancía ya fue entregada y borrarlo causaría inconsistencias graves en el inventario."
+            })
+
         if user_perfil.rol != 'DUENO' and instance.sucursal_id != user_perfil.sucursal_id:
             raise PermissionDenied("No tienes permisos para eliminar despachos de otras sucursales.")
 
         instance.activo = False
+        instance.estado_despacho = 'Eliminado'
         instance.id_usuario_ultima_modificacion = self.request.user
         instance.save()
         
+        Mercancia.objects.filter(id_despacho=instance).update(
+            id_despacho=None,
+            estado='En Bodega'
+        )
+        
+        if instance.id_camion:
+            instance.id_camion.estado_camion = 'DISPONIBLE'
+            instance.id_camion.save()
+            
+        if hasattr(instance, 'id_rampla') and instance.id_rampla:
+            instance.id_rampla.estado_rampla = 'Disponible'
+            instance.id_rampla.save()
+
         registrar_auditoria(
             empresa=instance.empresa,
             usuario=self.request.user,
             sucursal=self.request.user.perfil.sucursal,
             modelo="Despacho",
             accion="Eliminación",
-            descripcion=f"Se eliminó (lógico) al despacho: {instance.id_despacho}"
+            descripcion=f"Se eliminó (lógico) el despacho: {instance.id_despacho}. Se retornó su carga a bodega y se liberaron los vehículos."
         )
 
 # --- Vistas de API para Clientes ---

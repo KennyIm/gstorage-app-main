@@ -156,8 +156,7 @@ export default function DriversCatalog() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Catálogo de Conductores</h1>
-        <p className="text-gray-600">Registra y gestiona los conductores autorizados de la flota.</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Conductores</h1>
       </div>
 
       <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">

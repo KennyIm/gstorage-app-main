@@ -122,7 +122,6 @@ export default function CotizacionList() {
 
                 {/* ENCABEZADO Y CONTROLES */}
                 <div className="mb-8">
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tight">Cotizaciones</h1>
                 </div>
 
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-8 p-4 bg-white rounded-xl shadow-sm border border-gray-100">

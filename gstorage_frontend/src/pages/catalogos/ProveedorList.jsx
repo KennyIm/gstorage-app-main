@@ -197,7 +197,7 @@ export default function Proveedores() {
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 font-sans">
             <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Directorio de Proveedores</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">Proveedores</h1>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-100 flex flex-col sm:flex-row gap-4 justify-between items-center">

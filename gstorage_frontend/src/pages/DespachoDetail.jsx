@@ -330,7 +330,7 @@ export default function DespachoDetail() {
                   </div>
 
                   {/* Eliminar */}
-                  {!isReadOnly && (
+                  {!isReadOnly && despacho?.estado_despacho !== 'Finalizado' && (
                     <div className="p-1">
                       <MenuItem>
                         {({ focus }) => (

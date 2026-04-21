@@ -24,7 +24,7 @@ export default function MercanciaDetail() {
 
   const { id } = useParams();
   const navigate = useNavigate();
-  const { logoutUser } = useAuth();
+  const { user, logoutUser } = useAuth();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -114,6 +114,19 @@ export default function MercanciaDetail() {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-5xl mx-auto">
+        {user?.perfil?.sucursal_id && String(user.perfil.sucursal_id) !== String(mercancia.sucursal_id) && (
+          <div className="mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg flex items-start gap-3 shadow-sm animate-fade-down animate-duration-300">
+            <Info className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+            <div>
+              <h3 className="text-amber-800 font-bold text-sm">
+                Estás viendo una mercancía de otra sucursal
+              </h3>
+              <p className="text-amber-700 text-xs mt-1">
+                Esta carga pertenece a <strong>{getNombreSucursal(mercancia.sucursal_id)}</strong> (Tu sucursal actual es {getNombreSucursal(user.perfil.sucursal_id)}). Todo cambió o eliminación de información quedara registrado y almacenado.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Header de Navegación */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -131,7 +144,6 @@ export default function MercanciaDetail() {
                   {mercancia.estado}
                 </span>
               </div>
-              <p className="text-sm text-gray-500 mt-1">Detalle completo de la carga y su ubicación.</p>
             </div>
           </div>
 
