@@ -5,7 +5,6 @@ import math
 
 def actualizar_estados_automaticos(empresa):
     now = timezone.now()
-    # Buscamos despachos que NO estén finalizados y tengan fecha real asignada
     despachos_activos = Despacho.activos.filter(
         empresa=empresa,
         fecha_salida_real__isnull=False
@@ -17,26 +16,21 @@ def actualizar_estados_automaticos(empresa):
         cambio_realizado = False
         tiempo_transcurrido = now - d.fecha_salida_real
         
-        # --- AJUSTE DE TIEMPOS ---
-        # 4 horas para cargar/documentar + 1 día de viaje = 1 día y 4 horas total
         tiempo_carga = timedelta(hours=4) 
         tiempo_total_para_fin = timedelta(days=1, hours=4) 
 
-        # --- LÓGICA DE ESTADOS ---
 
-        # 1. FINALIZADO 
         if tiempo_transcurrido >= tiempo_total_para_fin:
             if d.estado_despacho != 'Finalizado':
                 d.estado_despacho = 'Finalizado'
                 
-                # Liberar Camión
                 if d.id_camion:
                     d.id_camion.estado_camion = 'DISPONIBLE'
                     d.id_camion.save()
                 
                 # Liberar Rampla 
                 if d.id_rampla:
-                    d.id_rampla.estado_rampla = 'Disponible'
+                    d.id_rampla.estado_rampla = 'DISPONIBLE'
                     d.id_rampla.save()
                 
                 cambio_realizado = True
@@ -53,7 +47,7 @@ def actualizar_estados_automaticos(empresa):
                 
                 # Ocupar Rampla 
                 if d.id_rampla:
-                    d.id_rampla.estado_rampla = 'En Uso'
+                    d.id_rampla.estado_rampla = 'EN_USO'
                     d.id_rampla.save()
                     
                 cambio_realizado = True
@@ -70,7 +64,7 @@ def actualizar_estados_automaticos(empresa):
                 
                 # Ocupar Rampla 
                 if d.id_rampla:
-                    d.id_rampla.estado_rampla = 'En Uso'
+                    d.id_rampla.estado_rampla = 'EN_USO'
                     d.id_rampla.save()
                 
                 cambio_realizado = True

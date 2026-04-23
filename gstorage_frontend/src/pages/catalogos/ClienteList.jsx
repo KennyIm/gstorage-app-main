@@ -204,6 +204,19 @@ export default function ClientsCatalog() {
     return `${cuerpoFormateado}-${dv}`;
   };
 
+  const getVisiblePages = (current, total) => {
+    if (total <= 5) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    if (current <= 3) {
+      return [1, 2, 3, 4, 5];
+    }
+    if (current >= total - 2) {
+      return [total - 4, total - 3, total - 2, total - 1, total];
+    }
+    return [current - 2, current - 1, current, current + 1, current + 2];
+  };
+
   // --- RENDER ---
   if (loading) {
     return (
@@ -368,7 +381,6 @@ export default function ClientsCatalog() {
               </span> de{' '}
               <span className="font-semibold">{filteredClients.length}</span> clientes
             </p>
-
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -377,16 +389,17 @@ export default function ClientsCatalog() {
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-
               <div className="flex gap-1">
-                {[...Array(totalPages)].map((_, i) => (
+                {getVisiblePages(currentPage, totalPages).map((page) => (
                   <button
-                    key={i + 1}
-                    onClick={() => setCurrentPage(i + 1)}
-                    className={`w-10 h-10 rounded-lg text-sm font-bold transition ${currentPage === i + 1 ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-indigo-50'
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-10 h-10 rounded-lg text-sm font-bold transition ${currentPage === page
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'text-gray-600 hover:bg-indigo-50'
                       }`}
                   >
-                    {i + 1}
+                    {page}
                   </button>
                 ))}
               </div>

@@ -134,13 +134,12 @@ export default function Proveedores() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        showLoader();
         if (!isValidRUT(formData.rut)) {
             setError('El RUT ingresado no es válido.');
             return;
         }
+        showLoader();
         setSubmitting(true);
-
         const cleanData = {
             ...formData,
             rut: formData.rut,
@@ -183,6 +182,19 @@ export default function Proveedores() {
             console.error(err)
             showToast('Error al cambiar el estado.', 'error');
         }
+    };
+
+    const getVisiblePages = (current, total) => {
+        if (total <= 5) {
+            return Array.from({ length: total }, (_, i) => i + 1);
+        }
+        if (current <= 3) {
+            return [1, 2, 3, 4, 5];
+        }
+        if (current >= total - 2) {
+            return [total - 4, total - 3, total - 2, total - 1, total];
+        }
+        return [current - 2, current - 1, current, current + 1, current + 2];
     };
 
     if (loading) {
@@ -308,14 +320,38 @@ export default function Proveedores() {
                         <p className="text-xs text-gray-500">
                             Mostrando {startIndex + 1} a {Math.min(startIndex + ITEMS_PER_PAGE, filteredProveedores.length)} de {filteredProveedores.length}
                         </p>
+
                         <div className="flex items-center gap-2">
-                            <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="p-1.5 border rounded-lg disabled:opacity-40"><ChevronLeft size={20} /></button>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="p-1.5 border rounded-lg disabled:opacity-40"
+                            >
+                                <ChevronLeft size={20} />
+                            </button>
+
                             <div className="flex gap-1">
-                                {[...Array(totalPages)].map((_, i) => (
-                                    <button key={i} onClick={() => setCurrentPage(i + 1)} className={`w-9 h-9 rounded-lg text-xs font-bold ${currentPage === i + 1 ? 'bg-indigo-600 text-white' : 'hover:bg-white border border-transparent'}`}>{i + 1}</button>
+                                {getVisiblePages(currentPage, totalPages).map((page) => (
+                                    <button
+                                        key={page}
+                                        onClick={() => setCurrentPage(page)}
+                                        className={`w-9 h-9 rounded-lg text-xs font-bold transition ${currentPage === page
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'text-gray-600 hover:bg-white border border-transparent'
+                                            }`}
+                                    >
+                                        {page}
+                                    </button>
                                 ))}
                             </div>
-                            <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="p-1.5 border rounded-lg disabled:opacity-40"><ChevronRight size={20} /></button>
+
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="p-1.5 border rounded-lg disabled:opacity-40"
+                            >
+                                <ChevronRight size={20} />
+                            </button>
                         </div>
                     </div>
                 )}

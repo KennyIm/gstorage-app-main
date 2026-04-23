@@ -62,10 +62,10 @@ class MercanciaListSerializer(serializers.ModelSerializer):
     def get_es_colaborador(self, obj):
         user = self.context.get('request').user
         if obj.id_despacho:
-            return obj.id_despacho.colaboradores_invitados.filter(
-                usuario_invitado=user, 
-                activo=True
-            ).exists()
+            colaboradores = obj.id_despacho.colaboradores_invitados.all()
+            for colab in colaboradores:
+                if colab.usuario_invitado_id == user.id and colab.activo:
+                    return True
         return False
 
 

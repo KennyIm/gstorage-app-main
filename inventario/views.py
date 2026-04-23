@@ -94,7 +94,15 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
     def get_queryset(self):
         user = self.request.user
         empresa = get_empresa_from_user(self.request)
-        qs = Mercancia.activos.filter(empresa=empresa)
+        qs = Mercancia.activos.filter(empresa=empresa).select_related(
+        'id_cliente',
+        'id_ubicacion_actual',
+        'id_destino',
+        'id_despacho__id_ruta', 
+        'id_proveedor'
+        ).prefetch_related(
+            'id_despacho__colaboradores_invitados'
+        )
         
         despacho_id = self.request.query_params.get('id_despacho')
         estado = self.request.query_params.get('estado')
@@ -1194,14 +1202,6 @@ class ProveedorRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
             accion="Eliminación",
             descripcion=f"Se eliminó (lógico) al proovedor: {instance.nombre_proveedor}"
         )
-
-class RamplaListCreateAPI(generics.ListCreateAPIView):
-    queryset = Rampla.activos.all()
-    serializer_class = RamplaSerializer
-
-class RamplaRetrieverUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Rampla.activos.all()
-    serializer_class = RamplaSerializer
 
 class RamplaListCreateAPI(generics.ListCreateAPIView):
     serializer_class = RamplaSerializer 

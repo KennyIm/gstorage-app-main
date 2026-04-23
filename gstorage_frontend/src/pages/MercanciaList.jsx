@@ -27,7 +27,8 @@ export default function MercanciaList() {
     fechaHasta: '',
     codigoInterno: '',
     destino: '',
-    despacho: ''
+    despacho: '',
+    factura: ''
   });
 
   // --- SELECCIÓN MASIVA ---
@@ -139,7 +140,8 @@ export default function MercanciaList() {
       fechaHasta: '',
       codigoInterno: '',
       destino: '',
-      despacho: ''
+      despacho: '',
+      factura: ''
     });
     setCurrentPage(1);
   };
@@ -177,8 +179,9 @@ export default function MercanciaList() {
     if (!item) return false;
     const matchCliente = filtros.cliente === '' || item.cliente_nombre === filtros.cliente;
     const matchEstado = filtros.estado === 'TODOS' || item.estado === filtros.estado;
-    const matchCodigo = filtros.codigoInterno === '' || String(item.codigo_interno || '').toLowerCase().includes(filtros.codigoInterno.toLowerCase());
+    const matchCodigo = !filtros.codigoInterno || String(item.codigo_interno || '').toLowerCase().includes(String(filtros.codigoInterno).toLowerCase());
     const matchDestino = filtros.destino === '' || item.destino_nombre === filtros.destino;
+    const matchFactura = !filtros.factura || String(item.factura || '').toLowerCase().includes(String(filtros.factura).toLowerCase());
     let matchDespacho = true;
     if (filtros.despacho !== '') {
       if (filtros.despacho === 'null') {
@@ -201,7 +204,7 @@ export default function MercanciaList() {
         if (itemDate >= hasta) matchFecha = false;
       }
     }
-    return matchCliente && matchEstado && matchCodigo && matchDestino && matchDespacho && matchFecha;
+    return matchCliente && matchEstado && matchCodigo && matchDestino && matchDespacho && matchFecha && matchFactura;
   });
 
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
@@ -323,6 +326,20 @@ export default function MercanciaList() {
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Factura</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    name="factura"
+                    placeholder="N° de Factura"
+                    value={filtros.factura}
+                    onChange={handleFiltroChange}
+                    className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm"
+                  />
+                </div>
+              </div>
               {/* Código Interno */}
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Código Interno</label>

@@ -90,7 +90,8 @@ export default function RamplaList() {
 
     try {
       if (editingRampla) {
-        await apiClient.put(`/api/inventario/ramplas/${editingRampla.id_rampla}/`, formData);
+        const ramplaId = editingRampla.id || editingRampla.id_rampla;
+        await apiClient.put(`/api/inventario/ramplas/${ramplaId}/`, formData);
         showToast('Registro actualizado con éxito', 'success');
       } else {
         await apiClient.post('/api/inventario/ramplas/', formData);
@@ -107,14 +108,32 @@ export default function RamplaList() {
   };
 
   const handleDelete = async (id) => {
+    const ramplaId = rampla.id || rampla.id_rampla;
     if (window.confirm('¿Está seguro de eliminar esta rampla?')) {
       try {
-        await apiClient.delete(`/api/inventario/ramplas/${id}/`);
+        await apiClient.delete(`/api/inventario/ramplas/${ramplaId}/`);
         fetchRamplas();
       } catch (err) {
         showToast('Error al eliminar la rampla. Puede que esté asociada a un despacho.', 'error');
       }
     }
+  };
+
+  const getEstadoBadge = (estado) => {
+    const estilos = {
+      'DISPONIBLE': 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+      'EN_USO': 'bg-blue-100 text-blue-700 border border-blue-200',
+      'MANTENIMIENTO': 'bg-amber-100 text-amber-700 border border-amber-200'
+    };
+
+    const estiloAplicado = estilos[estado] || 'bg-gray-100 text-gray-700 border border-gray-200';
+    const textoFormateado = estado ? estado.replace('_', ' ') : 'DESCONOCIDO';
+
+    return (
+      <span className={`px-3 py-1 rounded-full text-xs font-bold ${estiloAplicado}`}>
+        {textoFormateado}
+      </span>
+    );
   };
 
   // --- RENDERIZADO ---
@@ -170,7 +189,7 @@ export default function RamplaList() {
             </thead>
             <tbody>
               {filteredRamplas.map((rampla) => (
-                <tr key={rampla.id_rampla} className="border-b border-gray-100 hover:bg-gray-50 transition">
+                <tr key={rampla.id || rampla.id_rampla} className="border-b border-gray-100 hover:bg-gray-50 transition">
                   <td className="py-4 px-4">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
@@ -190,12 +209,7 @@ export default function RamplaList() {
                   </td>
                   <td className="py-4 px-4 text-gray-600">{rampla.anio || '-'}</td>
                   <td className="py-4 px-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${rampla.estado_rampla === 'DISPONIBLE' ? 'bg-green-100 text-green-700' :
-                      rampla.estado_rampla === 'EN_USO' ? 'bg-blue-100 text-blue-700' :
-                        'bg-red-100 text-red-700'
-                      }`}>
-                      {rampla.estado_rampla?.replace('_', ' ')}
-                    </span>
+                    {getEstadoBadge(rampla.estado_rampla)}
                   </td>
                   <td className="py-4 px-4">
                     <div className="flex items-center justify-end gap-2">
@@ -207,7 +221,7 @@ export default function RamplaList() {
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(rampla.id_rampla)}
+                        onClick={() => handleDelete(rampla)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
                         title="Eliminar"
                       >
