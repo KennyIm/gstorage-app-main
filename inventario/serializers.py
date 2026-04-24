@@ -56,7 +56,8 @@ class MercanciaListSerializer(serializers.ModelSerializer):
             'sucursal_id',
             'numero_orden_entrega',
             'es_colaborador',
-            'id_ruta',        
+            'id_ruta',
+            'direccion_entrega'        
         ]
     
     def get_es_colaborador(self, obj):
@@ -81,7 +82,7 @@ class MercanciaWriteSerializer(serializers.ModelSerializer):
             'estado', 'id_despacho', 
             'motivo_baja', 'precio_total','id_usuario_creacion_id','id_proveedor','factura','tipo'
             ,'paga_proveedor','codigo_interno','sucursal_id','numero_orden_entrega','creador_nombre',
-            'ultima_modificacion', 'colaboradores_activos'   
+            'ultima_modificacion', 'colaboradores_activos','direccion_entrega'   
         ]
         read_only_fields = ['empresa', 'sucursal', 'sucursal_id', 'id_usuario_creacion']
     

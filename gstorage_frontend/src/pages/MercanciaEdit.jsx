@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Select from 'react-select';
+import CreatableSelect from 'react-select/creatable';
 import { useUI } from '../context/UIContext';
 import {
   Save, ArrowLeft, User, MapPin, Map, Package, Scale, Box, FileText,
@@ -30,6 +31,7 @@ export default function MercanciaEdit() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const { showLoader, hideLoader, showToast } = useUI();
+  const [direccionesSugeridas, setDireccionesSugeridas] = useState([]);
 
   // --- LÓGICA DE CÁLCULO DE PRECIO ---
   const calcularPrecioLogica = () => {
@@ -66,6 +68,24 @@ export default function MercanciaEdit() {
       }
     }
   }, [formData?.kg, formData?.m3, formData?.id_cliente, clientes]);
+
+  const cargarDireccionesDelCliente = async (clienteId) => {
+    if (!clienteId) {
+      setDireccionesSugeridas([]);
+      return;
+    }
+    try {
+      const response = await apiClient.get(`/api/inventario/clientes/${clienteId}/direcciones/`);
+      const suggestions = response.data.map(dir => ({
+        label: String(dir),
+        value: String(dir)
+      }));
+      setDireccionesSugeridas(suggestions);
+    } catch (err) {
+      console.error("Error cargando direcciones en edición", err);
+      setDireccionesSugeridas([]);
+    }
+  };
 
 
   // --- CARGA DE DATOS ---
@@ -113,8 +133,12 @@ export default function MercanciaEdit() {
           factura: currentData.factura || '',
           tipo: currentData.tipo || '',
           paga_proveedor: currentData.paga_proveedor || false,
-          codigo_interno: currentData.codigo_interno || ''
+          codigo_interno: currentData.codigo_interno || '',
+          direccion_entrega: currentData.direccion_entrega || ''
         });
+        if (currentData.id_cliente) {
+          cargarDireccionesDelCliente(currentData.id_cliente);
+        }
       } catch (err) {
         if (err.response && err.response.status === 401) {
           showToast('Credenciales de autenticación no válidas, por favor ingrese de nuevo.', 'error');
@@ -157,7 +181,8 @@ export default function MercanciaEdit() {
       factura: formData.factura || null,
       tipo: formData.tipo || null,
       paga_proveedor: formData.paga_proveedor || false,
-      codigo_interno: formData.codigo_interno || null
+      codigo_interno: formData.codigo_interno || null,
+      direccion_entrega: formData.direccion_entrega || null
     };
 
     try {
@@ -246,17 +271,21 @@ export default function MercanciaEdit() {
                           value: c.id_cliente,
                           label: c.nombre_cliente
                         }))}
-                        value={clientes.find(c => c.id_cliente === formData.id_cliente) ? {
-                          value: formData.id_cliente,
-                          label: clientes.find(c => c.id_cliente === formData.id_cliente).nombre_cliente
-                        } : null}
-                        onChange={(opcion) => {
-                          handleChange({
-                            target: {
-                              name: 'id_cliente',
-                              value: opcion ? opcion.value : ''
+                        value={
+                          formData.id_cliente && clientes.find(c => String(c.id_cliente) === String(formData.id_cliente))
+                            ? {
+                              value: formData.id_cliente,
+                              label: clientes.find(c => String(c.id_cliente) === String(formData.id_cliente)).nombre_cliente
                             }
+                            : null
+                        }
+                        onChange={(opcion) => {
+                          const nuevoId = opcion ? opcion.value : '';
+                          handleChange({
+                            target: { name: 'id_cliente', value: nuevoId }
                           });
+                          setFormData(prev => ({ ...prev, direccion_entrega: '' }));
+                          cargarDireccionesDelCliente(nuevoId);
                         }}
                         isClearable
                       />
@@ -329,6 +358,28 @@ export default function MercanciaEdit() {
                       />
                     </div>
                   </div>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Dirección de Entrega</label>
+                  <CreatableSelect
+                    isClearable
+                    isDisabled={!formData.id_cliente}
+                    options={direccionesSugeridas}
+                    value={
+                      formData.direccion_entrega
+                        ? { label: formData.direccion_entrega, value: formData.direccion_entrega }
+                        : null
+                    }
+                    onChange={(opt) => {
+                      setFormData({
+                        ...formData,
+                        direccion_entrega: opt ? opt.value : ''
+                      });
+                    }}
+                    placeholder="Seleccione o escriba dirección..."
+                    formatCreateLabel={(inputValue) => `Usar nueva dirección: "${inputValue}"`}
+                    styles={{ menu: (base) => ({ ...base, zIndex: 9999 }) }}
+                  />
                 </div>
               </div>
             </div>

@@ -54,16 +54,38 @@ export default function OrdenEntregaPlantilla() {
                 const gruposPorClienteYDestino = mercanciasDelViaje.reduce((acc, carga) => {
                     const nombreCliente = carga.cliente_nombre || 'Sin Cliente';
                     const nombreDestino = carga.destino_nombre || 'No especificado';
-                    const claveGrupo = `${nombreCliente}_${nombreDestino}`;
+                    const cliente = clientesData.find(c => String(c.id_cliente) === String(carga.id_cliente));
 
-                    if (!acc[claveGrupo]) acc[claveGrupo] = [];
-                    acc[claveGrupo].push(carga);
+                    let esAlternativa = false;
+                    let dirEntrega = carga.direccion_entrega ? carga.direccion_entrega.trim().toLowerCase() : "";
+
+                    if (cliente && dirEntrega) {
+                        const dir1 = cliente.direccion ? cliente.direccion.trim().toLowerCase() : "";
+                        const dir2 = cliente.direccion2 ? cliente.direccion2.trim().toLowerCase() : "";
+
+                        if (dirEntrega !== dir1 && dirEntrega !== dir2) {
+                            esAlternativa = true;
+                        }
+                    }
+                    const sufijoAlternativa = esAlternativa ? `_ALT_${carga.direccion_entrega}` : '_MAIN';
+                    const claveGrupo = `${nombreCliente}_${nombreDestino}${sufijoAlternativa}`;
+
+                    if (!acc[claveGrupo]) {
+                        acc[claveGrupo] = {
+                            cargas: [],
+                            esAlternativa: esAlternativa,
+                            direccionUsada: carga.direccion_entrega
+                        };
+                    }
+                    acc[claveGrupo].cargas.push(carga);
                     return acc;
                 }, {});
+
                 const paginasCalculadas = [];
 
                 Object.keys(gruposPorClienteYDestino).forEach(claveGrupo => {
-                    const cargasTotales = gruposPorClienteYDestino[claveGrupo];
+                    const infoGrupo = gruposPorClienteYDestino[claveGrupo];
+                    const cargasTotales = infoGrupo.cargas;
                     const cargasCliente = cargasTotales.filter(c => !c.paga_proveedor);
                     const cargasProveedor = cargasTotales.filter(c => c.paga_proveedor);
 
@@ -91,7 +113,9 @@ export default function OrdenEntregaPlantilla() {
                                 paginaActual: numPaginaActual,
                                 totalPaginas: totalPaginas,
                                 esUltimaPaginaDelCliente: numPaginaActual === totalPaginas,
-                                esPagaProveedor: esPagaProveedor
+                                esPagaProveedor: esPagaProveedor,
+                                esAlternativa: infoGrupo.esAlternativa,
+                                direccionAlternativa: infoGrupo.direccionUsada,
                             });
                         }
                     };
@@ -224,12 +248,14 @@ export default function OrdenEntregaPlantilla() {
                     const destinoNombre = pagina.destino || '';
                     const ciudadSecundaria = pagina.clienteObj.ciudad2 || '';
 
-                    let direccionMostrar = pagina.clienteObj.direccion || 'Sin dirección';
-                    let ciudadMostrar = pagina.clienteObj.ciudad || 'Sin ciudad';
+                    const ciudadMostrar = destinoNombre || 'Sin ciudad';
 
-                    if (ciudadSecundaria && destinoNombre.toLowerCase().includes(ciudadSecundaria.toLowerCase())) {
+                    let direccionMostrar = pagina.clienteObj.direccion || 'Sin dirección';
+                    if (pagina.esAlternativa && pagina.direccionAlternativa) {
+                        direccionMostrar = pagina.direccionAlternativa;
+                    }
+                    else if (ciudadSecundaria && destinoNombre.toLowerCase().includes(ciudadSecundaria.toLowerCase())) {
                         direccionMostrar = pagina.clienteObj.direccion2 || direccionMostrar;
-                        ciudadMostrar = pagina.clienteObj.ciudad2 || ciudadMostrar;
                     }
                     return (
                         <React.Fragment key={`pagina-wrapper-${index}`}>

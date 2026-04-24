@@ -22,6 +22,7 @@ urlpatterns = [
     # --- Endpoints de Cliente ---
     path('clientes/', views.ClienteListCreateAPI.as_view(), name='api-cliente-list-create'),
     path('clientes/<int:pk>/', views.ClienteDetailAPI.as_view(), name='api-cliente-detail'),
+    path('clientes/<int:id_cliente>/direcciones/', views.sugerencias_direcciones, name='cliente-direcciones'),
     
     # --- Endpoints de Conductor ---
     path('conductores/', views.ConductorListCreateAPI.as_view(), name='api-conductor-list-create'),

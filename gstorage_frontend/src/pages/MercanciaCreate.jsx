@@ -4,6 +4,7 @@ import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Select from 'react-select';
 import { useUI } from '../context/UIContext';
+import CreatableSelect from 'react-select/creatable';
 import {
   Save, X, NotebookPen, User, MapPin, Map, Package, Scale, Box, FileText, AlertCircle, Loader2, ArrowLeft, Truck
 } from 'lucide-react';
@@ -38,13 +39,9 @@ export default function MercanciaCreate() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const { showLoader, hideLoader, showToast } = useUI();
+  const [direccionesSugeridas, setDireccionesSugeridas] = useState([]);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    apiClient.get('/api/inventario/clientes/')
-      .then(res => setClientes(res.data))
-      .catch(err => console.error(err));
-  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -133,7 +130,9 @@ export default function MercanciaCreate() {
       factura: formData.factura || null,
       tipo: formData.tipo || null,
       paga_proveedor: formData.paga_proveedor || false,
-      codigo_interno: formData.codigo_interno || null
+      codigo_interno: formData.codigo_interno || null,
+
+      direccion_entrega: formData.direccion_entrega || null,
     };
 
     try {
@@ -147,6 +146,38 @@ export default function MercanciaCreate() {
     } finally {
       setSubmitting(false);
       hideLoader();
+    }
+  };
+
+  const handleClienteChange = async (selectedOption) => {
+    if (!selectedOption) {
+      setFormData(prev => ({ ...prev, id_cliente: '', direccion_entrega: '' }));
+      setDireccionesSugeridas([]);
+      return;
+    }
+
+    const clienteId = selectedOption.value;
+
+    setFormData(prev => ({ ...prev, id_cliente: clienteId }));
+
+    try {
+      const response = await apiClient.get(`/api/inventario/clientes/${clienteId}/direcciones/`);
+      const suggestions = response.data.map(dir => ({
+        label: String(dir),
+        value: String(dir)
+      }));
+      
+      setDireccionesSugeridas(suggestions);
+
+      if (suggestions.length > 0) {
+        setFormData(prev => ({ ...prev, id_cliente: clienteId, direccion_entrega: suggestions[0].value }));
+      } else {
+        setFormData(prev => ({ ...prev, id_cliente: clienteId, direccion_entrega: '' }));
+      }
+      
+    } catch (err) {
+      console.error("La petición falló:", err);
+      setDireccionesSugeridas([]);
     }
   };
 
@@ -210,14 +241,7 @@ export default function MercanciaCreate() {
                           value: formData.id_cliente,
                           label: clientes.find(c => c.id_cliente === formData.id_cliente).nombre_cliente
                         } : null}
-                        onChange={(opcionSeleccionada) => {
-                          handleChange({
-                            target: {
-                              name: 'id_cliente',
-                              value: opcionSeleccionada ? opcionSeleccionada.value : ''
-                            }
-                          });
-                        }}
+                        onChange={handleClienteChange}
                         isClearable
                       />
                     </div>
@@ -286,6 +310,18 @@ export default function MercanciaCreate() {
                       </div>
                     </div>
                   </div>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Dirección de Entrega</label>
+                  <CreatableSelect
+                    isClearable
+                    isDisabled={!formData.id_cliente}
+                    options={direccionesSugeridas}
+                    value={formData.direccion_entrega ? { label: formData.direccion_entrega, value: formData.direccion_entrega } : null}
+                    onChange={(opt) => setFormData({ ...formData, direccion_entrega: opt ? opt.value : '' })}
+                    placeholder="Seleccione o escriba dirección..."
+                    formatCreateLabel={(inputValue) => `Usar nueva dirección: "${inputValue}"`}
+                  />
                 </div>
               </div>
             </div>

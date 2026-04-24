@@ -118,11 +118,28 @@ def generar_numeros_orden_despacho(despacho):
         if clave not in grupos:
             grupos[clave] = {
                 'normales': [],
-                'proveedor': []
+                'proveedor': [],
+                'normales_alt': [],
+                'proveedor_alt': []
             }
             
-        if getattr(m, 'paga_proveedor', False):
+        es_alternativa = False
+        if m.direccion_entrega:
+            dir_entrega = m.direccion_entrega.strip().lower()
+            dir1 = m.id_cliente.direccion.strip().lower() if m.id_cliente and getattr(m.id_cliente, 'direccion') else ""
+            dir2 = m.id_cliente.direccion2.strip().lower() if m.id_cliente and getattr(m.id_cliente, 'direccion2', None) else ""
+            
+            if dir_entrega and dir_entrega != dir1 and dir_entrega != dir2:
+                es_alternativa = True
+
+        es_proveedor = getattr(m, 'paga_proveedor', False)
+
+        if es_proveedor and es_alternativa:
+            grupos[clave]['proveedor_alt'].append(m)
+        elif es_proveedor and not es_alternativa:
             grupos[clave]['proveedor'].append(m)
+        elif not es_proveedor and es_alternativa:
+            grupos[clave]['normales_alt'].append(m)
         else:
             grupos[clave]['normales'].append(m)
 
@@ -137,32 +154,47 @@ def generar_numeros_orden_despacho(despacho):
     orden_index = 1
     mercancias_a_actualizar = []
 
-    def procesar_lista(lista_cargas, es_proveedor, index_actual, destino_nombre):
+    def procesar_lista(lista_cargas, es_proveedor, es_alternativa, index_actual, destino_nombre):
         if not lista_cargas:
             return
             
-        inicial_destino = str(destino_nombre)[0].upper() if destino_nombre else 'I'
-        sufijo = "-P" if es_proveedor else ""
+        destino_upper = str(destino_nombre).strip().upper() if destino_nombre else 'I'
+        
+        if destino_upper == 'CALAMA':
+            inicial_destino = 'CA'
+        else:
+            inicial_destino = destino_upper[0] if destino_upper else 'I'
+
+        sufijo_alt = "-A" if es_alternativa else ""
+        sufijo_prov = "-P" if es_proveedor else ""
+        sufijo_final = f"{sufijo_alt}{sufijo_prov}"
+        
         total_items = len(lista_cargas)
+        
         total_paginas = math.ceil(total_items / 10.0)
 
         for idx, m in enumerate(lista_cargas):
             pagina_actual = (idx // 10) + 1
             
             if total_paginas > 1:
-                codigo = f"{inicial_origen}{numero_ruta}-{index_actual}-{pagina_actual}{inicial_destino}{sufijo}"
+                codigo = f"{inicial_origen}{numero_ruta}-{index_actual}-{pagina_actual}{inicial_destino}{sufijo_final}"
             else:
-                codigo = f"{inicial_origen}{numero_ruta}-{index_actual}{inicial_destino}{sufijo}"
+                codigo = f"{inicial_origen}{numero_ruta}-{index_actual}{inicial_destino}{sufijo_final}"
             
             m.numero_orden_entrega = codigo
             mercancias_a_actualizar.append(m)
 
     for clave, data in grupos.items():
-        todas = data['normales'] + data['proveedor']
-        destino_str = getattr(todas[0].id_destino, 'nombre_ciudad', 'Iquique') if todas else 'Iquique'
+        todas = data['normales'] + data['proveedor'] + data['normales_alt'] + data['proveedor_alt']
+        if not todas:
+            continue
+            
+        destino_str = getattr(todas[0].id_destino, 'nombre_ciudad', 'Iquique')
         
-        procesar_lista(data['normales'], False, orden_index, destino_str)
-        procesar_lista(data['proveedor'], True, orden_index, destino_str)
+        procesar_lista(data['normales'], False, False, orden_index, destino_str)
+        procesar_lista(data['proveedor'], True, False, orden_index, destino_str)
+        procesar_lista(data['normales_alt'], False, True, orden_index, destino_str)
+        procesar_lista(data['proveedor_alt'], True, True, orden_index, destino_str)
         
         orden_index += 1
 

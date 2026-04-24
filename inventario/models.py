@@ -325,6 +325,7 @@ class Mercancia(models.Model):
     factura = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número de Factura")
     tipo = models.CharField(max_length=50, blank=True, null=True, verbose_name="Tipo de carga")
     codigo_interno= models.CharField(max_length=50,  blank=True, null=True, verbose_name="Código Interno Bodega")
+    direccion_entrega = models.CharField(max_length=255, null=True, blank=True, verbose_name="Dirección de entrega", help_text="Dirección específica de entrega para esta carga")
     
     id_cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, verbose_name="Cliente")
     id_ubicacion_actual = models.ForeignKey(Ubicacion, on_delete=models.SET_NULL, null=True, blank=True, related_name='mercancias_en_ubicacion')

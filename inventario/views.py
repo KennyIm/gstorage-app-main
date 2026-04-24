@@ -53,6 +53,7 @@ from .serializers import (
 from usuarios.permissions import IsAdminEmpresa, IsJefeDeBodega, IsOperario
 
 from django.contrib.auth.models import User
+from rest_framework.decorators import api_view, permission_classes
 
 from django import forms
 
@@ -86,6 +87,35 @@ def filtrar_por_sucursal_y_empresa(queryset, request):
                 return queryset.none()
             
     return qs
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def sugerencias_direcciones(request, id_cliente):
+    cliente = get_object_or_404(Cliente, pk=id_cliente)
+    direcciones = []
+
+    if cliente.direccion and cliente.direccion.strip():
+        direcciones.append(cliente.direccion.strip())
+        
+    if getattr(cliente, 'direccion2', None) and cliente.direccion2.strip():
+        if cliente.direccion2.strip() not in direcciones: 
+            direcciones.append(cliente.direccion2.strip())
+
+    historicas = Mercancia.objects.filter(
+        id_cliente=id_cliente
+    ).exclude(
+        direccion_entrega__isnull=True
+    ).exclude(
+        direccion_entrega__exact=''
+    ).values_list('direccion_entrega', flat=True).distinct()
+
+    for dir_hist in historicas:
+        dir_hist_clean = dir_hist.strip()
+        if dir_hist_clean and dir_hist_clean not in direcciones:
+            direcciones.append(dir_hist_clean)
+
+    # Devolvemos el array a React
+    return Response(direcciones)
 # --- Vistas de API para Mercancia ---
 
 class MercanciaListCreateAPI(generics.ListCreateAPIView):
