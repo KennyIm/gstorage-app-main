@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Package, Box, FileText, History, Truck, LayoutDashboard } from 'lucide-react';
 
 export default function Home() {
-  document.title = "Inicio";
+  document.title = "Inicio - GStorage";
   const navigate = useNavigate();
 
   const features = [
@@ -39,14 +39,14 @@ export default function Home() {
       color: 'bg-purple-500',
       hoverColor: 'hover:bg-purple-600',
     }*/,
-    {
+    /*{
       id: 'reportes', // Ruta: /reportes
       title: 'Generación de Reportes',
       description: 'Crea y descarga reportes detallados y manifiestos de carga.',
       icon: FileText,
       color: 'bg-green-500',
       hoverColor: 'hover:bg-green-600',
-    },
+    }*/,
     {
       id: 'historial', // Ruta: /historial 
       title: 'Historial de Cambios',

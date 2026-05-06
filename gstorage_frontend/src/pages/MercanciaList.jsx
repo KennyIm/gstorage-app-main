@@ -10,7 +10,7 @@ import MermaModal from '../components/MermaModal';
 import { useUI } from '../context/UIContext';
 
 export default function MercanciaList() {
-  document.title = "Listado de Mercancias";
+  document.title = "Listado de Mercancias - GStorage";
   const [mercancias, setMercancias] = useState([]);
   const { showLoader, hideLoader, showToast } = useUI();
   const [searchTerm, setSearchTerm] = useState('');

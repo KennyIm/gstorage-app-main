@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 export default function DespachoList() {
-  document.title = "Listado de Despachos";
+  document.title = "Listado de Despachos - GStorage";
   const [despachos, setDespachos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -59,7 +59,6 @@ export default function DespachoList() {
           apiClient.get('/api/usuarios/sucursales/')
         ]);
 
-        console.log("Primer despacho recibido:", despRes.data[0]);
         setDespachos(despRes.data);
         setSucursales(sucurRes.data);
       } catch (err) {
@@ -374,7 +373,7 @@ export default function DespachoList() {
                 )}
 
                 <button
-                  onClick={limpiarFiltros} // Asegúrate de tener esta función definida en tu componente
+                  onClick={limpiarFiltros} 
                   className="text-sm text-gray-500 hover:text-red-700 flex items-center gap-1 font-medium transition"
                 >
                   <X className="w-4 h-4" /> Limpiar Todo
@@ -389,7 +388,7 @@ export default function DespachoList() {
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Ruta</label>
                 <Select
                   name="ruta"
-                  options={opcionesRutas} // [{value: 1, label: 'RT-155 (Santiago - Iquique)'}, ...]
+                  options={opcionesRutas}
                   value={opcionRutaSeleccionada}
                   isClearable={true}
                   isSearchable={true}
@@ -399,7 +398,7 @@ export default function DespachoList() {
                   onChange={(opcion) => {
                     handleFiltroChange({ target: { name: 'ruta', value: opcion ? opcion.value : '' } });
                   }}
-                  styles={selectStyles} // Asume que extrajiste los estilos a una constante (ver abajo)
+                  styles={selectStyles} 
                 />
               </div>
 
@@ -408,7 +407,7 @@ export default function DespachoList() {
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Camión</label>
                 <Select
                   name="camion"
-                  options={opcionesCamiones} // [{value: 4, label: 'Patente: AB-CD-12'}, ...]
+                  options={opcionesCamiones} 
                   value={opcionCamionSeleccionada}
                   isClearable={true}
                   isSearchable={true}
@@ -427,7 +426,7 @@ export default function DespachoList() {
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Conductor</label>
                 <Select
                   name="conductor"
-                  options={opcionesConductores} // [{value: 2, label: 'Juan Pérez'}, ...]
+                  options={opcionesConductores}
                   value={opcionConductorSeleccionada}
                   isClearable={true}
                   isSearchable={true}

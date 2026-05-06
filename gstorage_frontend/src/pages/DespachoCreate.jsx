@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 
 export default function DespachoCreate() {
-  document.title = "Creación de Despachos";
+  document.title = "Creación de Despachos - GStorage";
   const [formData, setFormData] = useState({
     fecha_programada: '',
     id_camion: '',
@@ -166,7 +166,7 @@ export default function DespachoCreate() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label htmlFor="fecha_programada" className="block text-sm font-medium text-gray-700 mb-1">Fecha Programada *</label>
+                  <label htmlFor="fecha_programada" className="block text-sm font-medium text-gray-700 mb-1">Fecha Programada</label>
                   <div className="relative">
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                     <input
@@ -210,7 +210,7 @@ export default function DespachoCreate() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2 relative z-40">
-                  <label htmlFor="id_ruta" className="block text-sm font-medium text-gray-700 mb-1">Ruta Asignada *</label>
+                  <label htmlFor="id_ruta" className="block text-sm font-medium text-gray-700 mb-1">Ruta Asignada</label>
                   <div className="relative">
                     <div>
                       <Select
@@ -290,7 +290,7 @@ export default function DespachoCreate() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* --- SELECTOR CAMIÓN --- */}
                   <div className="relative z-20">
-                    <label htmlFor="id_camion" className="block text-sm font-medium text-gray-700 mb-1">Camión *</label>
+                    <label htmlFor="id_camion" className="block text-sm font-medium text-gray-700 mb-1">Camión</label>
                     <div className="relative">
                       <div className="">
                         <Select
@@ -322,7 +322,7 @@ export default function DespachoCreate() {
 
                   {/* --- SELECTOR RAMPLA --- */}
                   <div className="relative z-20">
-                    <label htmlFor="id_rampla" className="block text-sm font-medium text-gray-700 mb-1">Rampla *</label>
+                    <label htmlFor="id_rampla" className="block text-sm font-medium text-gray-700 mb-1">Rampla</label>
                     <div className="relative">
                       <div className="">
                         <Select
@@ -354,7 +354,7 @@ export default function DespachoCreate() {
 
                   {/* --- SELECTOR CONDUCTOR --- */}
                   <div className="relative z-10">
-                    <label htmlFor="id_conductor" className="block text-sm font-medium text-gray-700 mb-1">Conductor *</label>
+                    <label htmlFor="id_conductor" className="block text-sm font-medium text-gray-700 mb-1">Conductor</label>
                     <div className="relative">
                       <div className="">
                         <Select

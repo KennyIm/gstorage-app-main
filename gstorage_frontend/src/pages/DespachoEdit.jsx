@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 
 export default function DespachoEdit() {
-  document.title = "Editor de Despachos";
+  document.title = "Editor de Despachos - GStorage";
   const { id } = useParams();
   const navigate = useNavigate();
   const { logoutUser } = useAuth();
@@ -332,7 +332,7 @@ export default function DespachoEdit() {
 
                 {/* --- CAMPO RAMPLA --- */}
                 <div className="relative z-[20]">
-                  <label htmlFor="id_rampla" className="block text-sm font-medium text-gray-700 mb-1">Rampla *</label>
+                  <label htmlFor="id_rampla" className="block text-sm font-medium text-gray-700 mb-1">Rampla</label>
                   <div className="relative">
                     <div className="">
                       <Select

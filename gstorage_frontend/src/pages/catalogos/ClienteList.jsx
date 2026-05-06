@@ -17,7 +17,7 @@ import {
 } from '../../utils/normalization';
 
 export default function ClientsCatalog() {
-  document.title = "Gestión de Clientes";
+  document.title = "Gestión de Clientes - GStorage";
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -145,6 +145,10 @@ export default function ClientsCatalog() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!isValidRUT(formData.rut_cliente)) {
+      setError('El Rut ingresado no es valido')
+      return
+    }
     showLoader();
     const cleanData = {
       ...formData,
@@ -170,7 +174,7 @@ export default function ClientsCatalog() {
       fetchClients();
     } catch (err) {
       console.error(err);
-      showToast('Error al guardar el cliente. Verifique los datos.', 'error');
+      showToast(err.response?.data?.rut_cliente ? 'El RUT ingresado ya existe o no es válido.' : 'Error al guardar el cliente.', 'error');
     } finally {
       hideLoader();
     }
@@ -202,6 +206,31 @@ export default function ClientsCatalog() {
     const dv = valor.slice(-1).toUpperCase();
     const cuerpoFormateado = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
     return `${cuerpoFormateado}-${dv}`;
+  };
+
+  const formatRUT = (rut) => {
+    let value = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+    if (value.length <= 1) return value;
+    const body = value.slice(0, -1);
+    const dv = value.slice(-1);
+    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return `${formattedBody}-${dv}`;
+  };
+
+  const isValidRUT = (rut) => {
+    const cleanRUT = rut.replace(/[^0-9kK]/g, '').toUpperCase();
+    if (cleanRUT.length < 7) return false;
+    const body = cleanRUT.slice(0, -1);
+    const dv = cleanRUT.slice(-1);
+    let sum = 0;
+    let multiplier = 2;
+    for (let i = body.length - 1; i >= 0; i--) {
+      sum += parseInt(body.charAt(i)) * multiplier;
+      multiplier = multiplier === 7 ? 2 : multiplier + 1;
+    }
+    const expectedDV = 11 - (sum % 11);
+    const finalDV = expectedDV === 11 ? '0' : expectedDV === 10 ? 'K' : expectedDV.toString();
+    return dv === finalDV;
   };
 
   const getVisiblePages = (current, total) => {
@@ -395,8 +424,8 @@ export default function ClientsCatalog() {
                     key={page}
                     onClick={() => setCurrentPage(page)}
                     className={`w-10 h-10 rounded-lg text-sm font-bold transition ${currentPage === page
-                        ? 'bg-indigo-600 text-white shadow-md'
-                        : 'text-gray-600 hover:bg-indigo-50'
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'text-gray-600 hover:bg-indigo-50'
                       }`}
                   >
                     {page}
@@ -467,8 +496,13 @@ export default function ClientsCatalog() {
                         <input
                           type="text"
                           value={formData.rut_cliente}
-                          onBlur={(e) => setFormData({ ...formData, rut_cliente: normalizeRUT(e.target.value) })}
-                          onChange={(e) => setFormData({ ...formData, rut_cliente: e.target.value })}
+                          // 👇 Eliminamos onBlur y formateamos directamente en el onChange
+                          onChange={(e) => {
+                            const rutFormateado = formatRUT(e.target.value);
+                            setFormData({ ...formData, rut_cliente: rutFormateado });
+                          }}
+                          // 👇 Agregamos el límite visual del RUT
+                          maxLength={12}
                           className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                           placeholder="12.345.678-9"
                         />
@@ -532,7 +566,7 @@ export default function ClientsCatalog() {
                         <input
                           type="text"
                           value={formData.direccion}
-                          onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
+                          onChange={(e) => setFormData({ ...formData, direccion: e.target.value.toUpperCase() })}
                           className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                           placeholder="Ej: Av. Los Leones 123"
                         />
@@ -561,7 +595,7 @@ export default function ClientsCatalog() {
                         <input
                           type="text"
                           value={formData.direccion2}
-                          onChange={(e) => setFormData({ ...formData, direccion2: e.target.value })}
+                          onChange={(e) => setFormData({ ...formData, direccion2: e.target.value.toUpperCase() })}
                           className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
                           placeholder="Ej: Av. Prat 123"
                         />

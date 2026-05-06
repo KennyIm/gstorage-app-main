@@ -63,6 +63,7 @@ urlpatterns = [
 
     path('cotizaciones/', views.CotizacionListCreateAPI.as_view(), name='cotizaciones-list-create'),
     path('cotizaciones/<int:pk>/', views.CotizacionRetrieveUpdateDestroyAPI.as_view(), name='cotizaciones-detail'),
+    path('cotizaciones/<int:id_cotizacion>/invitar/', views.InvitarColaboradorCotizacionAPI.as_view(), name='cotizacion-invitar-colaborador'),
 
 
 

@@ -35,7 +35,7 @@ from django.views.generic import (
 from .models import (
     Mercancia, Cliente, Despacho, Conductor, 
     Camion, Ruta, Destino, Ubicacion, HistorialMovimientos, Estanteria,
-    AreaRestringida, Proveedor, Rampla, Cotizacion, PermisoColaboracion
+    AreaRestringida, Proveedor, Rampla, Cotizacion, PermisoColaboracion, PermisoCotizacion
 )
 
 from .serializers import (
@@ -49,8 +49,9 @@ from .serializers import (
     RamplaSerializer,
     CotizacionSerializer,
     InvitacionColaboradorSerializer,
+    InvitacionCotizacionSerializer
 )
-from usuarios.permissions import IsAdminEmpresa, IsJefeDeBodega, IsOperario
+from usuarios.permissions import IsAdminEmpresa, IsJefeDeBodega, IsOperario, AllowRoles
 
 from django.contrib.auth.models import User
 from rest_framework.decorators import api_view, permission_classes
@@ -603,11 +604,11 @@ class DespachoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
 
 class ClienteListCreateAPI(generics.ListCreateAPIView):
     serializer_class = ClienteSerializer
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
-        return Cliente.objects.filter(empresa=empresa)
+        return Cliente.objects.filter(empresa=empresa, activo=True)
     
     def perform_create(self, serializer):
         empresa = get_empresa_from_user(self.request)
@@ -623,7 +624,7 @@ class ClienteListCreateAPI(generics.ListCreateAPIView):
 
 class ClienteDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ClienteSerializer
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
@@ -656,7 +657,7 @@ class ClienteDetailAPI(generics.RetrieveUpdateDestroyAPIView):
 
 class ConductorListCreateAPI(generics.ListCreateAPIView):
     serializer_class = ConductorSerializer
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
@@ -676,7 +677,7 @@ class ConductorListCreateAPI(generics.ListCreateAPIView):
 
 class ConductorDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ConductorSerializer
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
@@ -709,7 +710,7 @@ class ConductorDetailAPI(generics.RetrieveUpdateDestroyAPIView):
 
 class CamionListCreateAPI(generics.ListCreateAPIView):
     serializer_class = CamionSerializer 
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
@@ -730,7 +731,7 @@ class CamionListCreateAPI(generics.ListCreateAPIView):
 class CamionDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     queryset = Camion.objects.all() 
     serializer_class = CamionSerializer
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
@@ -763,7 +764,7 @@ class CamionDetailAPI(generics.RetrieveUpdateDestroyAPIView):
 
 class RutaListCreateAPI(generics.ListCreateAPIView):
     serializer_class = RutaSerializer
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         #empresa = get_empresa_from_user(self.request)
@@ -790,7 +791,7 @@ class RutaListCreateAPI(generics.ListCreateAPIView):
 
 class RutaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = RutaSerializer
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         #empresa = get_empresa_from_user(self.request)
@@ -824,7 +825,7 @@ class RutaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
 
 class DestinoListCreateAPI(generics.ListCreateAPIView):
     serializer_class = DestinoSerializer
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
@@ -844,7 +845,7 @@ class DestinoListCreateAPI(generics.ListCreateAPIView):
 
 class DestinoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = DestinoSerializer
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
@@ -1030,7 +1031,7 @@ class HistorialPagination(PageNumberPagination):
 
 class HistorialListAPI(generics.ListAPIView):
     serializer_class = HistorialSerializer
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated, AllowRoles('DUENO')]
     pagination_class = HistorialPagination 
 
     def get_queryset(self):
@@ -1038,7 +1039,7 @@ class HistorialListAPI(generics.ListAPIView):
         return filtrar_por_sucursal_y_empresa(qs, self.request).order_by('-fecha_hora_movimiento')
 
 class DashboardStatsAPI(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega] # Asumo que IsJefeDeBodega ya lo tienes importado
+    permission_classes = [permissions.IsAuthenticated, AllowRoles('DUENO')]
 
     def get(self, request, format=None):
         empresa = get_empresa_from_user(request)
@@ -1235,7 +1236,7 @@ class ProveedorRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
 
 class RamplaListCreateAPI(generics.ListCreateAPIView):
     serializer_class = RamplaSerializer 
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
@@ -1256,7 +1257,7 @@ class RamplaListCreateAPI(generics.ListCreateAPIView):
 class RamplaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     queryset = Rampla.objects.all() 
     serializer_class = RamplaSerializer
-    permission_classes = [permissions.IsAuthenticated, IsJefeDeBodega]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
@@ -1666,6 +1667,71 @@ class InvitarColaboradorAPI(generics.CreateAPIView):
 
         return Response({
             "mensaje": f"Se otorgó permiso exitosamente a {usuario_invitado.username} para el despacho #{despacho.id_despacho}."
+        }, status=status.HTTP_201_CREATED)
+    
+
+class InvitarColaboradorCotizacionAPI(generics.CreateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = InvitacionCotizacionSerializer 
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        usuario_que_invita = request.user
+        cotizacion_id = self.kwargs.get('id_cotizacion') 
+        cotizacion = get_object_or_404(Cotizacion, pk=cotizacion_id)
+        
+        usuario_invitado_id = serializer.validated_data['usuario_invitado_id']
+        usuario_invitado = get_object_or_404(User, pk=usuario_invitado_id)
+
+        empresa_actual = get_empresa_from_user(request)
+        if cotizacion.empresa != empresa_actual:
+            return Response(
+                {"error": "No puedes compartir una cotización de otra empresa."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        sucursal_cotizacion = cotizacion.id_usuario_creacion.perfil.sucursal if cotizacion.id_usuario_creacion else None
+        
+        if sucursal_cotizacion and usuario_invitado.perfil.sucursal == sucursal_cotizacion:
+            return Response(
+                {"error": "El usuario ya pertenece a la sucursal del creador y tiene acceso por defecto."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if usuario_que_invita.perfil.rol != 'DUENO' and sucursal_cotizacion != usuario_que_invita.perfil.sucursal:
+            return Response(
+                {"error": "No tienes permiso para invitar colaboradores a una cotización que no pertenece a tu sucursal."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        invitacion, created = PermisoCotizacion.objects.get_or_create(
+            cotizacion=cotizacion,
+            usuario_invitado=usuario_invitado,
+            defaults={
+                'otorgado_por': usuario_que_invita,
+                'activo': True
+            }
+        )
+
+        if not created:
+            if not invitacion.activo:
+                invitacion.activo = True
+                invitacion.otorgado_por = usuario_que_invita
+                invitacion.save()
+                return Response(
+                    {"mensaje": f"Se reactivó el acceso a {usuario_invitado.username}."}, 
+                    status=status.HTTP_200_OK
+                )
+            else:
+                return Response(
+                    {"mensaje": f"{usuario_invitado.username} ya tiene acceso a esta cotización."}, 
+                    status=status.HTTP_200_OK
+                )
+
+        return Response({
+            "mensaje": f"Se otorgó permiso exitosamente a {usuario_invitado.username} para la cotización #{cotizacion.id_cotizacion}."
         }, status=status.HTTP_201_CREATED)
 #DJANGO METODO SIN REACT (FUNCIONAL)
 

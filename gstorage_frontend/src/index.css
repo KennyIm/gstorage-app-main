@@ -57,3 +57,20 @@
     @apply bg-white text-gray-900;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #molde-cotizacion, #molde-cotizacion * {
+    visibility: visible;
+  }
+  #molde-cotizacion {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}

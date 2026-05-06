@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { BookOpen, Package, Truck, Shield, Search, Info, MapPin, Box, TriangleAlert, Eye, PlusCircle, ShieldAlert } from 'lucide-react';
+import { BookOpen, Package, Truck, Shield, Search, Info, MapPin, Box, TriangleAlert, Eye, PlusCircle, ShieldAlert, Newspaper, ClipboardPlus, UserPlus, DiamondPlus } from 'lucide-react';
 
 export default function ManualUsuario() {
+    document.title = "Manual - GStorage"
     const [seccionActiva, setSeccionActiva] = useState('introduccion');
     const [subSeccionActiva, setSubSeccionActiva] = useState(null);
 
@@ -29,6 +30,9 @@ export default function ManualUsuario() {
                 { id: 'filtrado', titulo: 'Filtrado' }
             ]
         },
+        { id: 'ordenes', titulo: 'Ordenes de entrega', icono: <Newspaper className="w-5 h-5" /> },
+        { id: 'clientes', titulo: 'Clientes', icono: <UserPlus className="w-5 h-5" /> },
+        { id: 'cotizaciones', titulo: 'Cotizaciones', icono: <DiamondPlus className="w-5 h-5" /> },
         { id: 'seguridad', titulo: 'Permisos y Sucursales', icono: <Shield className="w-5 h-5" /> },
     ];
 
@@ -359,6 +363,227 @@ export default function ManualUsuario() {
                             </div>
                             <p className="text-blue-700 text-sm">
                                 Utiliza el menú lateral izquierdo para saltar directamente al módulo en el que necesitas ayuda.
+                            </p>
+                        </div>
+                    </div>
+                );
+
+            case 'ordenes':
+                return (
+                    <div className="space-y-4 animate-fade-down animate-duration-300">
+                        <h2 className="text-2xl font-bold text-red-800 border-b pb-2">Ordenes de Entrega</h2>
+                        <p className="text-gray-600 leading-relaxed">
+                            En esta sección se abordara más a detalle la nueva forma de generar ordenes de entrega y el identificador correlativo generado por el sistema.
+                        </p>
+                        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mt-6">
+                            <div className="flex items-center gap-2 text-blue-800 font-bold mb-1">
+                                <Info className="w-5 h-5" /> Tip
+                            </div>
+                            <p className="text-blue-700 text-sm">
+                                Se recomienda visualizar el apartado de <strong>Detalles</strong> en la sección de despachos, ya que esta sección es una continuidad de la misma.
+                            </p>
+                        </div>
+                        <h6 className="text-gray-600 leading-relaxed font-bold">
+                            Nuevos N° de Ordenes
+                        </h6>
+                        <p className="text-gray-600 leading-relaxed">
+                            Cada orden de entrega generada por el sistema tendra una combinación de letras y números correlativos, estos códigos estan diseñados con la finalidad de que nunca se repitan.
+                        </p>
+                        <div className='bg-slate-50 border-2 border-slat-400 p-1 rounded-lg mt-6 grid grid-cols-5 text-center'>
+                            <div>
+                                <h4 className="text-red-600 leading-relaxed">
+                                    S
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-green-600 leading-relaxed">
+                                    21
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-gray-600 leading-relaxed">
+                                    -
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-fuchsia-600 leading-relaxed">
+                                    10
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-gray-600 leading-relaxed">
+                                    A
+                                </h4>
+                            </div>
+                        </div>
+                        <p className="text-gray-600 leading-relaxed">
+                            El N° de arriba es un ejemplo de un código que puede generar el sistema (los colores son solamente para la explicación), a continuación se explicara cada dígito detalladamente.
+                        </p>
+                        <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                            <li><strong className='text-red-600'>S:</strong> La letra S (Santiago en esta ocasión) representa la ciudad de <strong>Origen</strong> de la carga, si la carga viene de Iquique a Santiago cambiaria a I.</li>
+                            <li><strong className='text-green-600'>21:</strong> El número 21 hace referencia al <strong>número de ruta</strong>, en este caso seria la ruta 21.</li>
+                            <li><strong className='text-fuchsia-600'>10:</strong> El número 10 representa al número correlativo que calcula el sistema, se calcula por la <strong>cantidad de carga de diferentes clientes</strong> en el despacho. (un poco mas abajo se explicara mejor)</li>
+                            <li><strong>A:</strong> La letra A (Antofagasta en esta ocasión) representa la ciudad de <strong>Destino</strong> de la carga.</li>
+                        </ul>
+
+                        <h6 className="text-gray-600 leading-relaxed font-bold">
+                            Variaciones y Repetición
+                        </h6>
+                        <p className="text-gray-600 leading-relaxed">
+                            El único caso en el cual se repetiran los números de orden es cuando el cliente lleva más de 5 cargas en 1 despacho, en ese caso se generan de manera automáticamente las hojas necesarias para completar toda la información de la carga y todas las hojas generadas en ese despacho y para ese cliente llevaran el mismo código.
+                        </p>
+                        <p className="text-gray-600 leading-relaxed">
+                            Existen 2 variaciones de número de orden, la primera sucede cuando se envia una carga de un cliente a otra dirección en la misma ruta, en el caso de que Nene envié hacia San pablo 203 y en la misma ruta hacia La cruz 111 el sistema genera una orden de entrega con el mismo número de orden pero con una pequeña diferencia.
+                        </p>
+                         <div className='bg-slate-50 border-2 border-slat-400 p-1 rounded-lg mt-6 grid grid-cols-7 text-center'>
+                            <div>
+                                <h4 className="text-red-600 leading-relaxed">
+                                    S
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-green-600 leading-relaxed">
+                                    21
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-gray-600 leading-relaxed">
+                                    -
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-fuchsia-600 leading-relaxed">
+                                    10
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-gray-600 leading-relaxed">
+                                    A
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-gray-600 leading-relaxed">
+                                    -
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-yellow-600 leading-relaxed">
+                                    A
+                                </h4>
+                            </div>
+                        </div>
+                        <p className="text-gray-600 leading-relaxed">
+                            <strong className='text-yellow-600'>A:</strong> La letra A al final del código representa que es una dirección <strong>Alternativa</strong> a la original, generandose el mismo código pero con esa letra adicional.
+                        </p>
+                        <p className="text-gray-600 leading-relaxed">
+                            La segunda variación sucede cuando paga el proveedor, pasa exactamente lo mismo que en la primera variación, por lo cual el código original se mantiene pero se agrega al final la letra P.
+                        </p>
+                         <div className='bg-slate-50 border-2 border-slat-400 p-1 rounded-lg mt-6 grid grid-cols-7 text-center'>
+                            <div>
+                                <h4 className="text-red-600 leading-relaxed">
+                                    S
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-green-600 leading-relaxed">
+                                    21
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-gray-600 leading-relaxed">
+                                    -
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-fuchsia-600 leading-relaxed">
+                                    10
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-gray-600 leading-relaxed">
+                                    A
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-gray-600 leading-relaxed">
+                                    -
+                                </h4>
+                            </div>
+                            <div>
+                                <h4 className="text-cyan-600 leading-relaxed">
+                                    P
+                                </h4>
+                            </div>
+                        </div>
+                        <p className="text-gray-600 leading-relaxed">
+                            <strong className='text-cyan-600'>P:</strong> La letra P al final del código representa que paga el proveedor, generando el mismo código "Original" pero con esa letra de diferencia.
+                        </p>
+                        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mt-6">
+                            <div className="flex items-center gap-2 text-blue-800 font-bold mb-1">
+                                <Info className="w-5 h-5" /> Importante
+                            </div>
+                            <p className="text-blue-700 text-sm">
+                                Es posible que se cree una orden con la A y P quedando asi: <strong>S21-10A-A-P</strong>, es normal y ocasional.
+                            </p>
+                        </div>
+                    </div>
+                );
+                case 'clientes':
+                return (
+                    <div className="space-y-4 animate-fade-down animate-duration-300">
+                        <h2 className="text-2xl font-bold text-red-800 border-b pb-2">Clientes</h2>
+                        <p className="text-gray-600 leading-relaxed">
+                            En esta sección se describira el cómo ingresar clientes al sistema y cómo modificarlos, hay más datos por ejemplo, camiones, ramplas, proveedores etc, los cuales utilizan el mismo formato de creación. 
+                        </p>
+                        <h6 className="text-gray-600 leading-relaxed font-bold">
+                            Datos Necesarios 
+                        </h6>
+                        <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                                <li><strong>RUT:</strong> Dato importante y no excluyente, si no hay RUT del cliente y que sea valido, el sistema no dejara ingresar al cliente.</li>
+                                <li><strong>Dirección:</strong> Hay 2 espacios para ingresar direcciones, es obligatorio ingresar por lo menos 1 dirección.</li>
+                                <li><strong>Contacto:</strong> Se requiere tener el correo o número telefónico del cliente.</li>
+                                <li><strong>Tarifas:</strong> El sistema calcula precios en base a las tarifas de cada cliente, si el cliente tiene una tarifa especial tambien se debe considerar en este apartado.</li>
+                        </ul>
+                        <p className="text-gray-600 leading-relaxed">
+                            En el panel izquierda aparece el apartado de clientes, al hacer click se visualizara es listado de clientes y en la parte superior el botón para agregar un nuevo cliente. 
+                            En la nueva ventana se deplegara un formulario para ingresar clientes, el formulario es amigable y didactico, no se pedira ningun dato extra de los descritos arriba.
+                        </p>
+                        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mt-6">
+                            <div className="flex items-center gap-2 text-blue-800 font-bold mb-1">
+                                <Info className="w-5 h-5" /> Información
+                            </div>
+                            <p className="text-blue-700 text-sm">
+                                La creación de camiones, ramplas, proveedores, ruta etc. Se ingresan de la misma forma que los clientes.
+                            </p>
+                        </div>
+                    </div>
+                );
+                 case 'cotizaciones':
+                return (
+                    <div className="space-y-4 animate-fade-down animate-duration-300">
+                        <h2 className="text-2xl font-bold text-red-800 border-b pb-2">Cotizaciones</h2>
+                        <p className="text-gray-600 leading-relaxed">
+                            Las cotizaciones son un apartado para realizar una estimación del costo del servició para un cliente en especifico, las cotizaciones no tienen una importancia directa en la operativa diaria ni afecta en las cargas del cliente, considere que el sistema no calculara ni realizara acciones directamente con estas cotizaciones.
+                        </p>
+                        <h6 className="text-gray-600 leading-relaxed font-bold">
+                            Creación de Cotizaciones
+                        </h6>
+                        <p className="text-gray-600 leading-relaxed">
+                            En el panel izquierdo hacer click en cotizaciones, se desplegara la vista de cotizaciones en la cual se puede revisar el contenido de cada cotización con 5 botones en su parte inferior.
+                        </p>
+                        <ul className="list-disc pl-5 space-y-1 text-gray-600">
+                                <li><strong>Imprimir:</strong> Se recomienda imprimir la cotización cuando haya sido confirmada, de no ser así aparecera con un estado diferente y puede ser modifcada y/o cambiada su valor.</li>
+                                <li><strong>Compartir:</strong> Mediante este botón el usuario dueño de la cotización puede compartirla con cualquier otro usuario, entregando el privilegio de editar la información que contiene esa cotización.</li>
+                                <li><strong>Eliminar:</strong> Se recomienda no utilizar este botón, solo utilizar en caso de que el cliente ya no requiera la cotización.</li>
+                                <li><strong>Editar:</strong> Todo el contenido de la cotización es editable y solo el dueño lo puede editar, la unica forma de dar este privilegio a otro usuario es compartiendo la cotización.</li>
+                                <li><strong>Confirmar y Cerrar Cotización:</strong> Este botón es el más , utilizarlo confirmara y cerrara la cotización esto significa que no se podra editar, compartir y eliminar.</li>
+                        </ul>
+                        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mt-6">
+                            <div className="flex items-center gap-2 text-blue-800 font-bold mb-1">
+                                <Info className="w-5 h-5" /> Recomendación
+                            </div>
+                            <p className="text-blue-700 text-sm">
+                                Al momento de imprimir la cotización se recomienda guardar como PDF y luego imprimir.
                             </p>
                         </div>
                     </div>

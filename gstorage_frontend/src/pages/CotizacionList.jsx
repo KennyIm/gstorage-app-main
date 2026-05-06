@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import logomedalla from '../assets/logomedalla.png';
+import Select from 'react-select';
 import { useUI } from '../context/UIContext';
 import {
     Plus, ChevronDown, ChevronUp, Edit, Trash2, CheckCircle,
     Calendar, User, Truck, Package, Scale, Box, MapPin, Clock, Search, FileText,
-    Phone, ChevronLeft, ChevronRight
+    Phone, ChevronLeft, ChevronRight, UserPlus, X, Printer
 } from 'lucide-react';
 
 export default function CotizacionList() {
-    document.title = "Cotizaciones | GStorage";
+    document.title = "Cotizaciones - GStorage";
     const navigate = useNavigate();
     const { user } = useAuth();
     const { showLoader, hideLoader, showToast } = useUI();
@@ -22,6 +24,16 @@ export default function CotizacionList() {
 
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
+
+    const [modalInvitacionOpen, setModalInvitacionOpen] = useState(false);
+    const [cotizacionActivaId, setCotizacionActivaId] = useState(null);
+    const [usuarioAInvitar, setUsuarioAInvitar] = useState('');
+    const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
+    const [mensajeInvitacion, setMensajeInvitacion] = useState({ tipo: '', texto: '' });
+
+    const [usuarios, setUsuarios] = useState([]);
+
+    const [cotAImprimir, setCotAImprimir] = useState(null);
 
     // --- CARGA DE DATOS ---
 
@@ -45,6 +57,46 @@ export default function CotizacionList() {
         }
     };
 
+    useEffect(() => {
+        if (modalInvitacionOpen && cotizacionActivaId) {
+            const fetchUsuarios = async () => {
+                try {
+                    const cotizacionActual = cotizaciones.find(c => c.id_cotizacion === cotizacionActivaId);
+
+                    const idsYaInvitados = cotizacionActual?.colaboradores_activos?.map(colab => String(colab.id)) || [];
+
+                    const res = await apiClient.get('/api/usuarios/users');
+                    const listaUsuarios = res.data.results || res.data;
+
+                    const usuariosElegibles = listaUsuarios.filter((u) => {
+                        const sucursalUsuario = u?.perfil?.sucursal_id || u?.perfil?.sucursal;
+                        const miSucursal = user?.perfil?.sucursal_id || user?.perfil?.sucursal;
+                        const esOtraSucursal = String(sucursalUsuario) !== String(miSucursal);
+
+                        const noEstaInvitado = !idsYaInvitados.includes(String(u.id));
+
+                        return esOtraSucursal && noEstaInvitado;
+                    });
+
+                    setUsuarios(usuariosElegibles);
+
+                    if (usuariosElegibles.length > 0) {
+                        setUsuarioSeleccionado(usuariosElegibles[0]);
+                        setUsuarioAInvitar(`${usuariosElegibles[0].first_name} ${usuariosElegibles[0].last_name}`);
+                    } else {
+                        setUsuarioSeleccionado(null);
+                        setUsuarioAInvitar('');
+                    }
+
+                } catch (error) {
+                    console.error("Error cargando usuarios", error);
+                }
+            };
+
+            fetchUsuarios();
+        }
+    }, [modalInvitacionOpen, cotizacionActivaId, user, cotizaciones]);
+
     // --- ACCIONES ---
     const handleToggleExpand = (id) => {
         setExpandedId(prev => prev === id ? null : id);
@@ -63,6 +115,14 @@ export default function CotizacionList() {
         } finally {
             hideLoader();
         }
+    };
+
+    const handleAbrirModalInvitacion = (id_cotizacion) => {
+        setCotizacionActivaId(id_cotizacion);
+        setMensajeInvitacion({ tipo: '', texto: '' });
+        setUsuarioAInvitar('');
+        setUsuarioSeleccionado(null);
+        setModalInvitacionOpen(true);
     };
 
     const handleConfirmarCotizacion = async (id) => {
@@ -92,6 +152,8 @@ export default function CotizacionList() {
         });
     };
 
+    const formatoDinero = (valor) => Math.round(parseFloat(valor || 0)).toLocaleString('es-CL');
+
     const filtradas = cotizaciones.filter(cot => {
         const term = searchTerm.toLowerCase();
         return (
@@ -105,6 +167,32 @@ export default function CotizacionList() {
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     const currentItems = filtradas.slice(indexOfFirstItem, indexOfLastItem);
+
+    const handleInvitarColaboradorCotizacion = async (e) => {
+        e.preventDefault();
+
+        if (!usuarioSeleccionado) return;
+        setMensajeInvitacion({ tipo: 'loading', texto: 'Procesando...' });
+
+        try {
+            const response = await apiClient.post(`/api/inventario/cotizaciones/${cotizacionActivaId}/invitar/`, {
+                usuario_invitado_id: usuarioSeleccionado.id
+            });
+
+            setMensajeInvitacion({ tipo: 'success', texto: response.data.mensaje });
+            setUsuarioAInvitar('');
+            setUsuarioSeleccionado(null);
+
+            setTimeout(() => {
+                setModalInvitacionOpen(false);
+                setMensajeInvitacion({ tipo: '', texto: '' });
+            }, 2000);
+
+        } catch (error) {
+            const errorMsg = error.response?.data?.error || "Error al compartir la cotización.";
+            setMensajeInvitacion({ tipo: 'error', texto: errorMsg });
+        }
+    };
 
     // --- RENDERIZADO ---
     if (loadingInicial) {
@@ -278,13 +366,30 @@ export default function CotizacionList() {
 
                                             {/* BOTONES DE ACCIÓN */}
                                             <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-gray-100">
-                                                {isCreator && (
                                                 <button
-                                                    onClick={() => handleEliminar(cot.id_cotizacion, cot.nombre_cliente)}
-                                                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-red-600 font-medium rounded-lg hover:bg-red-50 transition shadow-sm"
+                                                    onClick={() => {
+                                                        setCotAImprimir(cot);
+                                                        setTimeout(() => window.print(), 500);
+                                                    }}
+                                                    className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-blue-600 font-medium rounded-lg hover:bg-blue-50 transition shadow-sm"
                                                 >
-                                                    <Trash2 className="w-4 h-4" /> Eliminar
+                                                    <Printer className="w-4 h-4" /> Imprimir
                                                 </button>
+                                                {!isCotizado && isCreator && (
+                                                    <button
+                                                        onClick={() => handleAbrirModalInvitacion(cot.id_cotizacion)}
+                                                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-indigo-600 font-medium rounded-lg hover:bg-indigo-50 transition shadow-sm"
+                                                    >
+                                                        <UserPlus className="w-4 h-4" /> Compartir
+                                                    </button>
+                                                )}
+                                                {isCreator && (
+                                                    <button
+                                                        onClick={() => handleEliminar(cot.id_cotizacion, cot.nombre_cliente)}
+                                                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-red-600 font-medium rounded-lg hover:bg-red-50 transition shadow-sm"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" /> Eliminar
+                                                    </button>
                                                 )}
                                                 {!isCotizado && (
                                                     <Link
@@ -335,8 +440,8 @@ export default function CotizacionList() {
                                             key={number}
                                             onClick={() => setCurrentPage(number)}
                                             className={`w-10 h-10 flex items-center justify-center rounded-lg font-medium transition shadow-sm ${currentPage === number
-                                                    ? 'bg-red-800 text-white border border-red-800'
-                                                    : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
+                                                ? 'bg-red-800 text-white border border-red-800'
+                                                : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
                                                 }`}
                                         >
                                             {number}
@@ -362,7 +467,257 @@ export default function CotizacionList() {
                         </button>
                     </div>
                 )}
+                {/* INVITAR COLABORADOR */}
+                {modalInvitacionOpen && (
+                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full flex flex-col overflow-hidden">
 
+                            {/* Cabecera */}
+                            <div className="bg-indigo-600 text-white p-5 flex items-center justify-between">
+                                <h2 className="text-xl font-bold flex items-center gap-2">
+                                    <UserPlus size={20} /> Compartir Cotización #{cotizacionActivaId}
+                                </h2>
+                                <button
+                                    onClick={() => setModalInvitacionOpen(false)}
+                                    className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            {/* Cuerpo */}
+                            <div className="p-6 space-y-4">
+                                <p className="text-sm text-slate-600">
+                                    Selecciona un usuario de otra sucursal para darle acceso a editar esta cotización.
+                                </p>
+                                {mensajeInvitacion.texto && (
+                                    <div className={`p-3 rounded-lg text-sm font-medium ${mensajeInvitacion.tipo === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                        mensajeInvitacion.tipo === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
+                                            'bg-blue-50 text-blue-700 border border-blue-200'
+                                        }`}>
+                                        {mensajeInvitacion.texto}
+                                    </div>
+                                )}
+
+                                {/* Buscador / Selector de Usuarios */}
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1">Usuario a invitar</label>
+                                    <Select
+                                        placeholder="Buscar usuario..."
+                                        noOptionsMessage={() => "No hay usuarios de otras sucursales disponibles"}
+                                        options={usuarios.map(u => ({
+                                            value: u.id,
+                                            label: `${u.first_name} ${u.last_name} (${u.username})`
+                                        }))}
+                                        value={usuarioSeleccionado ? {
+                                            value: usuarioSeleccionado.id,
+                                            label: `${usuarioSeleccionado.first_name} ${usuarioSeleccionado.last_name} (${usuarioSeleccionado.username})`
+                                        } : null}
+                                        onChange={(opcion) => {
+                                            if (opcion) {
+                                                const userObj = usuarios.find(u => u.id === opcion.value);
+                                                setUsuarioSeleccionado(userObj);
+                                                setUsuarioAInvitar(opcion.label);
+                                            } else {
+                                                setUsuarioSeleccionado(null);
+                                                setUsuarioAInvitar('');
+                                            }
+                                        }}
+                                        isClearable
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Pie del Modal */}
+                            <div className="bg-slate-50 border-t border-slate-200 p-4 flex justify-end gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setModalInvitacionOpen(false)}
+                                    className="px-4 py-2 text-slate-600 font-medium hover:bg-slate-200 rounded-lg transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleInvitarColaboradorCotizacion}
+                                    disabled={!usuarioSeleccionado || mensajeInvitacion.tipo === 'loading'}
+                                    className={`px-5 py-2 font-semibold rounded-lg transition-colors shadow-sm ${!usuarioSeleccionado || mensajeInvitacion.tipo === 'loading'
+                                        ? 'bg-indigo-300 text-white cursor-not-allowed'
+                                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                        }`}
+                                >
+                                    {mensajeInvitacion.tipo === 'loading' ? 'Enviando...' : 'Otorgar Acceso'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {cotAImprimir && (
+                    <div id="molde-cotizacion" className="print:w-[210mm] mx-auto hidden print:block">
+                        <div className="hoja-pdf w-[210mm] h-[278mm] flex flex-col bg-white px-8 py-8 box-border mx-auto print:shadow-none print:m-0 shadow-lg">
+
+                            {/* --- ENCABEZADO PRINCIPAL --- */}
+                            <div className="flex justify-between items-start w-full border-b-2 border-slate-100 pb-6 mb-6 shrink-0">
+                                <div className="flex flex-col gap-4 w-[60%]">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-20 h-20 flex items-center justify-center shrink-0">
+                                            <img src={logomedalla} alt="Logo GStorage" className="max-h-full max-w-full object-contain" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-tight">SERVICIO DE LOGISTICAS Y TRANSPORTES MEDALLA'S SPA</h2>
+                                            <p className="mt-1 text-[9px] text-slate-700 font-medium leading-relaxed m-0 p-0">
+                                                RUT: 77.797.573-0 <br />
+                                                VIA UNO KILOMETRO 8 MANZANA 2J BAJO MOLLE, IQUIQUE.<br />
+                                                AV. LO ESPEJO 01565 CALLE 10 BODEGA 1011-1013 MERSAN STGO.<br />
+                                                Contacto: 988086461 - 944934272
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col items-end text-right w-[35%]">
+                                    <h1 className="text-3xl font-black text-indigo-900 uppercase tracking-tighter mb-2">Cotización</h1>
+
+                                    <div className="flex flex-col gap-1 w-full mt-2">
+                                        <div className="flex items-center justify-end gap-2 text-sm font-semibold text-slate-700">
+                                            <span className="text-slate-500 font-medium uppercase text-xs">N° de Cotización:</span>
+                                            <span className="text-red-600 font-black text-lg">
+                                                {String(cotAImprimir.id_cotizacion || '').padStart(5, '0')}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-end gap-2 text-xs font-semibold text-slate-700">
+                                            <span className="text-slate-500 font-medium">Fecha Emisión:</span>
+                                            <span className="text-slate-900">
+                                                {cotAImprimir?.fecha_confirmacion
+                                                    ? new Date(cotAImprimir.fecha_confirmacion).toLocaleDateString('es-CL')
+                                                    : 'Pendiente de confirmación'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-end gap-2 text-xs font-semibold text-slate-700 mt-1">
+                                            <span className="text-slate-500 font-medium">Estado:</span>
+                                            <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold ${cotAImprimir.estado_cotizacion === 'Cotizado' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                                                {cotAImprimir.estado_cotizacion || 'En Proceso'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* --- TARJETA DEL CLIENTE Y DESTINO --- */}
+                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6 flex justify-between items-start shrink-0">
+                                <div className="w-1/2 pr-4 border-r border-slate-200">
+                                    <h3 className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-2">
+                                        {cotAImprimir?.cotiza_proveedor ? 'Datos del Cotizante' : 'Datos del Cliente'}
+                                    </h3>
+                                    <h2 className="text-sm font-black text-slate-900 leading-tight mb-1">
+                                        {cotAImprimir?.cotiza_proveedor
+                                            ? (cotAImprimir?.proveedor || 'Sin Nombre')
+                                            : (cotAImprimir?.nombre_cliente || 'Sin Nombre')}
+                                    </h2>
+                                    <p className="text-xs font-semibold text-slate-700 mb-1">
+                                        RUT: {cotAImprimir?.cotiza_proveedor
+                                            ? (cotAImprimir?.rut_proveedor || 'N/R')
+                                            : (cotAImprimir?.rut_cliente || 'N/R')}
+                                    </p>
+                                    {cotAImprimir?.contacto && <p className="text-xs text-slate-600">Contacto: {cotAImprimir.contacto}</p>}
+                                </div>
+
+                                <div className="w-1/2 pl-4 flex flex-col justify-between">
+                                    <div>
+                                        <h3 className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-2">Información de Destino</h3>
+                                        <p className="text-xs font-bold text-slate-800 mb-1 flex items-start gap-1">
+                                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                                            {cotAImprimir?.destino || 'Retiro en Bodega / No especificado'}
+                                        </p>
+                                    </div>
+
+                                    <div className="mt-4 pt-3 border-t border-slate-200">
+                                        <p className="text-xs text-slate-600">
+                                            Cotizado por: <span className="font-semibold text-slate-800">
+                                                {cotAImprimir?.usuario_creacion_nombre || `Ejecutivo ID #${cotAImprimir?.id_usuario_creacion || 'N/R'}`}
+                                            </span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* --- DETALLE DEL SERVICIO (TABLA) --- */}
+                            <div className="flex-grow overflow-hidden">
+                                <table className="w-full text-xs">
+                                    <thead>
+                                        <tr className="border-b-2 border-slate-800">
+                                            <th className="py-2 px-2 text-left font-bold text-slate-900 uppercase tracking-wider w-[15%]">Cantidad</th>
+                                            <th className="py-2 px-2 text-left font-bold text-slate-900 uppercase tracking-wider w-[20%]">Tipo Bulto</th>
+                                            <th className="py-2 px-2 text-left font-bold text-slate-900 uppercase tracking-wider w-[35%]">
+                                                {cotAImprimir?.cotiza_proveedor ? 'Cliente / Destinatario' : 'Proveedor de Origen'}
+                                            </th>
+                                            <th className="py-2 px-2 text-center font-bold text-slate-900 uppercase tracking-wider w-[15%]">Dimensiones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        <tr className="align-top">
+                                            <td className="py-3 px-2 font-semibold text-slate-800">{cotAImprimir.cantidad || 1} Unidades</td>
+                                            <td className="py-3 px-2 font-medium text-slate-700">{cotAImprimir.tipo_bultos || 'Carga General'}</td>
+                                            <td className="py-3 px-2">
+                                                <p className="font-bold text-slate-900">
+                                                    {cotAImprimir?.cotiza_proveedor
+                                                        ? (cotAImprimir?.nombre_cliente || 'N/R')
+                                                        : (cotAImprimir?.proveedor || 'N/R')}
+                                                </p>
+                                                <p className="text-[10px] text-slate-500">
+                                                    RUT: {cotAImprimir?.cotiza_proveedor
+                                                        ? (cotAImprimir?.rut_cliente || 'N/R')
+                                                        : (cotAImprimir?.rut_proveedor || 'N/R')}
+                                                </p>
+                                            </td>
+                                            <td className="py-3 px-2 text-center">
+                                                <p className="font-bold text-slate-900">{parseFloat(cotAImprimir.kg || 0).toFixed(1)} Kg</p>
+                                                <p className="text-[10px] text-slate-500">{parseFloat(cotAImprimir.m3 || 0).toFixed(2)} m³</p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+
+                                {/* Condiciones / Notas de la cotización */}
+                                <div className="mt-8 p-3 bg-slate-50 rounded text-[10px] text-slate-600 border border-slate-100">
+                                    <p className="font-bold text-slate-800 mb-1 uppercase">Condiciones del Servicio:</p>
+                                    <ul className="list-disc pl-4 space-y-0.5">
+                                        <li>Los valores expresados están sujetos a verificación de medidas y pesos reales al momento de la recepción.</li>
+                                        <li>Cotización válida por 7 días hábiles desde su emisión.</li>
+                                        <li>El servicio incluye transporte, seguros de carga y logística estándar.</li>
+                                        {cotAImprimir.cotiza_proveedor && <li className="text-indigo-700 font-semibold">Nota: Esta cotización incluye cobros asociados al proveedor.</li>}
+                                    </ul>
+                                </div>
+
+                                <p className="font-bold text-red-800 mb-1 uppercase">TRAER IMPRESA ESTA COTIZACIÓN JUNTO CON SU MERCADERÍA EL DÍA DE RECEPCIÓN EN BODEGA. DE NO SER ASÍ, ESTA COTIZACIÓN PIERDE SU VALOR Y SE COBRARÁ EL PRECIO NORMAL.</p>
+                            </div>
+
+                            {/* --- TOTALES COMERCIALES --- */}
+                            <div className="mt-4 pt-4 border-t-2 border-slate-800 shrink-0 flex justify-between items-end">
+                                <div className="w-1/2">
+                                    <div className="w-48 border-t border-slate-400 pt-1 text-center mt-12 hidden">
+                                        <p className="text-[9px] uppercase font-bold text-slate-600">Firma Aceptación Cliente</p>
+                                    </div>
+                                </div>
+                                <div className="w-64 text-right">
+                                    <div className="flex justify-between text-sm text-slate-600 mb-1">
+                                        <span className="font-medium">Subtotal Neto:</span>
+                                        <span className="font-bold text-slate-800">${formatoDinero(cotAImprimir.monto || 0)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-slate-600 mb-2">
+                                        <span className="font-medium">IVA (19%):</span>
+                                        <span className="font-bold text-slate-800">${formatoDinero((cotAImprimir.monto || 0) * 0.19)}</span>
+                                    </div>
+                                    <div className="flex justify-between border-t-2 border-slate-800 font-black text-lg text-slate-900 mt-1 pt-2">
+                                        <span>TOTAL:</span>
+                                        <span>${formatoDinero((cotAImprimir.monto || 0) * 1.19)}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

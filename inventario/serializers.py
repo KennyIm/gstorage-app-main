@@ -208,10 +208,12 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
                 if previo.fecha_salida_real:
                     fecha_liberacion_exacta = previo.fecha_salida_real + timedelta(days=1, hours=4)
                     fecha_liberacion = fecha_liberacion_exacta.date()
+
+                    fecha_inicio_previo = previo.fecha_salida_real.date()
                     
-                    if fecha_nueva_prog < fecha_liberacion:
+                    if fecha_inicio_previo <= fecha_nueva_prog <= fecha_liberacion:
                         raise serializers.ValidationError({
-                            "id_conductor": f"Conductor no disponible. Debe esperar hasta el {fecha_liberacion.strftime('%d/%m/%Y')}."
+                            "id_conductor": f"Conflicto de fechas. El conductor estuvo/estará ocupado desde el {fecha_inicio_previo.strftime('%d/%m/%Y')} hasta el {fecha_liberacion.strftime('%d/%m/%Y')}."
                         })
         
         return data
@@ -324,6 +326,8 @@ class RamplaSerializer(serializers.ModelSerializer):
 
 
 class CotizacionSerializer(serializers.ModelSerializer):
+    colaboradores_activos = serializers.SerializerMethodField()
+    usuario_creacion_nombre = serializers.SerializerMethodField()
     class Meta:
         model = Cotizacion
         fields = '__all__'
@@ -333,8 +337,22 @@ class CotizacionSerializer(serializers.ModelSerializer):
             'fecha_creacion', 
             'fecha_confirmacion'
         ]
+    
+    def get_colaboradores_activos(self, obj):
+        permisos = obj.colaboradores_invitados.filter(activo=True)
+        return [{"id": p.usuario_invitado.id, "username": p.usuario_invitado.username} for p in permisos]
+    
+    def get_usuario_creacion_nombre(self, obj):
+        if obj.id_usuario_creacion:
+            return f"{obj.id_usuario_creacion.first_name} {obj.id_usuario_creacion.last_name}".strip() or obj.id_usuario_creacion.username
+        return None
 
 class InvitacionColaboradorSerializer(serializers.Serializer):
     usuario_invitado_id = serializers.IntegerField(
         help_text="ID del usuario al que se le dará acceso al despacho."
+    )
+
+class InvitacionCotizacionSerializer(serializers.Serializer):
+    usuario_invitado_id = serializers.IntegerField(
+        help_text="ID del usuario al que se le dará acceso a la cotización"
     )

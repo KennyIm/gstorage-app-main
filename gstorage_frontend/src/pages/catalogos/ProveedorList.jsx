@@ -42,7 +42,7 @@ const isValidRUT = (rut) => {
 
 export default function Proveedores() {
 
-    document.title = "Gestión de Proveedores";
+    document.title = "Gestión de Proveedores - GStorage";
     const [proveedores, setProveedores] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);

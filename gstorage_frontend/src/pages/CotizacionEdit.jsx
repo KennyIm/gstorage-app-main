@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 
 export default function CotizacionEdit() {
-    document.title = "Editar Cotización | GStorage";
+    document.title = "Editar Cotización - GStorage";
     const { id } = useParams();
     const navigate = useNavigate();
     const { logoutUser, user } = useAuth();
@@ -51,10 +51,22 @@ export default function CotizacionEdit() {
                 // REGLAS DE BLOQUEO
                 const isCotizado = cot.estado_cotizacion === 'Cotizado';
                 const isCreator = user?.id === cot.id_usuario_creacion;
+                const esColaboradorInvitado = cot.colaboradores_activos?.some(
+                    (colab) => String(colab.id) === String(user?.id)
+                )
 
-                if (isCotizado || !isCreator) {
+                const debeBloquearse = isCotizado || (!isCreator && !esColaboradorInvitado)
+
+                if (debeBloquearse) {
                     setIsReadOnly(true);
-                    showToast(isCotizado ? 'Esta cotización ya fue confirmada y no se puede editar.' : 'No tienes permisos para editar esta cotización.', 'info');
+                    showToast(
+                        isCotizado
+                            ? 'Esta cotización ya fue confirmada y no se puede editar.'
+                            : 'No tienes permisos para editar esta cotización.',
+                        'info'
+                    );
+                } else {
+                    setIsReadOnly(false);
                 }
 
                 setFormData({
@@ -152,7 +164,7 @@ export default function CotizacionEdit() {
                             <p className="text-sm font-bold text-amber-800">
                                 {formData.estado_cotizacion === 'Cotizado'
                                     ? 'Modo Lectura: Esta cotización ya ha sido confirmada y cerrada.'
-                                    : 'Modo Lectura: Solo el creador original puede modificarla.'}
+                                    : 'Modo Lectura: No tienes permiso de edición. Solicita acceso al creador de la cotización.'}
                             </p>
                         </div>
                     )}
@@ -252,7 +264,7 @@ export default function CotizacionEdit() {
                                         className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg disabled:opacity-60 disabled:bg-gray-100 outline-none focus:ring-2 focus:ring-red-800" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Tipo Envase</label>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Tipo</label>
                                     <input type="text" name="tipo_bultos" value={formData.tipo_bultos} onChange={handleChange} disabled={isReadOnly}
                                         className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg disabled:opacity-60 disabled:bg-gray-100 outline-none focus:ring-2 focus:ring-red-800" />
                                 </div>
@@ -260,7 +272,7 @@ export default function CotizacionEdit() {
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Peso (Kg)</label>
                                     <div className="relative">
                                         <Scale className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                        <input type="number" step="0.01" name="kg" value={formData.kg} onChange={handleChange} disabled={isReadOnly}
+                                        <input type="number" step="0" name="kg" value={formData.kg} onChange={handleChange} disabled={isReadOnly}
                                             className="w-full pl-9 pr-4 py-2 bg-white border border-gray-300 rounded-lg disabled:opacity-60 disabled:bg-gray-100 outline-none focus:ring-2 focus:ring-red-800" />
                                     </div>
                                 </div>
@@ -268,7 +280,7 @@ export default function CotizacionEdit() {
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Volumen (m³)</label>
                                     <div className="relative">
                                         <Box className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                        <input type="number" step="0.001" name="m3" value={formData.m3} onChange={handleChange} disabled={isReadOnly}
+                                        <input type="number" step="0.00" name="m3" value={formData.m3} onChange={handleChange} disabled={isReadOnly}
                                             className="w-full pl-9 pr-4 py-2 bg-white border border-gray-300 rounded-lg disabled:opacity-60 disabled:bg-gray-100 outline-none focus:ring-2 focus:ring-red-800" />
                                     </div>
                                 </div>

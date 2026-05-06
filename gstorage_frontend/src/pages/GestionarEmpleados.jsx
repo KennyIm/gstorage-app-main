@@ -5,7 +5,7 @@ import { useUI } from '../context/UIContext';
 import { Users, Search, Plus, Edit, UserX, UserCheck, X, Lock, Shield, KeyRound, Building } from 'lucide-react';
 
 export default function GestionarEmpleados() {
-  document.title = "Gestionar Personas";
+  document.title = "Gestionar Personas - GStorage";
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -381,6 +381,7 @@ export default function GestionarEmpleados() {
                       <option value="OPERARIO">Operario</option>
                       <option value="JEFE_BODEGA">Jefe de Bodega</option>
                       <option value="SECRETARIA">Secretaria</option>
+                      <option value="ADMINISTRATIVO">Administrativo</option>
                       <option value="DUENO">Dueño</option>
                     </select>
                   </div>

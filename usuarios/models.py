@@ -37,6 +37,7 @@ class Sucursal(models.Model):
 class Perfil(models.Model):
     class Roles(models.TextChoices):
         DUENO = 'DUENO', 'Dueño'
+        ADMINISTRATIVO = 'ADMINISTRATIVO', 'Administrativo'
         SECRETARIA = 'SECRETARIA', 'Secretaria'
         JEFE_BODEGA = 'JEFE_BODEGA', 'Jefe de Bodega'
         OPERARIO = 'OPERARIO', 'Operario'

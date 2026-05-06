@@ -10,7 +10,7 @@ import {
 import { useUI } from '../context/UIContext';
 
 export default function MercanciaDetail() {
-  document.title = "Detalles de Mercancia";
+  document.title = "Detalles de Mercancia - GStorage";
   const [mercancia, setMercancia] = useState(null);
 
   const [clientes, setClientes] = useState([]);

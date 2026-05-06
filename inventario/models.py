@@ -450,7 +450,7 @@ class Cotizacion(models.Model):
     tipo_bultos = models.CharField(max_length=50, blank=True, null=True, verbose_name="Tipo de bultos")
     kg = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Peso (Kg)")
     m3 = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, verbose_name="Volumen (m³)")
-    monto = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Monto Cotizado")
+    monto = models.DecimalField(max_digits=12, decimal_places=0, null=True, blank=True, verbose_name="Monto Cotizado")
     estado_cotizacion = models.CharField(max_length=50, choices=ESTADOS_COTIZACION)
     fecha_confirmacion = models.DateTimeField(null=True, blank=True, verbose_name="Fecha confirmación")
     fecha_creacion = models.DateTimeField(auto_now_add=True, verbose_name="Fecha de creación")
@@ -477,5 +477,19 @@ class PermisoColaboracion(models.Model):
 
     def __str__(self):
         return f"Permiso para {self.usuario_invitado.username} en Despacho #{self.despacho.id_despacho}" 
-    
+
+class PermisoCotizacion(models.Model):
+    cotizacion = models.ForeignKey(Cotizacion, on_delete=models.CASCADE, related_name='colaboradores_invitados')
+    usuario_invitado = models.ForeignKey(User, on_delete=models.CASCADE, related_name='cotizaciones_compartidas')
+    otorgado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='invitaciones_cotizacion_enviadas', help_text="El usuario que concedió este permiso.")
+    fecha_invitacion = models.DateTimeField(auto_now_add=True)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ('cotizacion', 'usuario_invitado')
+        verbose_name = 'Permiso de Cotización'
+        verbose_name_plural = 'Permisos de Cotizaciones'
+
+    def __str__(self):
+        return f"Permiso para {self.usuario_invitado.username} en Cotización #{self.cotizacion.id_cotizacion}"
     

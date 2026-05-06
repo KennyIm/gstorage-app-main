@@ -6,6 +6,7 @@ import { useReactToPrint } from 'react-to-print';
 import { Printer, ArrowLeft, Truck, Calendar, User, MapPin } from 'lucide-react';
 
 export default function OrdenEntregaPlantilla() {
+    document.title="Ordenes - GStorage"
     const { id } = useParams();
     const navigate = useNavigate();
 

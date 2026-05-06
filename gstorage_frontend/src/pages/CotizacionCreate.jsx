@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 
 export default function CotizacionCreate() {
-    document.title = "Nueva Cotización | GStorage";
+    document.title = "Nueva Cotización - GStorage";
     const navigate = useNavigate();
     const { logoutUser } = useAuth();
     const { showLoader, hideLoader, showToast } = useUI();

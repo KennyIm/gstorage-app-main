@@ -26,3 +26,16 @@ class IsOperario(permissions.BasePermission):
     def has_permission(self, request, view):
         rol = _get_rol_from_user(request)
         return rol in ['DUENO', 'SECRETARIA', 'JEFE_BODEGA', 'OPERARIO']
+    
+def AllowRoles(*roles_permitidos):
+    class DynamicRolePermission(permissions.BasePermission):
+        def has_permission(self, request, view):
+            rol = _get_rol_from_user(request)
+            
+            if not rol or rol not in roles_permitidos:
+                self.message = f"Acceso denegado."
+                return False
+                
+            return True
+
+    return DynamicRolePermission

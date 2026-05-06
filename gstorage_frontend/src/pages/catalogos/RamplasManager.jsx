@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 import { useUI } from '../../context/UIContext';
 
 export default function RamplaList() {
-  document.title = "Gestión de Ramplas";
+  document.title = "Gestión de Ramplas - GStorage";
   const [ramplas, setRamplas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,7 +34,7 @@ export default function RamplaList() {
       setLoading(false);
     } catch (err) {
       console.error(err);
-      showToast('Error al cargar la lista de proveedores.', 'error');
+      showToast('Error al cargar la lista de ramplas.', 'error');
     } finally {
       setLoading(false);
     }

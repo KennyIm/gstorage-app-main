@@ -5,7 +5,7 @@ import { useUI } from '../../context/UIContext';
 import { Search, Plus, Edit, Trash2, X, Truck, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function CamionList() {
-  document.title = "Gestión de Camiones";
+  document.title = "Gestión de Camiones - GStorage";
   const [trucks, setTrucks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');

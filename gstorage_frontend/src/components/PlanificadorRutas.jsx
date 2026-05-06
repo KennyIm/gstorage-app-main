@@ -6,7 +6,7 @@ import apiClient from '../services/api';
 import Select from 'react-select';
 
 export default function PlanificadorRutas() {
-  document.title = "Planificador de Rutas";
+  document.title = "Planificador de Rutas - GStorage";
   const [despachos, setDespachos] = useState([]);
   const [todasMercancias, setTodasMercancias] = useState([]);
   const [clientes, setClientes] = useState([]);

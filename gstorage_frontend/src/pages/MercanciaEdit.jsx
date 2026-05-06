@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 export default function MercanciaEdit() {
-  document.title = "Edición de Mercancia";
+  document.title = "Edición de Mercancia - GStorage";
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, logoutUser } = useAuth();
@@ -32,6 +32,8 @@ export default function MercanciaEdit() {
   const [submitting, setSubmitting] = useState(false);
   const { showLoader, hideLoader, showToast } = useUI();
   const [direccionesSugeridas, setDireccionesSugeridas] = useState([]);
+
+  const [showPricing, setShowPricing] = useState(false);
 
   // --- LÓGICA DE CÁLCULO DE PRECIO ---
   const calcularPrecioLogica = () => {
@@ -253,9 +255,16 @@ export default function MercanciaEdit() {
 
             {/* DATOS GENERALES */}
             <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
-                <User className="w-5 h-5 text-indigo-600" />
+              <h3 className="text-lg font-semibold justify-between text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
                 Asignación
+                <button
+                  type='button'
+                  onClick={() => setShowPricing(true)}
+                  className="flex items-center gap-2 px-2 bg-amber-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-lg"
+                >
+                  <Info size={20} />
+                  Tarifas
+                </button>
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -269,7 +278,7 @@ export default function MercanciaEdit() {
                         noOptionsMessage={() => "No se encontró el cliente"}
                         options={clientes.map(c => ({
                           value: c.id_cliente,
-                          label: c.nombre_cliente
+                          label: `${c.nombre_cliente} (RUT:${c.rut_cliente})`
                         }))}
                         value={
                           formData.id_cliente && clientes.find(c => String(c.id_cliente) === String(formData.id_cliente))
@@ -454,7 +463,7 @@ export default function MercanciaEdit() {
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
                       value={formData.kg}
                       onChange={handleChange}
-                      step="0.01"
+                      step="1"
                     />
                   </div>
                 </div>
@@ -631,6 +640,145 @@ export default function MercanciaEdit() {
 
           </form>
         </div>
+        {showPricing && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+
+              {/* Cabecera */}
+              <div className="bg-blue-600 text-white p-5 flex items-center justify-between shrink-0">
+                <h2 className="text-xl font-bold">Tarifas y Precios</h2>
+              </div>
+
+              {/* Contenido*/}
+              <div className="p-6 space-y-6 overflow-y-auto">
+
+                {/* Valores por Caja */}
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-3">Valores por Caja</h3>
+                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 divide-y divide-slate-200">
+
+                    {/* Cabecera (Grid de 5 columnas) */}
+                    <div className="grid grid-cols-5 gap-2 py-2 first:pt-0 text-[10px] sm:text-xs">
+                      <span className="font-bold text-slate-900 text-left text-sm">Destino</span>
+                      <span className="font-bold text-slate-900 text-center text-sm">Hasta 5Kg</span>
+                      <span className="font-bold text-slate-900 text-center text-sm">Hasta 15kg/0.10m³</span>
+                      <span className="font-bold text-slate-900 text-center text-sm">Hasta 25Kg/0.20m³</span>
+                      <span className="font-bold text-slate-900 text-center text-sm">Hasta 40Kg/0.30m³</span>
+                    </div>
+                    {[
+                      { ciudad: 'Iquique', p1: '$19.500', p2: '$32.500', p3: '$45.500', p4: '$58.500' },
+                      { ciudad: 'Antofagasta', p1: '$13.000', p2: '$26.000', p3: '$39.000', p4: '$45.500' },
+                      { ciudad: 'Tocopilla', p1: '$19.500', p2: '$32.500', p3: '$45.500', p4: '$58.500' },
+                      { ciudad: 'Mejillones', p1: '$13.000', p2: '$26.000', p3: '$39.000', p4: '$45.500' },
+                      { ciudad: 'Calama', p1: '$19.500', p2: '$32.500', p3: '$45.500', p4: '$58.500' },
+                      { ciudad: 'Copiapo', p1: '$13.000', p2: '$26.000', p3: '$39.000', p4: '$45.500' },
+                    ].map((fila, index) => (
+                      <div
+                        key={index}
+                        className="grid grid-cols-5 gap-2 py-2.5 items-center hover:bg-slate-100 transition-colors"
+                      >
+                        <span className="text-slate-900 font-medium text-sm">{fila.ciudad}</span>
+                        <span className="text-slate-600 text-center text-sm">{fila.p1}</span>
+                        <span className="text-slate-600 text-center text-sm">{fila.p2}</span>
+                        <span className="text-slate-600 text-center text-sm">{fila.p3}</span>
+                        <span className="text-slate-600 text-center text-sm">{fila.p4}</span>
+                      </div>
+                    ))}
+
+                  </div>
+                </div>
+
+                {/* Adicionales por Tipo de Embalaje */}
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-3">Adicionales por Embalaje</h3>
+
+                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex flex-col gap-3">
+
+                    {/* Cajones (Maquinaria) */}
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="col-span-1 flex items-center text-slate-900 font-medium text-sm pr-2">
+                        Cajones (Maquinaria)
+                      </div>
+                      <div className="col-span-1 bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center text-center shadow-sm">
+                        <span className="text-[10px] sm:text-xs text-slate-500 mb-0.5">Hasta 1m³</span>
+                        <span className="font-bold text-slate-900">$75.000</span>
+                      </div>
+                      <div className="col-span-1 bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center text-center shadow-sm">
+                        <span className="text-[10px] sm:text-xs text-slate-500 mb-0.5">1m³ - 3m³</span>
+                        <span className="font-bold text-slate-900">$130.000</span>
+                      </div>
+                      <div className="col-span-1 bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center text-center shadow-sm">
+                        <span className="text-[10px] sm:text-xs text-slate-500 mb-0.5">Mayor 3m³</span>
+                        <span className="font-bold text-slate-900">$190.000</span>
+                      </div>
+                    </div>
+
+                    {/* Jaulas/Javas */}
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="col-span-1 flex items-center text-slate-900 font-medium text-sm pr-2">
+                        Jaulas/Javas
+                      </div>
+                      <div className="col-span-3 bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center text-center shadow-sm">
+                        <span className="font-bold text-slate-900">+1 m³</span>
+                      </div>
+                    </div>
+
+                    {/* Bultos largos/indivisibles */}
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="col-span-1 flex items-center text-slate-900 font-medium text-sm pr-2 leading-tight">
+                        Bultos largos/indivisibles
+                      </div>
+                      <div className="col-span-1 bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center text-center shadow-sm">
+                        <span className="text-[10px] sm:text-xs text-slate-500 mb-0.5">Hasta 3m de largo</span>
+                        <span className="font-bold text-emerald-600">+20%</span>
+                      </div>
+                      <div className="col-span-1 bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center text-center shadow-sm">
+                        <span className="text-[10px] sm:text-xs text-slate-500 mb-0.5">Entre 3 y 5.99m</span>
+                        <span className="font-bold text-emerald-600">+40%</span>
+                      </div>
+                      <div className="col-span-1 bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center justify-center text-center shadow-sm">
+                        <span className="text-[10px] sm:text-xs text-slate-500 mb-0.5">Mayor a 6m</span>
+                        <span className="font-bold text-emerald-600">+60%</span>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Precio Mínimo */}
+                <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl">
+                  <h3 className="text-lg font-bold text-amber-900 mb-1">Precio Mínimo</h3>
+                  <p className="text-amber-800 mb-2">
+                    El cargo mínimo por ingreso de mercadería es de <span className="font-black text-xl">1m³</span>
+                  </p>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    Este monto se aplica cuando una carga no cumple con los <span className="font-black">Kg</span> mínimos ni con los <span className="font-black">m³</span> mínimos.
+                  </p>
+                </div>
+
+                {/* Información Adicional */}
+                <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
+                  <h4 className="font-bold text-blue-900 mb-2">Información Adicional</h4>
+                  <ul className="text-sm text-blue-800 space-y-1.5">
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span> Los precios no incluyen IVA.</li>
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span> La mercadería de lujo y/o alto valor se debe cobrar un adicional de 2% a 5% del monto de la factura.</li>
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span> Cuando coincidan dos criterios adicionales se aplicará el mas alto.</li>
+                  </ul>
+                </div>
+              </div>
+              <div className="bg-slate-50 border-t border-slate-200 p-4 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowPricing(false)}
+                  className="w-full bg-slate-800 text-white py-2.5 rounded-xl hover:bg-slate-900 transition-colors font-semibold shadow-sm"
+                >
+                  Cerrar
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

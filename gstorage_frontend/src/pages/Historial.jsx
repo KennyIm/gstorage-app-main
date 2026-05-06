@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { History, User, Edit, Trash2, Plus, Filter, Search, MapPin, Loader2 } from 'lucide-react'; 
+import { useUI } from '../context/UIContext';
+import { History, User, Edit, Trash2, Plus, Filter, Search, MapPin, Loader2 } from 'lucide-react';
 import apiClient from '../services/api';
 
 export default function HistorialView() {
-  document.title = "Historial de cambios";
+  document.title = "Historial de cambios - GStorage";
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sucursales, setSucursales] = useState([]);
   const [error, setError] = useState(null);
-  
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('Todos');
-  const [showFilters, setShowFilters] = useState(false); 
+  const [showFilters, setShowFilters] = useState(false);
+  const { showLoader, hideLoader, showToast } = useUI();
 
   const [nextPageUrl, setNextPageUrl] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -23,15 +25,27 @@ export default function HistorialView() {
           apiClient.get('/api/inventario/historial/'),
           apiClient.get('/api/usuarios/sucursales/')
         ]);
-        
+
         setHistory(historyRes.data.results || historyRes.data);
         setNextPageUrl(historyRes.data.next || null);
         setSucursales(sucursalesRes.data);
         setLoading(false);
       } catch (err) {
-        console.error(err);
-        setError('No se pudo cargar el historial.');
-        setLoading(false);
+        if (err.response) {
+
+          if (err.response.status === 403) {
+            const mensajePermiso = err.response.data.detail || 'No tienes permisos para realizar esta acción.';
+            showToast(mensajePermiso, 'error');
+          } else if (err.response.status === 401) {
+            showToast('Sesión caducada, ingresa nuevamente.', 'error');
+          } else {
+            showToast('No se pudo cargar el historial.', 'error');
+            console.error(err);
+          }
+
+        } else {
+          showToast('Error de conexión con el servidor.', 'error');
+        }
       }
     };
     fetchData();
@@ -59,12 +73,12 @@ export default function HistorialView() {
 
   const getStyleForAction = (accion) => {
     const act = accion?.toLowerCase() || '';
-    if (act.includes('creación') || act.includes('creacion')) 
-        return { icon: Plus, color: 'text-green-600', bg: 'bg-green-100', label: 'Creación' };
-    if (act.includes('edición') || act.includes('edicion') || act.includes('modificación')) 
-        return { icon: Edit, color: 'text-blue-600', bg: 'bg-blue-100', label: 'Edición' };
-    if (act.includes('eliminación') || act.includes('eliminacion') || act.includes('borrado')) 
-        return { icon: Trash2, color: 'text-red-600', bg: 'bg-red-100', label: 'Eliminación' };
+    if (act.includes('creación') || act.includes('creacion'))
+      return { icon: Plus, color: 'text-green-600', bg: 'bg-green-100', label: 'Creación' };
+    if (act.includes('edición') || act.includes('edicion') || act.includes('modificación'))
+      return { icon: Edit, color: 'text-blue-600', bg: 'bg-blue-100', label: 'Edición' };
+    if (act.includes('eliminación') || act.includes('eliminacion') || act.includes('borrado'))
+      return { icon: Trash2, color: 'text-red-600', bg: 'bg-red-100', label: 'Eliminación' };
     return { icon: History, color: 'text-gray-600', bg: 'bg-gray-100', label: 'Movimiento' };
   };
 
@@ -91,16 +105,16 @@ export default function HistorialView() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-      
+
 
       <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
-        
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <History className="w-6 h-6 text-indigo-600" />
             <h2 className="text-xl font-semibold text-gray-900">Actividad Reciente</h2>
           </div>
-          
+
           <div className="flex items-center gap-3 relative">
             <div className="relative">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
@@ -112,9 +126,9 @@ export default function HistorialView() {
                 className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-64"
               />
             </div>
-            
+
             <div className="relative">
-              <button 
+              <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition text-sm font-medium ${filterType !== 'Todos' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
               >
@@ -151,18 +165,18 @@ export default function HistorialView() {
               const actionType = item.accion || item.tipo_movimiento;
               const style = getStyleForAction(actionType);
               const Icon = style.icon;
-              
+
               return (
                 <div key={item.id_historial} className="relative pl-4">
                   {index !== filteredHistory.length - 1 && (
                     <div className="absolute left-[1.6rem] top-12 bottom-[-1.5rem] w-0.5 bg-gray-200"></div>
                   )}
-                  
+
                   <div className="flex gap-4">
                     <div className={`w-12 h-12 ${style.bg} rounded-full flex items-center justify-center flex-shrink-0 shadow-sm z-10 relative`}>
                       <Icon className={`w-5 h-5 ${style.color}`} />
                     </div>
-                    
+
                     <div className="flex-1 bg-gray-50 rounded-xl p-4 border border-gray-100 hover:shadow-sm transition">
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex gap-2 items-center">
@@ -177,11 +191,11 @@ export default function HistorialView() {
                           {new Date(item.fecha_hora_movimiento).toLocaleString('es-CL')}
                         </p>
                       </div>
-                      
+
                       <p className="text-gray-900 mb-3 text-sm">
                         {item.descripcion_adicional || "Sin descripción detallada."}
                       </p>
-                      
+
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-gray-500 text-xs">
                           <User className="w-3 h-3" />
@@ -202,7 +216,7 @@ export default function HistorialView() {
 
         {nextPageUrl && !searchTerm && filterType === 'Todos' && (
           <div className="mt-8 flex justify-center pt-4 border-t border-gray-100">
-            <button 
+            <button
               onClick={loadMore}
               disabled={loadingMore}
               className="flex items-center gap-2 px-6 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
