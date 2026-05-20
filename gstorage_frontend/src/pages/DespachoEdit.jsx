@@ -54,10 +54,10 @@ export default function DespachoEdit() {
         setFormData({
           fecha_programada: despachoRes.data.fecha_programada,
           fecha_salida_real: formatDateForInput(despachoRes.data.fecha_salida_real),
-          id_camion: despachoRes.data.id_camion,
-          id_conductor: despachoRes.data.id_conductor,
-          id_rampla: despachoRes.data.id_rampla,
-          id_ruta: despachoRes.data.id_ruta,
+          id_camion: despachoRes.data.id_camion || '',
+          id_conductor: despachoRes.data.id_conductor || '',
+          id_rampla: despachoRes.data.id_rampla || '',
+          id_ruta: despachoRes.data.id_ruta || '',
           origen: despachoRes.data.origen,
           destino: despachoRes.data.destino,
           estado_despacho: despachoRes.data.estado_despacho
@@ -71,7 +71,7 @@ export default function DespachoEdit() {
           console.error("Error al buscar la información:", err);
           showToast("No se pudo cargar la información necesaria.", 'error');
         }
-      }finally {
+      } finally {
         setLoading(false);
       }
     };
@@ -88,6 +88,7 @@ export default function DespachoEdit() {
     setError(null);
     setSubmitting(true);
     showLoader();
+    setLoading(true);
 
     const dataToSubmit = {
       ...formData,
@@ -100,6 +101,7 @@ export default function DespachoEdit() {
 
     try {
       await apiClient.put(`/api/inventario/despachos/${id}/`, dataToSubmit);
+      hideLoader();
       setSubmitting(false);
       navigate(`/despachos/${id}`);
     } catch (err) {
@@ -114,7 +116,10 @@ export default function DespachoEdit() {
       } else {
         showToast('Error al crear el despacho. Intente nuevamente.', 'error');
       }
+    } finally {
+      hideLoader();
       setSubmitting(false);
+      setLoading(false);
     }
   };
 

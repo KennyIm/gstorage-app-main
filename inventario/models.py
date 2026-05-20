@@ -1,6 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import User 
 from django.db.models import Q
+import json
+import copy
+from django.core.serializers.json import DjangoJSONEncoder
 from django.conf import settings
 from usuarios.models import Empresa, Sucursal
 
@@ -57,6 +60,10 @@ class RamplaManager(models.Manager):
 class CotizacionManager(models.Manager):
     def get_queryset(self):
         return super().get_queryset().filter(activo=True)
+    
+class HistorialManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset()
     
 class Proveedor(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="proveedores")
@@ -343,6 +350,23 @@ class Mercancia(models.Model):
     id_usuario_ultima_modificacion = models.ForeignKey(User, related_name='mercancias_modificadas', on_delete=models.PROTECT, null=True, blank=True, verbose_name="Usuario Modificación")
     activo = models.BooleanField(default=True, verbose_name="Activo")
 
+    tipo_documento_pago = models.CharField(
+        max_length=20, 
+        choices=[('Factura', 'Factura (+ IVA)'), ('Sin_Factura', 'Sin Factura / Guía')],
+        default='Factura',
+        verbose_name="Tipo de Cobro"
+    )
+    estado_cobranza = models.CharField(
+        max_length=20,
+        choices=[
+            ('Pendiente', 'Pendiente de Cobro'), 
+            ('En_Proceso', 'En Proceso de Cobro (Facturado)'), 
+            ('Pagado', 'Pagado')
+        ],
+        default='Pendiente',
+        verbose_name="Estado de Cobranza"
+    )
+
     objects = models.Manager()
     activos = MercanciaManager()
 
@@ -357,6 +381,60 @@ class Mercancia(models.Model):
     def __str__(self):
         return f"Lote #{self.id_mercancia} - {self.id_cliente.nombre_cliente}"
     
+
+def extraer_datos_auditoria(instancia):
+    if not instancia: return None
+    datos = {}
+    
+    for campo in instancia._meta.fields:
+        nombre_campo = campo.name
+        if nombre_campo in ['id', 'empresa', 'sucursal', 'usuario_creacion', 'fecha_creacion', 'fecha_actualizacion']:
+            continue
+            
+        valor = getattr(instancia, nombre_campo)
+        if valor is None:
+            continue
+        nombre_legible = str(campo.verbose_name).title()
+        if nombre_legible.lower().startswith("id "):
+            nombre_legible = nombre_legible[3:].strip() 
+        if campo.is_relation and campo.many_to_one:
+            atributos_magicos = ['nombre_cliente', 'codigo_ubicacion', 'nombre_ciudad', 'nombre', 'descripcion']
+            
+            encontro_texto = False
+            for attr in atributos_magicos:
+                if hasattr(valor, attr):
+                    datos[nombre_legible] = str(getattr(valor, attr))
+                    encontro_texto = True
+                    break
+            if not encontro_texto:
+                datos[nombre_legible] = str(valor)
+        else:
+            if nombre_campo.endswith('_id') or nombre_campo.startswith('id_'):
+                continue
+            
+            datos[nombre_legible] = valor
+            
+    try:
+        return json.loads(json.dumps(datos, cls=DjangoJSONEncoder))
+    except Exception as e:
+        print(f"Error extrayendo auditoría: {e}")
+        return None
+
+def generar_diff(instancia_vieja, instancia_nueva):
+    datos_viejos = extraer_datos_auditoria(instancia_vieja) or {}
+    datos_nuevos = extraer_datos_auditoria(instancia_nueva) or {}
+    
+    cambios = {}
+    for key, valor_nuevo in datos_nuevos.items():
+        valor_viejo = datos_viejos.get(key)
+        if valor_viejo != valor_nuevo:
+            cambios[key] = {
+                "viejo": valor_viejo,
+                "nuevo": valor_nuevo
+            }
+            
+    return {"es_diff": True, "cambios": cambios}
+
 
 class HistorialMovimientos(models.Model):
     TIPO_MOVIMIENTO_CHOICES = [
@@ -377,6 +455,32 @@ class HistorialMovimientos(models.Model):
     modelo_afectado = models.CharField(max_length=50, null=True, blank=True, verbose_name="Módulo (Ej: Camión)")
     accion = models.CharField(max_length=50) 
     descripcion_adicional = models.CharField(max_length=255, null=True, blank=True)
+
+    detalles = models.JSONField(
+        null=True, 
+        blank=True, 
+        verbose_name="Detalles del Movimiento",
+        help_text="Guarda una foto en formato JSON de los datos en ese momento."
+    )
+
+    objects = HistorialManager()
+    def create(self, **kwargs):
+        instancia = kwargs.pop('instancia', None)
+        
+        if instancia:
+            kwargs['detalles'] = extraer_datos_auditoria(instancia)
+            
+        return super().create(**kwargs)
+    def __init__(self, *args, **kwargs):
+        instancia_nueva = kwargs.pop('instancia', None)
+        instancia_vieja = kwargs.pop('instancia_vieja', None) 
+        
+        if instancia_vieja and instancia_nueva:
+            kwargs['detalles'] = generar_diff(instancia_vieja, instancia_nueva)
+        elif instancia_nueva:
+            kwargs['detalles'] = extraer_datos_auditoria(instancia_nueva)
+            
+        super().__init__(*args, **kwargs)
 
     def __str__(self):
         return f"Movimiento de {self.id_mercancia.id_mercancia} - {self.tipo_movimiento}"

@@ -31,6 +31,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/inventario/', include('inventario.urls')),
     path('api/usuarios/', include('usuarios.urls')),
+    path('api/finanzas/', include('finanzas.urls')),
     path('api/token/', LoginThrottleView.as_view(), name='token_obtain_pair'),
     path('api/logout/', TokenBlacklistView.as_view(), name='token_logout'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

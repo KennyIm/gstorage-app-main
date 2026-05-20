@@ -15,6 +15,7 @@ export default function MercanciaList() {
   const { showLoader, hideLoader, showToast } = useUI();
   const [searchTerm, setSearchTerm] = useState('');
   const [despachos, setDespachos] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
   const [sucursales, setSucursales] = useState([]);
   const [rutas, setRutas] = useState([]);
 
@@ -86,16 +87,18 @@ export default function MercanciaList() {
   const fetchData = useCallback(async () => {
     showLoader();
     try {
-      const [mercRes, despRes, sucurRes, rutasRes] = await Promise.all([
+      const [mercRes, despRes, sucurRes, rutasRes, provRes] = await Promise.all([
         apiClient.get('/api/inventario/mercancias/'),
         apiClient.get('/api/inventario/despachos/'),
         apiClient.get('/api/usuarios/sucursales/'),
-        apiClient.get('/api/inventario/rutas/')
+        apiClient.get('/api/inventario/rutas/'),
+        apiClient.get('/api/inventario/proveedores/')
       ]);
       setMercancias(mercRes.data);
       setDespachos(despRes.data);
       setSucursales(sucurRes.data);
       setRutas(rutasRes.data);
+      setProveedores(provRes.data)
     } catch (err) {
       console.error("Error al cargar datos iniciales:", err);
       showToast('No se pudieron cargar las mercancias.', 'error');
@@ -406,7 +409,8 @@ export default function MercanciaList() {
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm"
                 >
                   <option value="TODOS">Todos los estados</option>
-                  <option value="Bodega">En Bodega</option>
+                  <option value="En Bodega">En Bodega</option>
+                  <option value="Asignado">Asignado</option>
                   <option value="Transito">En Tránsito</option>
                   <option value="Entregado">Entregado</option>
                 </select>
@@ -514,7 +518,7 @@ export default function MercanciaList() {
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Código</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Cliente</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Suc</th>
-                <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Proveedor</th>
+                <th className="text-center py-4 px-4 text-sm font-semibold text-gray-600">Proveedor</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Valor</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Despacho</th>
                 <th className="text-center py-4 px-4 text-sm font-semibold text-gray-600">Estado</th>
@@ -562,10 +566,23 @@ export default function MercanciaList() {
                     </td>
 
                     <td className="py-4 px-4 font-bold text-green-700">{iniciales}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-bold text-blue-700 px-2 py-1">
-                        {item.id_proveedor}
-                      </span>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold text-blue-700 px-2 py-1">
+                          {(() => {
+                            const provObj = proveedores.find(p => String(p.rut || d.id) === String(item.id_proveedor));
+
+                            if (provObj?.rut) {
+                              const provrut = String(provObj.nombre_proveedor);
+
+                              return provrut;
+                            }
+
+                            return item.id_proveedor;
+                          })()}
+                        </span>
+                        <span className="text-xs font-bold text-amber-700 px-2 py-1">{item.id_proveedor}</span>
+                      </div>
                     </td>
 
                     <td className="py-4 px-4">

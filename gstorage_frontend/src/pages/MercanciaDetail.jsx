@@ -5,7 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import {
   ArrowLeft, Edit, Trash2, Package, MapPin, User,
   Calendar, Activity, Truck, Scale, Box, FileText,
-  Loader2, Info, DollarSign, Warehouse
+  Loader2, Info, DollarSign, Warehouse,
+  PackageCheck
 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 
@@ -230,6 +231,13 @@ export default function MercanciaDetail() {
                       {getNombreSucursal(mercancia.sucursal_id).replace('Sucursal ', '')}
                     </span>
                     <span className="text-xs text-cyan-600 font-medium">Sucursal</span>
+                  </div>
+                  <div className="p-4 border border-red-100 rounded-lg text-center hover:border-red-200 transition bg-red-50">
+                    <PackageCheck className="w-5 h-5 text-red-500 mx-auto mb-2" />
+                    <span className="block text-sm font-bold text-gray-600 truncate px-1">
+                      {mercancia.tipo || "Sin Especificar"}
+                    </span>
+                    <span className="text-xs text-red-600 font-medium">Tipo</span>
                   </div>
                 </div>
 

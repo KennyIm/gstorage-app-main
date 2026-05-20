@@ -12,6 +12,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
 from inventario.models import HistorialMovimientos
+import copy
 
 
 from .serializers import (
@@ -49,7 +50,7 @@ class RegisterView(generics.CreateAPIView):
                 id_mercancia=None,
                 id_usuario=self.request.user,
                 tipo_movimiento='Creación',
-                descripcion_adicional=f"Se creó el usuario: {user.username}"
+                descripcion_adicional=f"Se creó el usuario: {user.username}",
             )
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -90,7 +91,8 @@ class PerfilUpdateView(generics.UpdateAPIView):
             id_mercancia=None, 
             id_usuario=admin_user, 
             tipo_movimiento='Modificación Manual', 
-            descripcion_adicional=detalle
+            descripcion_adicional=detalle,
+            instancia = instance
         )
 
 

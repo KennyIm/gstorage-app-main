@@ -71,6 +71,14 @@ import CotizacionEdit from './pages/CotizacionEdit'
 
 import ManualUsuario from './pages/ManualUsuario'
 
+import BandejaCobranza from './pages/BandejaCobranza'
+
+import DocumentosEmitidos from './pages/DocumentosEmitidos'
+
+import PerfilFinancieroCliente from './pages/PerfilFinancieroCliente'
+
+import IngresoGastos from './pages/IngresoGastos'
+
 function App() {
   return (
     <Routes>
@@ -141,6 +149,14 @@ function App() {
           <Route path="/cotizaciones/editar/:id" element={<CotizacionEdit />} />
 
           <Route path="/ayuda" element={<ManualUsuario />} />
+
+          <Route path='/generar-cobro' element={<BandejaCobranza/>} />
+
+          <Route path='/documentos' element={<DocumentosEmitidos/>} />
+
+          <Route path='/perfil-financiero' element={<PerfilFinancieroCliente/>}/>
+
+          <Route path='/ingreso-gastos' element={<IngresoGastos/>}/>
         </Route>
       </Route>
     </Routes>

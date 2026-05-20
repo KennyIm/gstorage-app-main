@@ -1,5 +1,9 @@
 from django.shortcuts import render
 import os
+import json
+import copy
+from django.core.serializers.json import DjangoJSONEncoder
+from django.forms.models import model_to_dict
 from django.conf import settings
 from django.urls import reverse_lazy
 from django.db import transaction
@@ -21,7 +25,7 @@ from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.drawing.image import Image as ExcelImage
 from openpyxl.worksheet.page import PageMargins
 from django.http import HttpResponse
-from rest_framework import status
+from rest_framework import status,filters,generics
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import PermissionDenied
 from django.db.models import Q, Exists, OuterRef
@@ -223,7 +227,8 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
             id_ubicacion_anterior=None,
             id_ubicacion_nueva=instance.id_ubicacion_actual,
             accion='Creación',
-            descripcion_adicional=f"Mercancía creada en {instance.id_ubicacion_actual.codigo_ubicacion if instance.id_ubicacion_actual else 'Bodega General'}"
+            descripcion_adicional=f"Mercancía creada en {instance.id_ubicacion_actual.codigo_ubicacion if instance.id_ubicacion_actual else 'Bodega General'}",
+            instancia=instance
         )
     
 
@@ -265,6 +270,8 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         estado_original = instance.estado
 
         datos_nuevos = serializer.validated_data
+
+        instancia_congelada = copy.deepcopy(instance)
         
         nueva_ubicacion = datos_nuevos.get('id_ubicacion_actual', instance.id_ubicacion_actual)
         nuevo_estado = datos_nuevos.get('estado', instance.estado)
@@ -319,7 +326,9 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
                 id_ubicacion_nueva=None,
                 modelo_afectado="Mercancía", 
                 accion='Edición (Baja)', 
-                descripcion_adicional=f"Mercancía marcada como {nuevo_estado}"
+                descripcion_adicional=f"Mercancía marcada como {nuevo_estado}",
+                instancia_vieja=instancia_congelada,
+                instancia=instance_actualizada
             )
             return
 
@@ -341,7 +350,9 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
                 id_ubicacion_nueva=nueva_ubicacion,
                 modelo_afectado="Mercancía", 
                 accion='Reubicación', 
-                descripcion_adicional=f"Movido de {ubicacion_original.codigo_ubicacion if ubicacion_original else 'Nada'} a {nueva_ubicacion.codigo_ubicacion if nueva_ubicacion else 'Nada'}"
+                descripcion_adicional=f"Movido de {ubicacion_original.codigo_ubicacion if ubicacion_original else 'Nada'} a {nueva_ubicacion.codigo_ubicacion if nueva_ubicacion else 'Nada'}",
+                instancia_vieja=instancia_congelada,
+                instancia=instance_actualizada
             )
             log_especial_creado = True
 
@@ -367,7 +378,9 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
                 id_ubicacion_nueva=instance_actualizada.id_ubicacion_actual,
                 modelo_afectado="Mercancía", 
                 accion='Cambio de Estado',
-                descripcion_adicional=f"Cambio de estado de '{estado_original}' a '{nuevo_estado}'"
+                descripcion_adicional=f"Cambio de estado de '{estado_original}' a '{nuevo_estado}'",
+                instancia_vieja=instancia_congelada,
+                instancia=instance_actualizada
             )
             log_especial_creado = True
 
@@ -381,25 +394,15 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
                 id_ubicacion_nueva=instance_actualizada.id_ubicacion_actual,
                 modelo_afectado="Mercancía",
                 accion='Edición General',
-                descripcion_adicional=f"Se actualizaron datos generales de la mercancía con el código: {instance_actualizada.codigo_interno or 'Sin código'}, pertenece al cliente: {instance_actualizada.id_cliente or 'N/N'}. N° Factura: {instance_actualizada.factura or 'N/N'}"
+                descripcion_adicional=f"Se actualizaron datos generales de la mercancía con el código: {instance_actualizada.codigo_interno or 'Sin código'}, pertenece al cliente: {instance_actualizada.id_cliente or 'N/N'}. N° Factura: {instance_actualizada.factura or 'N/N'}",
+                instancia_vieja=instancia_congelada,
+                instancia=instance_actualizada
             )
 
     def perform_destroy(self, instance):
         empresa = get_empresa_from_user(self.request)
         user = self.request.user if self.request.user.is_authenticated else None
         sucursal_empleado = user.perfil.sucursal if hasattr(user, 'perfil') else None
-
-        HistorialMovimientos.objects.create(
-            empresa=empresa, 
-            sucursal=sucursal_empleado,
-            id_mercancia=instance, 
-            id_usuario=user,
-            id_ubicacion_anterior=instance.id_ubicacion_actual, 
-            id_ubicacion_nueva=None,
-            accion='Borrado Lógico',
-            modelo_afectado="Mercancía", 
-            descripcion_adicional=f"Mercancía eliminada (Motivo: {instance.motivo_baja or 'No especificado'})"
-        )
         
         if instance.id_ubicacion_actual:
             try:
@@ -415,6 +418,19 @@ class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         instance.estado = 'Eliminado'
         instance.id_usuario_ultima_modificacion = user
         instance.save()
+
+        HistorialMovimientos.objects.create(
+            empresa=empresa, 
+            sucursal=sucursal_empleado,
+            id_mercancia=instance, 
+            id_usuario=user,
+            id_ubicacion_anterior=instance.id_ubicacion_actual, 
+            id_ubicacion_nueva=None,
+            accion='Borrado Lógico',
+            modelo_afectado="Mercancía", 
+            descripcion_adicional=f"Mercancía eliminada (Motivo: {instance.motivo_baja or 'No especificado'})",
+            instancia=instance
+        )
 
 class MercanciaAsignarMasivoAPI(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -457,7 +473,7 @@ class MercanciaAsignarMasivoAPI(APIView):
                     id_usuario=user,
                     id_mercancia=None,
                     tipo_movimiento='Asignación Masiva',
-                    descripcion_adicional=f"Asignación masiva de {mercancias.count()} ítems al Despacho #{id_despacho}."
+                    descripcion_adicional=f"Asignación masiva de {mercancias.count()} ítems al Despacho #{id_despacho}.",
                     )
 
             return Response({
@@ -526,7 +542,8 @@ class DespachoListCreateAPI(generics.ListCreateAPIView):
             modelo="Despacho",
             sucursal=self.request.user.perfil.sucursal,
             accion="Creación",
-            descripcion=f"Despacho programado para {instance.fecha_programada}"
+            descripcion=f"Despacho programado para {instance.fecha_programada}",
+            instancia=instance
         )
 
 class DespachoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
@@ -542,6 +559,7 @@ class DespachoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     def perform_update(self, serializer):
         instance = self.get_object()
         user_perfil = self.request.user.perfil
+        instancia_congelada = copy.deepcopy(instance)
 
         if user_perfil.rol != 'DUENO' and instance.sucursal_id != user_perfil.sucursal_id:
             raise PermissionDenied("No tienes permisos para modificar despachos de otras sucursales.")
@@ -559,7 +577,9 @@ class DespachoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             modelo="Despacho",
             accion="Edición",
             sucursal=self.request.user.perfil.sucursal,
-            descripcion=desc
+            descripcion=desc,
+            instancia_vieja= instancia_congelada,
+            instancia=instance
         )
 
     def perform_destroy(self, instance):
@@ -597,7 +617,8 @@ class DespachoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Despacho",
             accion="Eliminación",
-            descripcion=f"Se eliminó (lógico) el despacho: {instance.id_despacho}. Se retornó su carga a bodega y se liberaron los vehículos."
+            descripcion=f"Se eliminó (lógico) el despacho: {instance.id_despacho}. Se retornó su carga a bodega y se liberaron los vehículos.",
+            instancia=instance
         )
 
 # --- Vistas de API para Clientes ---
@@ -619,7 +640,8 @@ class ClienteListCreateAPI(generics.ListCreateAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Cliente",
             accion="Creación",
-            descripcion=f"Se creó el cliente: {instance.nombre_cliente}"
+            descripcion=f"Se creó el cliente: {instance.nombre_cliente}",
+            instancia=instance
         )
 
 class ClienteDetailAPI(generics.RetrieveUpdateDestroyAPIView):
@@ -631,6 +653,8 @@ class ClienteDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         return Cliente.objects.filter(empresa=empresa)
     
     def perform_update(self, serializer):
+        instancecopy = self.get_object()
+        instancia_congelada = copy.deepcopy(instancecopy)
         instance = serializer.save()
         registrar_auditoria(
             empresa=instance.empresa,
@@ -638,7 +662,9 @@ class ClienteDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Cliente",
             accion="Edición",
-            descripcion=f"Se actualizaron datos del cliente: {instance.nombre_cliente}"
+            descripcion=f"Se actualizaron datos del cliente: {instance.nombre_cliente}",
+            instancia_vieja=instancia_congelada,
+            instancia=instance
         )
     
     def perform_destroy(self, instance):
@@ -650,7 +676,8 @@ class ClienteDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Cliente",
             accion="Eliminación",
-            descripcion=f"Se eliminó (lógico) al cliente: {instance.nombre_cliente}"
+            descripcion=f"Se eliminó (lógico) al cliente: {instance.nombre_cliente}",
+            instancia=instance
         )
 
 # --- Vistas de API para Conductores ---
@@ -672,7 +699,8 @@ class ConductorListCreateAPI(generics.ListCreateAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Conductor",
             accion="Creación",
-            descripcion=f"Se creó el conductor: {instance.nombre_completo}"
+            descripcion=f"Se creó el conductor: {instance.nombre_completo}",
+            instancia=instance
         )
 
 class ConductorDetailAPI(generics.RetrieveUpdateDestroyAPIView):
@@ -684,6 +712,8 @@ class ConductorDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         return Conductor.objects.filter(empresa=empresa)
     
     def perform_update(self, serializer):
+        instancecopy = self.get_object()
+        instancia_congelada = copy.deepcopy(instancecopy)
         instance = serializer.save()
         registrar_auditoria(
             empresa=instance.empresa,
@@ -691,7 +721,9 @@ class ConductorDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Conductor",
             accion="Edición",
-            descripcion=f"Se actualizarón datos del conductor: {instance.nombre_completo}"
+            descripcion=f"Se actualizarón datos del conductor: {instance.nombre_completo}",
+            instancia_vieja=instancia_congelada,
+            instancia=instance
         )
     
     def perform_destroy(self, instance): 
@@ -703,7 +735,8 @@ class ConductorDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Conductor",
             accion="Eliminación",
-            descripcion=f"Se eliminó al conductor: {instance.nombre_completo}"
+            descripcion=f"Se eliminó al conductor: {instance.nombre_completo}",
+            instancia=instance
         )
 
 # --- Vistas de API para Camiones ---
@@ -725,7 +758,8 @@ class CamionListCreateAPI(generics.ListCreateAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Camion",
             accion="Creación",
-            descripcion=f"Se creó el camión: {instance.patente}"
+            descripcion=f"Se creó el camión: {instance.patente}",
+            instancia=instance
         )
 
 class CamionDetailAPI(generics.RetrieveUpdateDestroyAPIView):
@@ -738,6 +772,8 @@ class CamionDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         return Camion.objects.filter(empresa=empresa)
     
     def perform_update(self, serializer):
+        instancecopy = self.get_object()
+        instancia_congelada = copy.deepcopy(instancecopy)
         instance = serializer.save()
         registrar_auditoria(
             empresa=instance.empresa,
@@ -745,7 +781,9 @@ class CamionDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Camion",
             accion="Edición",
-            descripcion=f"Se actualizarón datos del camión: {instance.patente}"
+            descripcion=f"Se actualizarón datos del camión: {instance.patente}",
+            instancia_vieja=instancia_congelada,
+            instancia=instance
         )
     
     def perform_destroy(self, instance):
@@ -757,7 +795,8 @@ class CamionDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Camion",
             accion="Eliminación",
-            descripcion=f"Se eliminó el camión: {instance.patente}"
+            descripcion=f"Se eliminó el camión: {instance.patente}",
+            instancia=instance
         )
 
 # --- Vistas de API para Rutas ---
@@ -786,7 +825,8 @@ class RutaListCreateAPI(generics.ListCreateAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Ruta",
             accion="Creación",
-            descripcion=f"Se creó la ruta: {instance.nombre_ruta}"
+            descripcion=f"Se creó la ruta: {instance.nombre_ruta}",
+            instancia=instance
         )
 
 class RutaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
@@ -799,6 +839,8 @@ class RutaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         return filtrar_por_sucursal_y_empresa(Ruta.objects.all(), self.request)
     
     def perform_update(self, serializer):
+        instancecopy = self.get_object()
+        instancia_congelada = copy.deepcopy(instancecopy)
         instance = serializer.save()
         registrar_auditoria(
             empresa=instance.empresa,
@@ -806,7 +848,9 @@ class RutaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Ruta",
             accion="Edición",
-            descripcion=f"Se actualizarón datos de la ruta: {instance.nombre_ruta}"
+            descripcion=f"Se actualizarón datos de la ruta: {instance.nombre_ruta}",
+            instancia_vieja=instancia_congelada,
+            instancia=instance
         )
     
     def perform_destroy(self, instance):
@@ -818,7 +862,8 @@ class RutaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Ruta",
             accion="Eliminación",
-            descripcion=f"Se eliminó la ruta: {instance.nombre_ruta}"
+            descripcion=f"Se eliminó la ruta: {instance.nombre_ruta}",
+            instancia=instance
         )
 
 # --- Vistas de API para Destinos ---
@@ -840,7 +885,8 @@ class DestinoListCreateAPI(generics.ListCreateAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Destino",
             accion="Creación",
-            descripcion=f"Se creó el destino: {instance.nombre_ciudad}"
+            descripcion=f"Se creó el destino: {instance.nombre_ciudad}",
+            instancia=instance
         )
 
 class DestinoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
@@ -852,6 +898,8 @@ class DestinoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         return Destino.objects.filter(empresa=empresa)
     
     def perform_update(self, serializer):
+        instancecopy = self.get_object()
+        instancia_congelada = copy.deepcopy(instancecopy)
         instance = serializer.save()
         registrar_auditoria(
             empresa=instance.empresa,
@@ -859,7 +907,9 @@ class DestinoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Destino",
             accion="Edición",
-            descripcion=f"Se actualizarón datos del destino: {instance.nombre_ciudad}"
+            descripcion=f"Se actualizarón datos del destino: {instance.nombre_ciudad}",
+            instancia_vieja=instancia_congelada,
+            instancia=instance
         )
     
     def perform_destroy(self, instance):
@@ -871,7 +921,8 @@ class DestinoDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Destino",
             accion="Eliminación",
-            descripcion=f"Se eliminó el destino: {instance.nombre_ciudad}"
+            descripcion=f"Se eliminó el destino: {instance.nombre_ciudad}",
+            instancia=instance
         )
 
 # --- Vistas de API para Ubicaciones ---
@@ -1032,11 +1083,25 @@ class HistorialPagination(PageNumberPagination):
 class HistorialListAPI(generics.ListAPIView):
     serializer_class = HistorialSerializer
     permission_classes = [permissions.IsAuthenticated, AllowRoles('DUENO')]
-    pagination_class = HistorialPagination 
+    pagination_class = HistorialPagination
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['descripcion_adicional', 'modelo_afectado', 'accion'] 
 
     def get_queryset(self):
-        qs = HistorialMovimientos.objects.all()
-        return filtrar_por_sucursal_y_empresa(qs, self.request).order_by('-fecha_hora_movimiento')
+        qs = HistorialMovimientos.objects.all().order_by('-fecha_hora_movimiento')
+        accion = self.request.query_params.get('accion', None)
+        fecha_desde = self.request.query_params.get('fecha_desde', None)
+        fecha_hasta = self.request.query_params.get('fecha_hasta', None)
+        if accion and accion != 'Todos':
+            qs = qs.filter(accion__icontains=accion)
+
+        if fecha_desde:
+            qs = qs.filter(fecha_hora_movimiento__gte=fecha_desde)
+
+        if fecha_hasta:
+            qs = qs.filter(fecha_hora_movimiento__lte=f"{fecha_hasta} 23:59:59")
+
+        return qs
 
 class DashboardStatsAPI(APIView):
     permission_classes = [permissions.IsAuthenticated, AllowRoles('DUENO')]
@@ -1200,7 +1265,8 @@ class ProveedorListCreateAPI(generics.ListCreateAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Proveedores",
             accion="Creación",
-            descripcion=f"Se creó el proveedor: {instance.nombre_proveedor}"
+            descripcion=f"Se creó el proveedor: {instance.nombre_proveedor}",
+            instancia=instance
         )
 
 class ProveedorRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
@@ -1212,6 +1278,8 @@ class ProveedorRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
         return Proveedor.objects.filter(empresa=empresa)
     
     def perform_update(self, serializer):
+        instancecopy = self.get_object()
+        instancia_congelada = copy.deepcopy(instancecopy)
         instance = serializer.save()
         registrar_auditoria(
             empresa=instance.empresa,
@@ -1219,7 +1287,9 @@ class ProveedorRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Proveedores",
             accion="Edición",
-            descripcion=f"Se actualizaron datos del proveedor: {instance.nombre_proveedor}"
+            descripcion=f"Se actualizaron datos del proveedor: {instance.nombre_proveedor}",
+            instancia_vieja=instancia_congelada,
+            instancia=instance
         )
     
     def perform_destroy(self, instance):
@@ -1231,7 +1301,8 @@ class ProveedorRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Proveedores",
             accion="Eliminación",
-            descripcion=f"Se eliminó (lógico) al proovedor: {instance.nombre_proveedor}"
+            descripcion=f"Se eliminó (lógico) al proovedor: {instance.nombre_proveedor}",
+            instancia=instance
         )
 
 class RamplaListCreateAPI(generics.ListCreateAPIView):
@@ -1251,7 +1322,8 @@ class RamplaListCreateAPI(generics.ListCreateAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Rampla",
             accion="Creación",
-            descripcion=f"Se creó la rampla: {instance.patente}"
+            descripcion=f"Se creó la rampla: {instance.patente}",
+            instancia=instance
         )
 
 class RamplaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
@@ -1264,6 +1336,8 @@ class RamplaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         return Rampla.objects.filter(empresa=empresa)
     
     def perform_update(self, serializer):
+        instancecopy = self.get_object()
+        instancia_congelada = copy.deepcopy(instancecopy)
         instance = serializer.save()
         registrar_auditoria(
             empresa=instance.empresa,
@@ -1271,7 +1345,9 @@ class RamplaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Rampla",
             accion="Edición",
-            descripcion=f"Se actualizaron datos de la rampla: {instance.patente}"
+            descripcion=f"Se actualizaron datos de la rampla: {instance.patente}",
+            instancia_vieja=instancia_congelada,
+            instancia=instance
         )
     
     def perform_destroy(self, instance):
@@ -1283,7 +1359,8 @@ class RamplaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Rampla",
             accion="Eliminación",
-            descripcion=f"Se eliminó la rampla: {instance.patente}"
+            descripcion=f"Se eliminó la rampla: {instance.patente}",
+            instancia=instance
         )
 
 
@@ -1563,7 +1640,8 @@ class CotizacionListCreateAPI(generics.ListCreateAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Cotizaciones",
             accion="Creación",
-            descripcion=f"Se creó cotización para: {instance.nombre_cliente}"
+            descripcion=f"Se creó cotización para: {instance.nombre_cliente}",
+            instancia=instance
         )
 
 
@@ -1576,6 +1654,7 @@ class CotizacionRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         instance = self.get_object()
+        instancia_congelada = copy.deepcopy(instance)
         nuevo_estado = serializer.validated_data.get('estado_cotizacion', instance.estado_cotizacion)
 
         if nuevo_estado == 'Cotizado' and instance.estado_cotizacion != 'Cotizado':
@@ -1591,7 +1670,9 @@ class CotizacionRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Cotizaciones",
             accion="Edición",
-            descripcion=f"Cotización de {instance.nombre_cliente} actualizada a estado: {instance.estado_cotizacion}"
+            descripcion=f"Cotización de {instance.nombre_cliente} actualizada a estado: {instance.estado_cotizacion}",
+            instancia_vieja=instancia_congelada,
+            instancia=instance
         )
 
     def perform_destroy(self, instance):
@@ -1604,7 +1685,8 @@ class CotizacionRetrieveUpdateDestroyAPI(generics.RetrieveUpdateDestroyAPIView):
             sucursal=self.request.user.perfil.sucursal,
             modelo="Cotizaciones",
             accion="Eliminación",
-            descripcion=f"Se eliminó (lógico) la cotización de: {instance.nombre_cliente}"
+            descripcion=f"Se eliminó (lógico) la cotización de: {instance.nombre_cliente}",
+            instancia=instance
         )
 
 

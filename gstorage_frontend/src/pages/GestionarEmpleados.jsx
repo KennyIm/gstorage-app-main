@@ -255,7 +255,7 @@ export default function GestionarEmpleados() {
                     </td>
                     <td className="py-4 px-4 text-gray-600">{u.email}</td>
                     <td className="py-4 px-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${u.perfil?.rol === 'DUENO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${u.perfil?.rol === 'JEFE_BODEGA' ? 'font-thin text-red-800':'EncargadoBodega'} ${u.perfil?.rol === 'DUENO' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
                         {u.perfil?.rol_display || u.perfil?.rol || 'Sin Rol'}
                       </span>
                     </td>

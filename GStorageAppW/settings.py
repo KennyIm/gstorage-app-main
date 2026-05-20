@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'inventario.apps.InventarioConfig',
     'visualizacion',
     'usuarios.apps.UsuariosConfig',
+    'finanzas'
 ]
 
 MIDDLEWARE = [

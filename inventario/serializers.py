@@ -302,7 +302,7 @@ class HistorialSerializer(serializers.ModelSerializer):
             'id_historial', 'fecha_hora_movimiento',
             'descripcion_adicional', 'usuario_nombre',
             'modelo_afectado', 
-            'accion', 'sucursal_nombre','sucursal_id'
+            'accion', 'sucursal_nombre','sucursal_id','detalles'
         ]
 
 class AreaRestringidaSerializer(serializers.ModelSerializer):

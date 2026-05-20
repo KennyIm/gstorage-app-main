@@ -1,6 +1,9 @@
 from django.utils import timezone
 from datetime import timedelta
 from .models import Despacho, Camion, HistorialMovimientos, Mercancia
+from django.core.serializers.json import DjangoJSONEncoder
+from django.forms.models import model_to_dict
+import json
 import math
 
 def actualizar_estados_automaticos(empresa):
@@ -75,10 +78,10 @@ def actualizar_estados_automaticos(empresa):
             
     return count_actualizados
 
-def registrar_auditoria(empresa, usuario, modelo, accion, descripcion, mercancia=None, sucursal=None):
+def registrar_auditoria(empresa, usuario, modelo, accion, descripcion, mercancia=None, sucursal=None, instancia=None, instancia_vieja=None):
     try:
         if sucursal is None and usuario and hasattr(usuario, 'perfil'):
-            sucursal = usuario.perfil.sucursal 
+            sucursal = usuario.perfil.sucursal
 
         HistorialMovimientos.objects.create(
             empresa=empresa,
@@ -87,11 +90,13 @@ def registrar_auditoria(empresa, usuario, modelo, accion, descripcion, mercancia
             modelo_afectado=modelo,
             accion=accion,
             descripcion_adicional=descripcion,
-            id_mercancia=mercancia 
+            id_mercancia=mercancia,
+            instancia_vieja=instancia_vieja,
+            instancia=instancia 
         )
     except Exception as e:
         print("\n" + "="*50)
-        print(f"🚨 ERROR CRÍTICO AL GUARDAR AUDITORÍA 🚨")
+        print(f"ERROR CRÍTICO AL GUARDAR AUDITORÍA")
         print(f"Modelo: {modelo} | Acción: {accion}")
         print(f"Detalle del error de Django: {e}")
         print("="*50 + "\n")
