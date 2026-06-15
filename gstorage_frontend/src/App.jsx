@@ -79,6 +79,12 @@ import PerfilFinancieroCliente from './pages/PerfilFinancieroCliente'
 
 import IngresoGastos from './pages/IngresoGastos'
 
+import DashboardGeneralFinanzas from './pages/DashboardGeneralFinanzas'
+
+import VistaGlobalDespachosCobranza from './pages/VistaGlobalDespachosCobranza'
+
+import Configurar2FA from './components/Configurar2FA'
+
 function App() {
   return (
     <Routes>
@@ -121,6 +127,7 @@ function App() {
           <Route path="destinos/:id/editar" element={<DestinoEdit />} />
 
           <Route path="perfil" element={<Perfil />} />
+          <Route path="/perfil/2fa" element={<Configurar2FA />} />
           <Route path="gestionar-empleados" element={<GestionarEmpleados />} />
           <Route path="gestionar-empleados/nuevo" element={<CrearUsuario />} />
 
@@ -157,6 +164,10 @@ function App() {
           <Route path='/perfil-financiero' element={<PerfilFinancieroCliente/>}/>
 
           <Route path='/ingreso-gastos' element={<IngresoGastos/>}/>
+
+          <Route path='/dashboard-finanzas' element={<DashboardGeneralFinanzas/>}/>
+
+          <Route path='/despachos-cobranza' element={<VistaGlobalDespachosCobranza/>}/>
         </Route>
       </Route>
     </Routes>

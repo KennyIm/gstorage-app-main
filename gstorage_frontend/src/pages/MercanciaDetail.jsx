@@ -15,6 +15,7 @@ export default function MercanciaDetail() {
   const [mercancia, setMercancia] = useState(null);
 
   const [clientes, setClientes] = useState([]);
+  const [proveedores, setProveedores] = useState([]);
   const [destinos, setDestinos] = useState([]);
   const [ubicaciones, setUbicaciones] = useState([]);
   const [sucursales, setSucursales] = useState([]);
@@ -34,17 +35,19 @@ export default function MercanciaDetail() {
         const mercanciaRes = await apiClient.get(`/api/inventario/mercancias/${id}/`);
         setMercancia(mercanciaRes.data);
 
-        const [clientesRes, destinosRes, ubicacionesRes, sucursalesRes] = await Promise.all([
+        const [clientesRes, destinosRes, ubicacionesRes, sucursalesRes, provRes] = await Promise.all([
           apiClient.get('/api/inventario/clientes/'),
           apiClient.get('/api/inventario/destinos/'),
           apiClient.get('/api/inventario/ubicaciones/'),
-          apiClient.get('/api/usuarios/sucursales/')
+          apiClient.get('/api/usuarios/sucursales/'),
+          apiClient.get('/api/inventario/proveedores/')
         ]);
 
         setClientes(clientesRes.data);
         setDestinos(destinosRes.data);
         setUbicaciones(ubicacionesRes.data);
         setSucursales(sucursalesRes.data);
+        setProveedores(provRes.data)
 
       } catch (err) {
         if (err.response && err.response.status === 401) {
@@ -214,7 +217,10 @@ export default function MercanciaDetail() {
                   <div className="p-4 border border-emerald-100 rounded-lg text-center hover:border-emerald-200 transition bg-blue-50">
                     <User className="w-5 h-5 text-blue-500 mx-auto mb-2" />
                     <span className="block text-sm font-bold text-gray-600 truncate px-1">
-                      {mercancia.id_proveedor || "Sin Asignar"}
+                      {(() => {
+                        const provObj = proveedores.find(p => Number(p.id) === Number(mercancia.id_proveedor))
+                        return provObj ? provObj.nombre_proveedor : "Sin Asignar"
+                      })()}
                     </span>
                     <span className="text-xs text-blue-600 font-medium">Proveedor</span>
                   </div>

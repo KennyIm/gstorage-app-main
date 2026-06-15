@@ -18,4 +18,8 @@ urlpatterns = [
     path('empresa/config/', views.EmpresaConfigView.as_view(), name='empresa_config'),
     path('admin-reset-password/<int:pk>/', views.AdminResetPasswordView.as_view(), name='admin-reset-password'),
     path('sucursales/', views.SucursalListAPI.as_view(), name='listar-sucursales'),
+
+    path('2fa/obtener-qr/', views.ObtenerQR2FAView.as_view(), name='obtener_qr_2fa'),
+    path('2fa/confirmar/', views.ConfirmarActivacion2FAView.as_view(), name='confirmar_2fa'),
+    path('2fa/desactivar/', views.Desactivar2FAView.as_view(), name='desactivar_2fa'),
 ]

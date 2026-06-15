@@ -46,6 +46,8 @@ class Perfil(models.Model):
     sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE, null=True, blank=True)
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, null=True, blank=True, related_name="perfiles")
     telefono = models.CharField(max_length=20, null=True, blank=True)
+    is_2fa_enabled = models.BooleanField(default=False, verbose_name="2FA Activado")
+    two_factor_secret = models.CharField(max_length=255, blank=True, null=True, verbose_name="Secreto TOTP")
     
     rol = models.CharField(
         max_length=20,

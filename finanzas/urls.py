@@ -11,4 +11,5 @@ urlpatterns = [
     path('gastos-operativos/', views.GastoOperativoListCreateAPIView.as_view(), name='gastos-operativos'),
     path('proveedores-gastos/selector/', views.ProveedorGastoListCreateAPIView.as_view(), name='selector-proveedores-gastos'),
     path('gastos-operativos/<int:pk>/pagar/', views.PagarGastoOperativoAPIView.as_view(), name='pagar-gasto-operativo'),
+    path('dashboard-consolidado/', views.DashboardFinanzasConsolidadoAPIView.as_view(), name='dashboard-consolidado')
 ]

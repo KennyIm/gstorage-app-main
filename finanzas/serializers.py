@@ -22,7 +22,7 @@ class MercanciaPendienteCobroSerializer(serializers.ModelSerializer):
         ]
 
 class DocumentoCobroSerializer(serializers.ModelSerializer):
-    fecha_emision = serializers.DateTimeField(format="%Y-%m-%d", read_only=True)
+    fecha_emision = serializers.DateField(format="%Y-%m-%d")
     fecha_vencimiento = serializers.DateField(format="%Y-%m-%d")
     class Meta:
         model = DocumentoCobro
@@ -35,12 +35,14 @@ class DocumentoCobroSerializer(serializers.ModelSerializer):
 class DocumentoCobroListSerializer(serializers.ModelSerializer):
     cliente_nombre = serializers.CharField(source='cliente_deudor.nombre_cliente', read_only=True, default="N/A")
     proveedor_nombre = serializers.CharField(source='proveedor_deudor.nombre_proveedor', read_only=True, default="N/A")
+    rut_cliente = serializers.CharField(source='cliente_deudor.rut_cliente', read_only=True, default=None)
+    rut = serializers.CharField(source='proveedor_deudor.rut', read_only=True, default=None)
     class Meta:
         model = DocumentoCobro
         fields = [
             'id', 'tipo_documento', 'numero_documento',
             'cliente_nombre', 'proveedor_nombre', 'fecha_emision',
-            'fecha_vencimiento', 'total_a_pagar', 'saldo_pendiente', 'estado'
+            'fecha_vencimiento', 'total_a_pagar', 'saldo_pendiente', 'estado','rut_cliente','rut'
         ]
 
 class RegistrarPagoSerializer(serializers.Serializer):
@@ -70,3 +72,30 @@ class ProveedorGastoSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProveedorGasto
         fields = ['id', 'nombre_proveedor', 'rut_proveedor']
+
+
+class DocumentoCobroDashboardSerializer(serializers.ModelSerializer):
+    entidad = serializers.SerializerMethodField()
+    rut = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = DocumentoCobro
+        fields = [
+            'id', 'tipo_documento', 'numero_documento', 'fecha_emision', 
+            'fecha_vencimiento', 'subtotal', 'total_a_pagar', 
+            'saldo_pendiente', 'estado', 'entidad', 'rut'
+        ]
+
+    def get_entidad(self, obj):
+        if obj.cliente_deudor:
+            return obj.cliente_deudor.nombre_cliente
+        if obj.proveedor_deudor:
+            return obj.proveedor_deudor.nombre_proveedor
+        return "Sin Identificar"
+
+    def get_rut(self, obj):
+        if obj.cliente_deudor:
+            return obj.cliente_deudor.rut_cliente
+        if obj.proveedor_deudor:
+            return obj.proveedor_deudor.rut
+        return ""

@@ -1,4 +1,5 @@
 from django.db import models
+import hashlib
 from django.contrib.auth.models import User 
 from django.db.models import Q
 import json
@@ -6,6 +7,32 @@ import copy
 from django.core.serializers.json import DjangoJSONEncoder
 from django.conf import settings
 from usuarios.models import Empresa, Sucursal
+from django.core.exceptions import ValidationError
+
+
+def validar_rut_chileno(rut_str):
+    rut_limpio = rut_str.replace(".", "").replace("-", "").strip().upper()
+    if len(rut_limpio) < 2:
+        raise ValidationError("Formato de RUT inválido.")
+    
+    cuerpo = rut_limpio[:-1]
+    dv = rut_limpio[-1]
+    
+    try:
+        reverso = map(int, reversed(cuerpo))
+        factores = [2, 3, 4, 5, 6, 7]
+        suma = sum(f * v for f, v in zip(factores * (len(cuerpo) // 6 + 1), reverso))
+        dv_esperado = 11 - (suma % 11)
+        if dv_esperado == 11: dv_esperado = "0"
+        elif dv_esperado == 10: dv_esperado = "K"
+        else: dv_esperado = str(dv_esperado)
+        
+        if dv != dv_esperado:
+            raise ValidationError("El dígito verificador del RUT no es válido.")
+    except Exception:
+        raise ValidationError("El RUT contiene caracteres inválidos.")
+    
+    return rut_limpio
 
 # --- Modelos de Catálogo ---
 
@@ -67,35 +94,65 @@ class HistorialManager(models.Manager):
     
 class Proveedor(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="proveedores")
-    rut = models.CharField(max_length=20, primary_key=True, verbose_name="RUT del Proveedor")
+    id = models.AutoField(primary_key=True)
     nombre_proveedor = models.CharField(max_length=150, verbose_name="Nombre / Razón Social")
     contacto = models.CharField(max_length=100, blank=True, null=True, verbose_name="Persona de Contacto")
-    correo = models.EmailField(blank=True, null=True)
-    telefono = models.CharField(max_length=20, blank=True, null=True)
     activo = models.BooleanField(default=True)
     objects = models.Manager() 
     activos = ProveedorManager()
 
+    correo_cifrado = models.TextField(null=True, blank=True)
+    telefono_cifrado = models.TextField(null=True, blank=True)
+
+    rut_cifrado = models.TextField(null=True, blank=True, verbose_name="RUT Cifrado")
+    rut_hash = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
+
+    def save(self, *args, **kwargs):
+        if hasattr(self, 'rut_plano_temporal'):
+            valor_rut = self.rut_plano_temporal
+            if not valor_rut or str(valor_rut).strip() == "":
+                self.rut_hash = None
+                self.rut_cifrado = None
+            else:
+                rut_estandar = validar_rut_chileno(valor_rut)
+                self.rut_hash = hashlib.sha256(rut_estandar.encode('utf-8')).hexdigest()
+                
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"{self.nombre_proveedor} ({self.rut})"
+        return self.nombre_proveedor
     
 class Cliente(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="clientes")
     id_cliente = models.AutoField(primary_key=True)
     nombre_cliente = models.CharField(max_length=150, verbose_name="Nombre o Razón Social")
-    rut_cliente = models.CharField(max_length=12, unique=True, null=True, blank=True, verbose_name="RUT")
     precio_kg= models.DecimalField(max_digits=10, decimal_places=0, default=0.0, verbose_name="Precio por Kg")
     precio_m3= models.DecimalField(max_digits=10, decimal_places=0, default=0.0, verbose_name="Precio por m3")
-    telefono_contacto = models.CharField(max_length=20, null=True, blank=True, verbose_name="Teléfono")
-    email_contacto = models.EmailField(max_length=100, null=True, blank=True, verbose_name="Email")
     nombre_contacto = models.CharField(max_length=100, blank=True, null=True, verbose_name="Persona de Contacto")
-    direccion = models.CharField(max_length=255, blank=True, null=True, verbose_name="Calle y Número")
     ciudad = models.CharField(max_length=100, blank=True, null=True, verbose_name="Ciudad o Comuna")
-    direccion2 = models.CharField(max_length=255, blank=True, null=True, verbose_name="Calle y Número (Secundaria)")
     ciudad2 = models.CharField(max_length=100, blank=True, null=True, verbose_name="Ciudad o Comuna (Secundaria)")
     activo = models.BooleanField(default=True)
     objects = models.Manager() 
-    activos = ClienteManager() 
+    activos = ClienteManager()
+
+    rut_cliente_cifrado = models.TextField(null=True, blank=True, verbose_name="RUT Cifrado") 
+    telefono_cifrado = models.TextField(null=True, blank=True, verbose_name="Teléfono Cifrado")
+    email_cifrado = models.TextField(null=True, blank=True, verbose_name="Email Cifrado")
+    direccion_cifrado = models.TextField(null=True, blank=True, verbose_name="Dirección Cifrada")
+    direccion_cifrado2 = models.TextField(null=True, blank=True, verbose_name="Dirección Cifrada2")
+
+    rut_hash = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
+
+    def save(self, *args, **kwargs):
+        if hasattr(self, 'rut_plano_temporal'):
+            valor_rut = self.rut_plano_temporal
+            if not valor_rut or str(valor_rut).strip() == "":
+                self.rut_hash = None
+                self.rut_cliente_cifrado = None
+            else:
+                rut_estandar = validar_rut_chileno(valor_rut)
+                self.rut_hash = hashlib.sha256(rut_estandar.encode('utf-8')).hexdigest()
+        super().save(*args, **kwargs)  
 
     def __str__(self):
         return self.nombre_cliente
@@ -104,15 +161,25 @@ class Conductor(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="conductores")
     id_conductor = models.AutoField(primary_key=True)
     nombre_completo = models.CharField(max_length=100, verbose_name="Nombre Completo")
-    rut_conductor = models.CharField(max_length=12, unique=True, verbose_name="RUT")
-    numero_licencia = models.CharField(max_length=20, verbose_name="N° Licencia")
-    telefono = models.CharField(max_length=20, null=True, blank=True, verbose_name="Teléfono")
     activo = models.BooleanField(default=True)
     objects = models.Manager()
     activos = ConductorManager()
 
+    rut_conductor_cifrado = models.TextField(null=True, blank=True, verbose_name="RUT Cifrado")
+    telefono_conductor_cifrado = models.TextField(null=True, blank=True, verbose_name="Teléfono Cifrado")
+    licencia_cifrado = models.TextField(null=True, blank=True, verbose_name="Licencia Cifrada")
+
+    rut_hash = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
+
+    def save(self, *args, **kwargs):
+        if hasattr(self, 'rut_plano_temporal') and self.rut_plano_temporal:
+            rut_estandar = validar_rut_chileno(self.rut_plano_temporal)
+            self.rut_hash = hashlib.sha256(rut_estandar.encode('utf-8')).hexdigest()
+            
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"{self.nombre_completo} ({self.rut_conductor})"
+        return self.nombre_completo
 
 class Camion(models.Model):
     STATUS_CHOICES = [
@@ -300,6 +367,8 @@ class Despacho(models.Model):
     #Destinos
     origen = models.CharField(max_length=50, null=True, blank=True, choices=UBICACIONES_CHOICES, default='Santiago')
     destino = models.CharField(max_length=50, null=True, blank=True, choices=UBICACIONES_CHOICES, default='Santiago')
+
+    orden_mercancias = models.JSONField(default=list, blank=True, null=True)
 
     activo = models.BooleanField(default=True)
     objects = models.Manager()

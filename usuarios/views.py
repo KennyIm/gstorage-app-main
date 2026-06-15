@@ -12,6 +12,17 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
 from inventario.models import HistorialMovimientos
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+import pyotp
+import qrcode
+import io
+import base64
+from cryptography.fernet import Fernet
+from django.core import signing
 import copy
 
 
@@ -25,7 +36,10 @@ from .serializers import (
     PasswordResetRequestSerializer, 
     PasswordResetConfirmSerializer,
     SucursalSerializer,
-    AdminPasswordResetSerializer
+    AdminPasswordResetSerializer,
+    CustomTokenObtainPairSerializer,
+    Verify2FASerializer
+    
 )
 class EmpresaViewSet(viewsets.ModelViewSet):
     queryset = Empresa.objects.all()
@@ -211,3 +225,142 @@ class AdminResetPasswordView(generics.UpdateAPIView):
             )
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class LoginThrottleView(TokenObtainPairView):
+    throttle_scope = 'login'
+    serializer_class = CustomTokenObtainPairSerializer
+
+
+class Verify2FAView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = Verify2FASerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        pre_auth_id = serializer.validated_data['pre_auth_id']
+        code = serializer.validated_data['code']
+        
+        try:
+            vuelo_data = signing.loads(pre_auth_id, salt='2fa-pre-auth', max_age=300)
+            user_id = vuelo_data.get('user_id')
+            user = User.objects.get(pk=user_id)
+        except (signing.SignatureExpired, signing.BadSignature, User.DoesNotExist):
+            return Response(
+                {"error": "La sesión de verificación ha expirado o es inválida."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        perfil = user.perfil
+        if not perfil.two_factor_secret:
+            return Response({"error": "No configurado."}, status=status.HTTP_400_BAD_REQUEST)            
+        try:
+            fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+            secreto_plano = fernet.decrypt(perfil.two_factor_secret.encode('utf-8')).decode('utf-8')
+        except Exception:
+            return Response({"error": "Error crítico en las llaves criptográficas."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        totp = pyotp.TOTP(secreto_plano)
+        if totp.verify(code):
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                'refresh': str(refresh),
+                'access': str(refresh.access_token),
+            }, status=status.HTTP_200_OK)
+            
+        return Response({"error": "Código verificador incorrecto."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ObtenerQR2FAView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        perfil = getattr(user, 'perfil', None)
+        
+        if not perfil:
+            return Response({"error": "El usuario no tiene un perfil asociado."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if perfil.is_2fa_enabled:
+            return Response(
+                {"error": "Acceso denegado. El Doble Factor ya se encuentra activo en esta cuenta."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+        
+        if not perfil.two_factor_secret:
+            secreto_plano = pyotp.random_base32()            
+            secreto_cifrado = fernet.encrypt(secreto_plano.encode('utf-8')).decode('utf-8')
+            perfil.two_factor_secret = secreto_cifrado
+            perfil.save()
+        else:
+            secreto_cifrado = perfil.two_factor_secret
+            secreto_plano = fernet.decrypt(secreto_cifrado.encode('utf-8')).decode('utf-8')
+            
+        totp = pyotp.TOTP(secreto_plano)
+        provisioning_uri = totp.provisioning_uri(name=user.username, issuer_name="GStorage-Medalla")
+        
+        qr = qrcode.QRCode(version=1, box_size=10, border=4)
+        qr.add_data(provisioning_uri)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        
+        qr_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        
+        return Response({
+            "qr_image": f"data:image/png;base64,{qr_base64}",
+            "secret_key": secreto_plano
+        }, status=status.HTTP_200_OK)
+
+
+class ConfirmarActivacion2FAView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        code = request.data.get('code')
+        
+        if not code or len(code) != 6:
+            return Response({"error": "Código de 6 dígitos requerido."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        perfil = user.perfil
+        if not perfil.two_factor_secret:
+            return Response({"error": "No configurado."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+            secreto_plano = fernet.decrypt(perfil.two_factor_secret.encode('utf-8')).decode('utf-8')
+        except Exception:
+            return Response({"error": "Error crítico en las llaves criptográficas."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        totp = pyotp.TOTP(secreto_plano)
+        if totp.verify(code):
+            perfil.is_2fa_enabled = True 
+            perfil.save()
+            return Response({"message": "Doble Factor (2FA) activado con éxito en su cuenta."}, status=status.HTTP_200_OK)
+            
+        return Response({"error": "Código de verificación inválido. Reintente."}, status=status.HTTP_400_BAD_REQUEST)
+
+class Desactivar2FAView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        perfil = getattr(user, 'perfil', None)
+        
+        if not perfil:
+            return Response({"error": "Perfil no encontrado."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if not perfil.is_2fa_enabled:
+            return Response({"error": "El Doble Factor ya se encuentra desactivado."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        perfil.is_2fa_enabled = False
+        perfil.two_factor_secret = None
+        perfil.save()
+        
+        return Response({"message": "Autenticación de Doble Factor desactivada correctamente."}, status=status.HTTP_200_OK)

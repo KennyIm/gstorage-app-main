@@ -18,6 +18,7 @@ urlpatterns = [
     path('despachos/<int:id_despacho>/excel/', views.GenerarHojaRutaExcelAPI.as_view(), name='generar-excel-ruta'),
     path('despachos/<int:id_despacho>/generar-ordenes/', views.GenerarOrdenesDespachoAPI.as_view(), name='generar-ordenes-despacho'),
     path('despachos/<int:id_despacho>/invitar/', views.InvitarColaboradorAPI.as_view(), name='despacho-invitar'),
+    path('despachos/<int:pk>/guardar-secuencia/', views.GuardarSecuenciaView.as_view(), name='guardar-planificacion'),
     
     # --- Endpoints de Cliente ---
     path('clientes/', views.ClienteListCreateAPI.as_view(), name='api-cliente-list-create'),
@@ -64,6 +65,7 @@ urlpatterns = [
     path('cotizaciones/', views.CotizacionListCreateAPI.as_view(), name='cotizaciones-list-create'),
     path('cotizaciones/<int:pk>/', views.CotizacionRetrieveUpdateDestroyAPI.as_view(), name='cotizaciones-detail'),
     path('cotizaciones/<int:id_cotizacion>/invitar/', views.InvitarColaboradorCotizacionAPI.as_view(), name='cotizacion-invitar-colaborador'),
+
 
 
 

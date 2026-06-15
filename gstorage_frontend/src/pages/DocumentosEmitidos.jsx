@@ -23,12 +23,15 @@ export default function DocumentosEmitidos() {
     const [procesando, setProcesando] = useState(false)
     const [comprobanteFile, setComprobanteFile] = useState(null)
 
-    const [filtroDeudor, setFiltroDeudor] = useState('');
-    const [filtroNumeroDoc, setFiltroNumeroDoc] = useState('');
-    const [emisionDesde, setEmisionDesde] = useState('');
-    const [emisionHasta, setEmisionHasta] = useState('');
-    const [venceDesde, setVenceDesde] = useState('');
-    const [venceHasta, setVenceHasta] = useState('');
+    const [filtroDeudor, setFiltroDeudor] = useState('')
+    const [filtroNumeroDoc, setFiltroNumeroDoc] = useState('')
+    const [emisionDesde, setEmisionDesde] = useState('')
+    const [emisionHasta, setEmisionHasta] = useState('')
+    const [venceDesde, setVenceDesde] = useState('')
+    const [venceHasta, setVenceHasta] = useState('')
+    const [tabActiva, setTabActiva] = useState('activos')
+    const [paginaActual, setPaginaActual] = useState(1)
+    const itemsPorPagina = 10
 
     const fetchDocumentos = async () => {
         setLoading(true)
@@ -46,32 +49,55 @@ export default function DocumentosEmitidos() {
         fetchDocumentos()
     }, [])
 
+    useEffect(() => {
+        setPaginaActual(1)
+    }, [tabActiva, filtroEstado, filtroDeudor, filtroNumeroDoc, emisionDesde, emisionHasta, venceDesde, venceHasta])
+
     const documentosFiltrados = useMemo(() => {
         return documentos.filter(doc => {
+            if (tabActiva === 'activos' && doc.estado === 'Pagado') return false;
+            if (tabActiva === 'pagados' && doc.estado !== 'Pagado') return false;
+
             const matchEstado = filtroEstado === 'Todos' || doc.estado === filtroEstado;
-            const deudorTexto = (doc.cliente_nombre || doc.proveedor_nombre || '').toLowerCase();
-            const matchDeudor = !filtroDeudor || deudorTexto.includes(filtroDeudor.toLowerCase());
+
             const matchNumero = !filtroNumeroDoc ||
                 String(doc.numero_documento || '').toLowerCase().includes(filtroNumeroDoc.toLowerCase());
-            const matchEmisionDesde = !emisionDesde || doc.fecha_emision >= emisionDesde;
-            const matchEmisionHasta = !emisionHasta || doc.fecha_emision <= emisionHasta;
-            const matchVenceDesde = !venceDesde || doc.fecha_vencimiento >= venceDesde;
-            const matchVenceHasta = !venceHasta || doc.fecha_vencimiento <= venceHasta;
+
+            const esProv = doc.proveedor_nombre !== 'N/A' && doc.proveedor_nombre
+            const rutRaw = esProv ? doc.rut : doc.rut_cliente
+            const limpiarRUT = (text) => String(text || '').replace(/[^0-9kK]/g, '').toLowerCase()
+            const busquedaLimpia = limpiarRUT(filtroDeudor)
+            const rutLimpio = limpiarRUT(rutRaw)
+            const matchDeudor = !filtroDeudor || rutLimpio.includes(busquedaLimpia)
+            const fechaE = doc.fecha_emision || doc.fecha || ''
+            const fechaV = doc.fecha_vencimiento || ''
+            const matchEmisionDesde = !emisionDesde || (fechaE && fechaE >= emisionDesde)
+            const matchEmisionHasta = !emisionHasta || (fechaE && fechaE <= emisionHasta)
+            const matchVenceDesde = !venceDesde || (fechaV && fechaV >= venceDesde)
+            const matchVenceHasta = !venceHasta || (fechaV && fechaV <= venceHasta)
+
             return matchEstado && matchDeudor && matchNumero &&
                 matchEmisionDesde && matchEmisionHasta &&
-                matchVenceDesde && matchVenceHasta;
-        });
-    }, [documentos, filtroEstado, filtroDeudor, filtroNumeroDoc, emisionDesde, emisionHasta, venceDesde, venceHasta]);
+                matchVenceDesde && matchVenceHasta
+        })
+    }, [documentos, tabActiva, filtroEstado, filtroDeudor, filtroNumeroDoc, emisionDesde, emisionHasta, venceDesde, venceHasta])
+
+    const totalPaginas = Math.ceil(documentosFiltrados.length / itemsPorPagina)
+
+    const documentosPaginados = useMemo(() => {
+        const inicio = (paginaActual - 1) * itemsPorPagina
+        return documentosFiltrados.slice(inicio, inicio + itemsPorPagina)
+    }, [documentosFiltrados, paginaActual])
 
     const limpiarTodosLosFiltros = () => {
-        setFiltroEstado('Todos');
-        setFiltroDeudor('');
-        setFiltroNumeroDoc('');
-        setEmisionDesde('');
-        setEmisionHasta('');
-        setVenceDesde('');
-        setVenceHasta('');
-    };
+        setFiltroEstado('Todos')
+        setFiltroDeudor('')
+        setFiltroNumeroDoc('')
+        setEmisionDesde('')
+        setEmisionHasta('')
+        setVenceDesde('')
+        setVenceHasta('')
+    }
 
     const getEstadoBadge = (estado, fechaVencimiento) => {
         if (estado === 'Pagado') return <span className="px-2.5 py-1 text-[10px] uppercase font-bold rounded-full bg-emerald-100 text-emerald-700">Pagado</span>
@@ -134,10 +160,9 @@ export default function DocumentosEmitidos() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 text-xs text-slate-700">
 
-                {/* Encabezado del panel + botón de reset */}
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
-                        <Filter className="w-4 h-4 text-blue-600" /> Filtros de Busqueda
+                        <Search className="w-4 h-4 text-blue-600" /> Filtros de Búsqueda
                     </div>
                     {(filtroEstado !== 'Todos' || filtroDeudor || filtroNumeroDoc || emisionDesde || emisionHasta || venceDesde || venceHasta) && (
                         <button
@@ -149,44 +174,46 @@ export default function DocumentosEmitidos() {
                         </button>
                     )}
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="flex flex-col space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estado del Documento</label>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filtrar por Estado</label>
                         <select
                             value={filtroEstado}
                             onChange={(e) => setFiltroEstado(e.target.value)}
-                            className="w-full border-slate-300 rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500 py-2 cursor-pointer bg-slate-50/40"
+                            className="w-full border-slate-300 rounded-lg text-xs py-2 bg-slate-50/40 focus:ring-blue-500 focus:border-blue-500"
                         >
                             <option value="Todos">Todos los Estados</option>
-                            <option value="Emitido">Emitidos (Por Pagar)</option>
-                            <option value="Abonado">Abonados (Parcial)</option>
-                            <option value="Pagado">Pagados (Cerrados)</option>
+                            {tabActiva === 'activos' ? (
+                                <>
+                                    <option value="Emitido">Emitidos (Por Pagar)</option>
+                                    <option value="Abonado">Abonados (Parcial)</option>
+                                </>
+                            ) : (
+                                <option value="Pagado">Pagados (Historial)</option>
+                            )}
                         </select>
                     </div>
-
                     <div className="flex flex-col space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Deudor</label>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">RUT Deudor (Cliente o Proveedor)</label>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Ej. Juan Carlos o Gasco..."
+                                placeholder="Ej: 16042521K o 969182203"
                                 value={filtroDeudor}
                                 onChange={(e) => setFiltroDeudor(e.target.value)}
-                                className="w-full pl-9 border-slate-300 rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500 py-2"
+                                className="w-full pl-9 border-slate-300 rounded-lg text-xs py-2 focus:ring-blue-500 focus:border-blue-500"
                             />
                         </div>
                     </div>
-
                     <div className="flex flex-col space-y-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">N° de Folio o Documento</label>
                         <input
                             type="text"
-                            placeholder="Ej. FACT-450"
+                            placeholder="Ej. 450"
                             value={filtroNumeroDoc}
                             onChange={(e) => setFiltroNumeroDoc(e.target.value)}
-                            className="w-full border-slate-300 rounded-lg text-xs focus:ring-blue-500 focus:border-blue-500 py-2"
+                            className="w-full border-slate-300 rounded-lg text-xs py-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                     </div>
                 </div>
@@ -216,7 +243,6 @@ export default function DocumentosEmitidos() {
                             </div>
                         </div>
                     </div>
-
                     <div className="p-3 bg-slate-50/60 border border-slate-100 rounded-xl space-y-2">
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Límite de Vencimiento</span>
                         <div className="grid grid-cols-2 gap-2">
@@ -245,6 +271,22 @@ export default function DocumentosEmitidos() {
             </div>
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
+                    <div className="flex border-b border-slate-200 text-xs font-bold mb-4">
+                        <button
+                            type="button"
+                            onClick={() => { setTabActiva('activos'); limpiarTodosLosFiltros(); }}
+                            className={`px-4 py-2 border-b-2 transition-colors ${tabActiva === 'activos' ? 'border-blue-600 text-blue-600 font-extrabold' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                        >
+                            Documentos Activos
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => { setTabActiva('pagados'); limpiarTodosLosFiltros(); }}
+                            className={`px-4 py-2 border-b-2 transition-colors ${tabActiva === 'pagados' ? 'border-emerald-600 text-emerald-600 font-extrabold' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                        >
+                            Historial Pagados
+                        </button>
+                    </div>
                     <table className="w-full text-sm text-left">
                         <thead className="bg-slate-50 text-slate-600 text-xs uppercase font-bold border-b border-slate-200">
                             <tr>
@@ -260,12 +302,15 @@ export default function DocumentosEmitidos() {
                         <tbody className="divide-y divide-slate-100">
                             {loading ? (
                                 <tr><td colSpan="7" className="text-center py-8 text-slate-500">Cargando documentos...</td></tr>
-                            ) : documentosFiltrados.length === 0 ? (
+                            ) : documentosPaginados.length === 0 ? (
                                 <tr><td colSpan="7" className="text-center py-8 text-slate-500">No se encontraron documentos.</td></tr>
                             ) : (
-                                documentosFiltrados.map(doc => {
-                                    const esProveedor = doc.proveedor_nombre !== 'N/A'
-                                    const deudor = esProveedor ? doc.proveedor_nombre : doc.cliente_nombre
+                                documentosPaginados.map(doc => {
+                                    const esProveedor = doc.proveedor_nombre !== 'N/A' && doc.proveedor_nombre;
+                                    const deudor = esProveedor ? doc.proveedor_nombre : doc.cliente_nombre;
+                                    const rutDeudor = esProveedor
+                                        ? (doc.rut || doc.proveedor_rut || doc.rut_proveedor || doc.proveedor?.rut)
+                                        : (doc.rut_cliente || doc.cliente_rut || doc.cliente_rut_cliente || doc.cliente?.rut_cliente);
                                     return (
                                         <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
                                             <td className="p-4">
@@ -273,9 +318,27 @@ export default function DocumentosEmitidos() {
                                                 <div className="text-xs text-slate-500">{doc.numero_documento ? `Folio #${doc.numero_documento}` : 'Borrador Interno'}</div>
                                             </td>
                                             <td className="p-4">
-                                                <div className="flex items-center gap-2">
-                                                    {esProveedor ? <Building className="w-3.5 h-3.5 text-amber-600" /> : <User className="w-3.5 h-3.5 text-indigo-600" />}
-                                                    <span className="font-medium text-slate-700">{deudor}</span>
+                                                <div className="flex items-start gap-2">
+                                                    <div className="mt-0.5 shrink-0">
+                                                        {esProveedor ? (
+                                                            <Building className="w-3.5 h-3.5 text-amber-600" />
+                                                        ) : (
+                                                            <User className="w-3.5 h-3.5 text-indigo-600" />
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex flex-col">
+                                                        <span className="font-medium text-slate-700 text-xs line-clamp-1">{deudor}</span>
+                                                        {rutDeudor ? (
+                                                            <span className="text-[10px] text-slate-400 font-normal mt-0.5 tracking-wider">
+                                                                {rutDeudor}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-[9px] text-amber-500 font-medium mt-0.5 italic">
+                                                                S/R
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="p-4">
@@ -311,6 +374,37 @@ export default function DocumentosEmitidos() {
                         </tbody>
                     </table>
                 </div>
+                {totalPaginas > 1 && (
+                    <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 rounded-b-2xl">
+                        <div>
+                            Mostrando <span className="font-bold text-slate-800">{((paginaActual - 1) * itemsPorPagina) + 1}</span> al{' '}
+                            <span className="font-bold text-slate-800">
+                                {Math.min(paginaActual * itemsPorPagina, documentosFiltrados.length)}
+                            </span>{' '}
+                            de <span className="font-bold text-slate-800">{documentosFiltrados.length}</span> documentos.
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPaginaActual(prev => Math.max(prev - 1, 1))}
+                                disabled={paginaActual === 1}
+                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                                Anterior
+                            </button>
+                            <span className="font-semibold text-slate-700">Página {paginaActual} de {totalPaginas}</span>
+                            <button
+                                type="button"
+                                onClick={() => setPaginaActual(prev => Math.min(prev + 1, totalPaginas))}
+                                disabled={paginaActual === totalPaginas}
+                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            >
+                                Siguiente
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {modalOpen && docSeleccionado && (

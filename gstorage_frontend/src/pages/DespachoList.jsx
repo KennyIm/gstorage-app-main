@@ -1,37 +1,37 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import apiClient from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import { useUI } from '../context/UIContext';
-import Select from 'react-select';
+import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import apiClient from '../services/api'
+import { useAuth } from '../context/AuthContext'
+import { useUI } from '../context/UIContext'
+import Select from 'react-select'
 import {
   Plus, Search, Eye, Edit, Truck, Map, User, Calendar,
   Clock, CheckCircle, AlertCircle, Loader2, ArrowRight,
   PlayCircle, PackageCheck, ChevronLeft, ChevronRight, ArrowLeft,
   Share2, Filter,
   X
-} from 'lucide-react';
+} from 'lucide-react'
 
 export default function DespachoList() {
-  document.title = "Listado de Despachos - GStorage";
-  const [despachos, setDespachos] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sucursales, setSucursales] = useState([]);
-  const { user } = useAuth();
+  document.title = "Listado de Despachos - GStorage"
+  const [despachos, setDespachos] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sucursales, setSucursales] = useState([])
+  const { user } = useAuth()
   const [sucursalVisualizada, setSucursalVisualizada] = useState(user?.perfil?.sucursal_id)
-  const { logoutUser } = useAuth();
-  const { showLoader, hideLoader, showToast } = useUI();
+  const { logoutUser } = useAuth()
+  const { showLoader, hideLoader, showToast } = useUI()
 
-  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [mostrarFiltros, setMostrarFiltros] = useState(false)
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 10
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [sucursalVisualizada, searchTerm]);
+    setCurrentPage(1)
+  }, [sucursalVisualizada, searchTerm])
 
   const [filtros, setFiltros] = useState({
     ruta: '',
@@ -43,73 +43,73 @@ export default function DespachoList() {
     fechaRealDesde: '',
     fechaRealHasta: '',
     verCompartidos: false
-  });
+  })
 
   useEffect(() => {
     const fetchData = async () => {
-      showLoader();
-      setDespachos([]);
+      showLoader()
+      setDespachos([])
       try {
         const urlDespachos = sucursalVisualizada
           ? `/api/inventario/despachos/?sucursal_id=${sucursalVisualizada}`
-          : `/api/inventario/despachos/`;
+          : `/api/inventario/despachos/`
 
         const [despRes, sucurRes] = await Promise.all([
           apiClient.get(urlDespachos),
           apiClient.get('/api/usuarios/sucursales/')
-        ]);
+        ])
 
-        setDespachos(despRes.data);
-        setSucursales(sucurRes.data);
+        setDespachos(despRes.data)
+        setSucursales(sucurRes.data)
       } catch (err) {
-        console.error(err);
-        showToast('Error al cargar la lista.', 'error');
+        console.error(err)
+        showToast('Error al cargar la lista.', 'error')
       } finally {
-        hideLoader();
-        setLoading(false);
+        hideLoader()
+        setLoading(false)
       }
     };
 
-    fetchData();
-  }, [sucursalVisualizada]);
+    fetchData()
+  }, [sucursalVisualizada])
 
   const handleDateChange = async (id, newValue) => {
     setDespachos(prev => prev.map(d =>
       d.id_despacho === id ? { ...d, fecha_salida_real: newValue } : d
-    ));
+    ))
 
     try {
-      let fechaFormateada = null;
+      let fechaFormateada = null
       if (newValue) {
-        fechaFormateada = new Date(newValue).toISOString();
+        fechaFormateada = new Date(newValue).toISOString()
       }
 
       await apiClient.patch(`/api/inventario/despachos/${id}/`, {
         fecha_salida_real: fechaFormateada
-      });
-      
+      })
+
     } catch (err) {
-      console.error("Detalle del Error 400 de Django:", err.response?.data || err.message);
-      showToast("Error al actualizar la fecha. Revisa la consola.", 'error');
-      
-      fetchData(); 
+      console.error("Detalle del Error 400 de Django:", err.response?.data || err.message)
+      showToast("Error al actualizar la fecha. Revisa la consola.", 'error')
+
+      fetchData()
     }
-  };
+  }
 
   const formatDateForInput = (isoString) => {
-    if (!isoString) return '';
-    const date = new Date(isoString);
-    const offset = date.getTimezoneOffset() * 60000;
-    return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-  };
+    if (!isoString) return ''
+    const date = new Date(isoString)
+    const offset = date.getTimezoneOffset() * 60000
+    return new Date(date.getTime() - offset).toISOString().slice(0, 16)
+  }
 
   const formatDateTime = (isoString) => {
-    if (!isoString) return null;
+    if (!isoString) return null
     return new Date(isoString).toLocaleString('es-CL', {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
-    });
-  };
+    })
+  }
 
   const getStatusBadge = (status) => {
     const styles = {
@@ -133,61 +133,61 @@ export default function DespachoList() {
         bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200',
         icon: <X className='w-3.5 h-3.5' />
       }
-    };
+    }
 
-    const style = styles[status] || styles['Programado'];
+    const style = styles[status] || styles['Programado']
 
     return (
       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${style.bg} ${style.text} ${style.border}`}>
         {style.icon}
         {status.toUpperCase()}
       </span>
-    );
-  };
+    )
+  }
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'Entregado': return <CheckCircle className="w-3 h-3" />;
-      case 'En Ruta': return <Truck className="w-3 h-3" />;
-      case 'En Preparación': return <Clock className="w-3 h-3" />;
-      default: return <AlertCircle className="w-3 h-3" />;
+      case 'Entregado': return <CheckCircle className="w-3 h-3" />
+      case 'En Ruta': return <Truck className="w-3 h-3" />
+      case 'En Preparación': return <Clock className="w-3 h-3" />
+      default: return <AlertCircle className="w-3 h-3" />
     }
-  };
+  }
 
   const formatRUT = (rut) => {
-    if (!rut) return 'Sin RUT';
-    let value = rut.replace(/[^0-9kK]/g, '').toUpperCase();
-    if (value.length <= 1) return value;
+    if (!rut) return 'Sin RUT'
+    let value = rut.replace(/[^0-9kK]/g, '').toUpperCase()
+    if (value.length <= 1) return value
 
-    const body = value.slice(0, -1);
-    const dv = value.slice(-1);
+    const body = value.slice(0, -1)
+    const dv = value.slice(-1)
 
-    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".")
 
-    return `${formattedBody}-${dv}`;
-  };
+    return `${formattedBody}-${dv}`
+  }
 
-  const uniqueRutas = [...new Set(despachos.map(d => String(d.id_ruta)).filter(Boolean))];
-  const uniqueCamiones = [...new Set(despachos.map(d => String(d.id_camion)).filter(Boolean))];
-  const uniqueConductores = [...new Set(despachos.map(d => String(d.id_conductor)).filter(Boolean))];
+  const uniqueRutas = [...new Set(despachos.map(d => String(d.id_ruta)).filter(Boolean))]
+  const uniqueCamiones = [...new Set(despachos.map(d => String(d.id_camion)).filter(Boolean))]
+  const uniqueConductores = [...new Set(despachos.map(d => String(d.id_conductor)).filter(Boolean))]
 
-  const opcionesRutas = uniqueRutas.map(ruta => ({ value: ruta, label: `Ruta ${ruta}` }));
-  const opcionesCamiones = uniqueCamiones.map(camion => ({ value: camion, label: camion }));
+  const opcionesRutas = uniqueRutas.map(ruta => ({ value: ruta, label: `Ruta ${ruta}` }))
+  const opcionesCamiones = uniqueCamiones.map(camion => ({ value: camion, label: camion }))
 
   const opcionesConductores = uniqueConductores.map(cond => ({
     value: cond,
     label: formatRUT(cond)
-  }));
+  }))
 
-  const opcionRutaSeleccionada = opcionesRutas.find(op => op.value === filtros.ruta) || null;
-  const opcionCamionSeleccionada = opcionesCamiones.find(op => op.value === filtros.camion) || null;
-  const opcionConductorSeleccionada = opcionesConductores.find(op => op.value === filtros.conductor) || null;
+  const opcionRutaSeleccionada = opcionesRutas.find(op => op.value === filtros.ruta) || null
+  const opcionCamionSeleccionada = opcionesCamiones.find(op => op.value === filtros.camion) || null
+  const opcionConductorSeleccionada = opcionesConductores.find(op => op.value === filtros.conductor) || null
 
   const handleFiltroChange = (e) => {
-    const { name, value } = e.target;
-    setFiltros(prev => ({ ...prev, [name]: value }));
-    setCurrentPage(1);
-  };
+    const { name, value } = e.target
+    setFiltros(prev => ({ ...prev, [name]: value }))
+    setCurrentPage(1)
+  }
 
   const limpiarFiltros = () => {
     setFiltros({
@@ -200,10 +200,10 @@ export default function DespachoList() {
       fechaRealDesde: '',
       fechaRealHasta: '',
       verCompartidos: false
-    });
-    setSearchTerm('');
-    setCurrentPage(1);
-  };
+    })
+    setSearchTerm('')
+    setCurrentPage(1)
+  }
 
   const selectStyles = {
     control: (base, state) => ({
@@ -231,56 +231,56 @@ export default function DespachoList() {
         backgroundColor: '#991B1B'
       }
     })
-  };
+  }
 
   const filteredDespachos = despachos.filter(d => {
-    if (!d) return false;
+    if (!d) return false
 
-    const matchRuta = filtros.ruta === '' || String(d.id_ruta || '') === filtros.ruta;
-    const matchCamion = filtros.camion === '' || String(d.id_camion || '') === filtros.camion;
-    const matchConductor = filtros.conductor === '' || String(d.id_conductor || '') === filtros.conductor;
-    const matchEstado = filtros.estado === 'TODOS' || d.estado_despacho === filtros.estado;
-    const matchCompartido = !filtros.verCompartidos || Boolean(d.es_colaborador);
+    const matchRuta = filtros.ruta === '' || String(d.id_ruta || '') === filtros.ruta
+    const matchCamion = filtros.camion === '' || String(d.id_camion || '') === filtros.camion
+    const matchConductor = filtros.conductor === '' || String(d.id_conductor || '') === filtros.conductor
+    const matchEstado = filtros.estado === 'TODOS' || d.estado_despacho === filtros.estado
+    const matchCompartido = !filtros.verCompartidos || Boolean(d.es_colaborador)
 
-    let matchFechaProg = true;
+    let matchFechaProg = true
     if (filtros.fechaProgDesde || filtros.fechaProgHasta) {
       if (!d.fecha_programada) {
-        matchFechaProg = false;
+        matchFechaProg = false
       } else {
-        const itemDate = new Date(d.fecha_programada).getTime();
+        const itemDate = new Date(d.fecha_programada).getTime()
         if (filtros.fechaProgDesde) {
-          const desde = new Date(`${filtros.fechaProgDesde}T00:00:00`).getTime();
-          if (itemDate < desde) matchFechaProg = false;
+          const desde = new Date(`${filtros.fechaProgDesde}T00:00:00`).getTime()
+          if (itemDate < desde) matchFechaProg = false
         }
         if (filtros.fechaProgHasta) {
-          const hasta = new Date(`${filtros.fechaProgHasta}T23:59:59`).getTime();
-          if (itemDate > hasta) matchFechaProg = false;
+          const hasta = new Date(`${filtros.fechaProgHasta}T23:59:59`).getTime()
+          if (itemDate > hasta) matchFechaProg = false
         }
       }
     }
 
-    let matchFechaReal = true;
+    let matchFechaReal = true
     if (filtros.fechaRealDesde || filtros.fechaRealHasta) {
       if (!d.fecha_salida_real) {
-        matchFechaReal = false;
+        matchFechaReal = false
       } else {
-        const itemDate = new Date(d.fecha_salida_real).getTime();
+        const itemDate = new Date(d.fecha_salida_real).getTime()
         if (filtros.fechaRealDesde) {
-          const desde = new Date(`${filtros.fechaRealDesde}T00:00:00`).getTime();
-          if (itemDate < desde) matchFechaReal = false;
+          const desde = new Date(`${filtros.fechaRealDesde}T00:00:00`).getTime()
+          if (itemDate < desde) matchFechaReal = false
         }
         if (filtros.fechaRealHasta) {
-          const hasta = new Date(`${filtros.fechaRealHasta}T23:59:59`).getTime();
-          if (itemDate > hasta) matchFechaReal = false;
+          const hasta = new Date(`${filtros.fechaRealHasta}T23:59:59`).getTime()
+          if (itemDate > hasta) matchFechaReal = false
         }
       }
     }
 
-    return matchRuta && matchCamion && matchConductor && matchEstado && matchCompartido && matchFechaProg && matchFechaReal;
-  });
-  const totalPages = Math.ceil(filteredDespachos.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedDespachos = filteredDespachos.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    return matchRuta && matchCamion && matchConductor && matchEstado && matchCompartido && matchFechaProg && matchFechaReal
+  })
+  const totalPages = Math.ceil(filteredDespachos.length / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const paginatedDespachos = filteredDespachos.slice(startIndex, startIndex + ITEMS_PER_PAGE)
 
   // --- RENDERIZADO ---
 
@@ -290,7 +290,7 @@ export default function DespachoList() {
         <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
         <p>Cargando gestión de despachos...</p>
       </div>
-    );
+    )
   }
 
   if (error) {
@@ -373,7 +373,7 @@ export default function DespachoList() {
                 )}
 
                 <button
-                  onClick={limpiarFiltros} 
+                  onClick={limpiarFiltros}
                   className="text-sm text-gray-500 hover:text-red-700 flex items-center gap-1 font-medium transition"
                 >
                   <X className="w-4 h-4" /> Limpiar Todo
@@ -398,7 +398,7 @@ export default function DespachoList() {
                   onChange={(opcion) => {
                     handleFiltroChange({ target: { name: 'ruta', value: opcion ? opcion.value : '' } });
                   }}
-                  styles={selectStyles} 
+                  styles={selectStyles}
                 />
               </div>
 
@@ -407,7 +407,7 @@ export default function DespachoList() {
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Camión</label>
                 <Select
                   name="camion"
-                  options={opcionesCamiones} 
+                  options={opcionesCamiones}
                   value={opcionCamionSeleccionada}
                   isClearable={true}
                   isSearchable={true}
@@ -563,7 +563,9 @@ export default function DespachoList() {
                             </div>
                             <div className="flex items-center gap-2 text-gray-500 text-xs">
                               <User className="w-3.5 h-3.5" />
-                              <span className="font-mono">{formatRUT(despacho.id_conductor)}</span>
+                              <span className="font-bold text-slate-900">
+                                {despacho?.nombre_conductor || 'No asignado'}
+                              </span>
                             </div>
                           </div>
                         </td>

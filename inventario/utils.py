@@ -1,5 +1,8 @@
 from django.utils import timezone
 from datetime import timedelta
+import hashlib
+from cryptography.fernet import Fernet
+from django.conf import settings
 from .models import Despacho, Camion, HistorialMovimientos, Mercancia
 from django.core.serializers.json import DjangoJSONEncoder
 from django.forms.models import model_to_dict
@@ -113,7 +116,11 @@ def generar_numeros_orden_despacho(despacho):
         return
 
     grupos = {}
-    
+    try:
+        fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+    except Exception:
+        fernet = None
+
     for m in mercancias:
         cliente_id = m.id_cliente.id_cliente if m.id_cliente else 0
         destino_id = m.id_destino.id_destino if m.id_destino else 0
@@ -131,9 +138,22 @@ def generar_numeros_orden_despacho(despacho):
         es_alternativa = False
         if m.direccion_entrega:
             dir_entrega = m.direccion_entrega.strip().lower()
-            dir1 = m.id_cliente.direccion.strip().lower() if m.id_cliente and getattr(m.id_cliente, 'direccion') else ""
-            dir2 = m.id_cliente.direccion2.strip().lower() if m.id_cliente and getattr(m.id_cliente, 'direccion2', None) else ""
+            dir1 = ""
+            dir2 = ""
             
+            if m.id_cliente and fernet:
+                try:
+                    campo_dir1 = getattr(m.id_cliente, 'direccion_cifrado', getattr(m.id_cliente, 'direccion_cliente_cifrado', None))
+                    if campo_dir1:
+                        dir1 = fernet.decrypt(campo_dir1.encode('utf-8')).decode('utf-8').strip().lower()
+                    
+                    campo_dir2 = getattr(m.id_cliente, 'direccion_cifrado2', getattr(m.id_cliente, 'direccion2_cliente_cifrado', None))
+                    if campo_dir2:
+                        dir2 = fernet.decrypt(campo_dir2.encode('utf-8')).decode('utf-8').strip().lower()
+                except Exception:
+                    dir1 = ""
+                    dir2 = ""
+
             if dir_entrega and dir_entrega != dir1 and dir_entrega != dir2:
                 es_alternativa = True
 
@@ -175,7 +195,6 @@ def generar_numeros_orden_despacho(despacho):
         sufijo_final = f"{sufijo_alt}{sufijo_prov}"
         
         total_items = len(lista_cargas)
-        
         total_paginas = math.ceil(total_items / 10.0)
 
         for idx, m in enumerate(lista_cargas):

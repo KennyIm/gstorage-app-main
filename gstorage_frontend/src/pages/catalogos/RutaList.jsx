@@ -45,12 +45,13 @@ export default function RoutesCatalog() {
 
   const filteredRoutes = routes.filter(route => {
     const term = searchTerm.toLowerCase();
+
     return (
-      route.nombre_ruta.toLowerCase().includes(term) ||
+      (route.nombre_ruta && route.nombre_ruta.toLowerCase().includes(term)) ||
       (route.descripcion && route.descripcion.toLowerCase().includes(term)) ||
-      route.codigo_ruta.toLowerCase().includes(term)
-    );
-  });
+      (route.codigo_ruta && String(route.codigo_ruta).toLowerCase().includes(term))
+    )
+  })
 
   const handleOpenModal = (route = null) => {
     setError(null);

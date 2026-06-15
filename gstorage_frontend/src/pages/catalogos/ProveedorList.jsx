@@ -48,6 +48,7 @@ export default function Proveedores() {
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const { showLoader, hideLoader, showToast } = useUI();
+    const [sinRut, setSinRut] = useState(false)
 
 
     const [currentPage, setCurrentPage] = useState(1);
@@ -104,9 +105,11 @@ export default function Proveedores() {
     const handleOpenModal = (proveedor = null) => {
         setError(null);
         if (proveedor) {
-            setEditingProveedor(proveedor);
+            setEditingProveedor(proveedor)
+            const tieneRutVacio = !proveedor.rut || proveedor.rut.trim() === ''
+            setSinRut(tieneRutVacio)
             setFormData({
-                rut: proveedor.rut,
+                rut: proveedor.rut || '',
                 nombre_proveedor: proveedor.nombre_proveedor,
                 contacto: proveedor.contacto || '',
                 correo: proveedor.correo || '',
@@ -115,6 +118,7 @@ export default function Proveedores() {
             });
         } else {
             setEditingProveedor(null);
+            setSinRut(false)
             setFormData({
                 rut: '',
                 nombre_proveedor: '',
@@ -134,15 +138,16 @@ export default function Proveedores() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!isValidRUT(formData.rut)) {
+        if (!sinRut && !isValidRUT(formData.rut)) {
             setError('El RUT ingresado no es válido.');
             return;
         }
         showLoader();
         setSubmitting(true);
+
         const cleanData = {
             ...formData,
-            rut: formData.rut,
+            rut: sinRut ? "" : formData.rut,
             nombre_proveedor: normalizeName(formData.nombre_proveedor),
             contacto: normalizeName(formData.contacto),
             correo: normalizeEmail(formData.correo),
@@ -151,7 +156,7 @@ export default function Proveedores() {
 
         try {
             if (editingProveedor) {
-                await apiClient.put(`/api/inventario/proveedores/${editingProveedor.rut}/`, cleanData);
+                await apiClient.put(`/api/inventario/proveedores/${editingProveedor.id}/`, cleanData);
                 showToast('Registro actualizado con éxito', 'success');
             } else {
                 await apiClient.post('/api/inventario/proveedores/', cleanData);
@@ -161,12 +166,20 @@ export default function Proveedores() {
             handleCloseModal();
         } catch (err) {
             console.error(err);
-            showToast(err.response?.data?.rut ? 'El RUT ingresado ya existe o no es válido.' : 'Error al guardar el proveedor.', 'error');
+            const errorData = err.response?.data;
+            const esRutDuplicado = errorData?.rut || errorData?.rut_hash || errorData?.non_field_errors;
+
+            showToast(
+                esRutDuplicado
+                    ? 'El RUT ingresado ya existe en el sistema.'
+                    : 'Error al guardar el proveedor.',
+                'error'
+            );
         } finally {
             setSubmitting(false);
             hideLoader();
         }
-    };
+    }
 
     const handleToggleStatus = async (proveedor) => {
         const action = proveedor.activo ? 'DESACTIVAR' : 'ACTIVAR'
@@ -391,29 +404,47 @@ export default function Proveedores() {
 
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div className="sm:col-span-1">
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">RUT *</label>
+                                            <div className="flex justify-between items-center mb-1">
+                                                <label className="block text-sm font-medium text-gray-700">RUT {!sinRut && '*'}</label>
+                                                <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none font-medium hover:text-indigo-600 transition">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={sinRut}
+                                                        disabled={!!editingProveedor} 
+                                                        onChange={(e) => {
+                                                            setSinRut(e.target.checked);
+                                                            if (e.target.checked) {
+                                                                setFormData({ ...formData, rut: '' })
+                                                            }
+                                                        }}
+                                                        className="rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 w-3.5 h-3.5 cursor-pointer"
+                                                    />
+                                                    Sin RUT
+                                                </label>
+                                            </div>
+
                                             <div className="relative">
-                                                <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                                <CreditCard className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${sinRut ? 'text-gray-300' : 'text-gray-400'}`} />
                                                 <input
                                                     type="text"
                                                     value={formData.rut}
                                                     onChange={(e) => {
-                                                        const rutFormateado = formatRUT(e.target.value);
-                                                        setFormData({ ...formData, rut: rutFormateado });
+                                                        const rutFormateado = formatRUT(e.target.value)
+                                                        setFormData({ ...formData, rut: rutFormateado })
                                                     }}
                                                     maxLength={12}
-                                                    disabled={!!editingProveedor}
-                                                    className={`w-full pl-10 pr-4 py-2 border rounded-lg outline-none transition ${editingProveedor
-                                                        ? 'bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed'
-                                                        : 'bg-gray-50 border-gray-300 focus:bg-white focus:ring-2 focus:ring-indigo-500 text-gray-900'
+                                                    disabled={sinRut || !!editingProveedor}
+                                                    className={`w-full pl-10 pr-4 py-2 border rounded-lg outline-none transition text-sm ${sinRut || !!editingProveedor
+                                                            ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed select-none'
+                                                            : 'bg-gray-50 border-gray-300 text-gray-900 focus:bg-white focus:ring-2 focus:ring-indigo-500'
                                                         }`}
-                                                    placeholder="12.345.678-9"
-                                                    required
+                                                    placeholder={sinRut ? "No requiere identificación" : "12.345.678-9"}
+                                                    required={!sinRut}
                                                 />
                                             </div>
                                         </div>
                                         <div className="sm:col-span-2">
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre / Razón Social *</label>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre / Razón Social</label>
                                             <div className="relative">
                                                 <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                                                 <input

@@ -1,25 +1,25 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
-import apiClient from '../services/api';
-import Select from 'react-select';
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { Link } from 'react-router-dom'
+import apiClient from '../services/api'
+import Select from 'react-select'
 import {
   Search, Filter, Package, Plus, Eye, Trash2, Truck, Check, X, FileText,
   ChevronLeft, ChevronRight, ArrowLeft
-} from 'lucide-react';
-import MermaModal from '../components/MermaModal';
-import { useUI } from '../context/UIContext';
+} from 'lucide-react'
+import MermaModal from '../components/MermaModal'
+import { useUI } from '../context/UIContext'
 
 export default function MercanciaList() {
-  document.title = "Listado de Mercancias - GStorage";
-  const [mercancias, setMercancias] = useState([]);
-  const { showLoader, hideLoader, showToast } = useUI();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [despachos, setDespachos] = useState([]);
-  const [proveedores, setProveedores] = useState([]);
-  const [sucursales, setSucursales] = useState([]);
-  const [rutas, setRutas] = useState([]);
+  document.title = "Listado de Mercancias - GStorage"
+  const [mercancias, setMercancias] = useState([])
+  const { showLoader, hideLoader, showToast } = useUI()
+  const [searchTerm, setSearchTerm] = useState('')
+  const [despachos, setDespachos] = useState([])
+  const [proveedores, setProveedores] = useState([])
+  const [sucursales, setSucursales] = useState([])
+  const [rutas, setRutas] = useState([])
 
-  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [mostrarFiltros, setMostrarFiltros] = useState(false)
 
   const [filtros, setFiltros] = useState({
     cliente: '',
@@ -30,19 +30,19 @@ export default function MercanciaList() {
     destino: '',
     despacho: '',
     factura: ''
-  });
+  })
 
   // --- SELECCIÓN MASIVA ---
-  const [selectedIds, setSelectedIds] = useState([]);
-  const [bulkDispatchId, setBulkDispatchId] = useState('');
+  const [selectedIds, setSelectedIds] = useState([])
+  const [bulkDispatchId, setBulkDispatchId] = useState('')
 
-  const [mermaTarget, setMermaTarget] = useState(null);
-  const [showFilterMenu, setShowFilterMenu] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('TODOS');
-  const filterRef = useRef(null);
+  const [mermaTarget, setMermaTarget] = useState(null)
+  const [showFilterMenu, setShowFilterMenu] = useState(false)
+  const [statusFilter, setStatusFilter] = useState('TODOS')
+  const filterRef = useRef(null)
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 15;
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 15
   const customSelectStyles = {
     control: (base) => ({
       ...base,
@@ -76,16 +76,16 @@ export default function MercanciaList() {
       ...base,
       color: '#94a3b8',
     }),
-  };
+  }
 
   const handleFiltroChange = (e) => {
-    const { name, value } = e.target;
-    setFiltros(prev => ({ ...prev, [name]: value }));
-    setCurrentPage(1);
-  };
+    const { name, value } = e.target
+    setFiltros(prev => ({ ...prev, [name]: value }))
+    setCurrentPage(1)
+  }
 
   const fetchData = useCallback(async () => {
-    showLoader();
+    showLoader()
     try {
       const [mercRes, despRes, sucurRes, rutasRes, provRes] = await Promise.all([
         apiClient.get('/api/inventario/mercancias/'),
@@ -93,47 +93,47 @@ export default function MercanciaList() {
         apiClient.get('/api/usuarios/sucursales/'),
         apiClient.get('/api/inventario/rutas/'),
         apiClient.get('/api/inventario/proveedores/')
-      ]);
+      ])
       setMercancias(mercRes.data);
       setDespachos(despRes.data);
       setSucursales(sucurRes.data);
       setRutas(rutasRes.data);
       setProveedores(provRes.data)
     } catch (err) {
-      console.error("Error al cargar datos iniciales:", err);
-      showToast('No se pudieron cargar las mercancias.', 'error');
+      console.error("Error al cargar datos iniciales:", err)
+      showToast('No se pudieron cargar las mercancias.', 'error')
     } finally {
-      hideLoader();
+      hideLoader()
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    fetchData()
+  }, [fetchData])
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+    setCurrentPage(1)
+  }, [searchTerm, statusFilter])
 
 
   const handleBulkAssign = async () => {
-    if (!bulkDispatchId) return showToast('Selecciona un despacho primero.', 'info');
-    showLoader();
+    if (!bulkDispatchId) return showToast('Selecciona un despacho primero.', 'info')
+    showLoader()
     try {
       await apiClient.post('/api/inventario/mercancias/asignar_masivo/', {
         ids: selectedIds,
         id_despacho: bulkDispatchId
-      });
-      fetchData();
-      setSelectedIds([]);
-      setBulkDispatchId('');
-      showToast(`Éxito: ${selectedIds.length} mercancías asignadas al Despacho #${bulkDispatchId}`, 'success');
+      })
+      fetchData()
+      setSelectedIds([])
+      setBulkDispatchId('')
+      showToast(`Éxito: ${selectedIds.length} mercancías asignadas al Despacho #${bulkDispatchId}`, 'success')
     } catch (err) {
-      showToast('Error al realizar la asignación masiva. Verifica los estados de las mercancías.', 'error');
+      showToast('Error al realizar la asignación masiva. Verifica los estados de las mercancías.', 'error')
     } finally {
-      hideLoader();
+      hideLoader()
     }
-  };
+  }
 
   const limpiarFiltros = () => {
     setFiltros({
@@ -145,96 +145,96 @@ export default function MercanciaList() {
       destino: '',
       despacho: '',
       factura: ''
-    });
-    setCurrentPage(1);
-  };
+    })
+    setCurrentPage(1)
+  }
 
-  const uniqueClientes = [...new Set(mercancias.map(m => m.cliente_nombre).filter(Boolean))];
-  const uniqueDestinos = [...new Set(mercancias.map(m => m.destino_nombre).filter(Boolean))];
-  const uniqueDespachos = [...new Set(mercancias.map(m => m.id_despacho).filter(Boolean))];
+  const uniqueClientes = [...new Set(mercancias.map(m => m.cliente_nombre).filter(Boolean))]
+  const uniqueDestinos = [...new Set(mercancias.map(m => m.destino_nombre).filter(Boolean))]
+  const uniqueDespachos = [...new Set(mercancias.map(m => m.id_despacho).filter(Boolean))]
 
   const opcionesClientes = uniqueClientes.map(cli => ({
     value: cli,
     label: cli
-  }));
+  }))
 
-  const opcionSeleccionada = opcionesClientes.find(op => op.value === filtros.cliente) || null;
+  const opcionSeleccionada = opcionesClientes.find(op => op.value === filtros.cliente) || null
 
   const opcionesDespachos = [
     { value: 'null', label: 'Sin Despacho Asignado' },
     ...uniqueDespachos
       .filter(id => id !== null && id !== undefined)
       .map(id => {
-        const despachoObj = despachos.find(d => String(d.id_despacho || d.id) === String(id));
+        const despachoObj = despachos.find(d => String(d.id_despacho || d.id) === String(id))
 
-        const nombreRuta = despachoObj?.ruta_nombre || despachoObj?.id_ruta || 'Sin Ruta';
+        const nombreRuta = despachoObj?.ruta_nombre || despachoObj?.id_ruta || 'Sin Ruta'
 
         return {
           value: id,
           label: `${nombreRuta}`
-        };
+        }
       })
-  ];
+  ]
 
-  const opcionSeleccionadaDespach = opcionesDespachos.find(op => String(op.value) === String(filtros.despacho)) || null;
+  const opcionSeleccionadaDespach = opcionesDespachos.find(op => String(op.value) === String(filtros.despacho)) || null
 
   const filteredItems = mercancias.filter(item => {
-    if (!item) return false;
-    const matchCliente = filtros.cliente === '' || item.cliente_nombre === filtros.cliente;
-    const matchEstado = filtros.estado === 'TODOS' || item.estado === filtros.estado;
-    const matchCodigo = !filtros.codigoInterno || String(item.codigo_interno || '').toLowerCase().includes(String(filtros.codigoInterno).toLowerCase());
-    const matchDestino = filtros.destino === '' || item.destino_nombre === filtros.destino;
-    const matchFactura = !filtros.factura || String(item.factura || '').toLowerCase().includes(String(filtros.factura).toLowerCase());
-    let matchDespacho = true;
+    if (!item) return false
+    const matchCliente = filtros.cliente === '' || item.cliente_nombre === filtros.cliente
+    const matchEstado = filtros.estado === 'TODOS' || item.estado === filtros.estado
+    const matchCodigo = !filtros.codigoInterno || String(item.codigo_interno || '').toLowerCase().includes(String(filtros.codigoInterno).toLowerCase())
+    const matchDestino = filtros.destino === '' || item.destino_nombre === filtros.destino
+    const matchFactura = !filtros.factura || String(item.factura || '').toLowerCase().includes(String(filtros.factura).toLowerCase())
+    let matchDespacho = true
     if (filtros.despacho !== '') {
       if (filtros.despacho === 'null') {
-        matchDespacho = item.id_despacho === null || item.id_despacho === undefined;
+        matchDespacho = item.id_despacho === null || item.id_despacho === undefined
       } else {
-        matchDespacho = String(item.id_despacho) === String(filtros.despacho);
+        matchDespacho = String(item.id_despacho) === String(filtros.despacho)
       }
     }
 
-    let matchFecha = true;
+    let matchFecha = true
     if (filtros.fechaDesde || filtros.fechaHasta) {
-      const itemDate = new Date(item.fecha_ingreso).getTime();
+      const itemDate = new Date(item.fecha_ingreso).getTime()
 
       if (filtros.fechaDesde) {
-        const desde = new Date(filtros.fechaDesde).getTime();
+        const desde = new Date(filtros.fechaDesde).getTime()
         if (itemDate < desde) matchFecha = false;
       }
       if (filtros.fechaHasta) {
-        const hasta = new Date(filtros.fechaHasta).getTime() + 86400000;
-        if (itemDate >= hasta) matchFecha = false;
+        const hasta = new Date(filtros.fechaHasta).getTime() + 86400000
+        if (itemDate >= hasta) matchFecha = false
       }
     }
-    return matchCliente && matchEstado && matchCodigo && matchDestino && matchDespacho && matchFecha && matchFactura;
-  });
+    return matchCliente && matchEstado && matchCodigo && matchDestino && matchDespacho && matchFecha && matchFactura
+  })
 
-  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedItems = filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const paginatedItems = filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE)
 
   // --- LÓGICA DE SELECCIÓN ---
   const toggleSelect = (id) => {
     setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
-  };
+    )
+  }
 
-  const isAllCurrentPageSelected = paginatedItems.length > 0 && paginatedItems.every(item => selectedIds.includes(item.id_mercancia));
+  const isAllCurrentPageSelected = paginatedItems.length > 0 && paginatedItems.every(item => selectedIds.includes(item.id_mercancia))
 
   const toggleSelectAll = () => {
-    const currentPageIds = paginatedItems.map(item => item.id_mercancia);
+    const currentPageIds = paginatedItems.map(item => item.id_mercancia)
 
     if (isAllCurrentPageSelected) {
-      setSelectedIds(prev => prev.filter(id => !currentPageIds.includes(id)));
+      setSelectedIds(prev => prev.filter(id => !currentPageIds.includes(id)))
     } else {
       setSelectedIds(prev => {
-        const nuevosIds = currentPageIds.filter(id => !prev.includes(id));
+        const nuevosIds = currentPageIds.filter(id => !prev.includes(id))
         return [...prev, ...nuevosIds];
-      });
+      })
     }
-  };
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative">
@@ -570,18 +570,17 @@ export default function MercanciaList() {
                       <div className="flex flex-col">
                         <span className="text-xs font-bold text-blue-700 px-2 py-1">
                           {(() => {
-                            const provObj = proveedores.find(p => String(p.rut || d.id) === String(item.id_proveedor));
-
-                            if (provObj?.rut) {
-                              const provrut = String(provObj.nombre_proveedor);
-
-                              return provrut;
-                            }
-
-                            return item.id_proveedor;
+                            const provObj = proveedores.find(p => Number(p.id) === Number(item.id_proveedor));
+                            return provObj ? provObj.nombre_proveedor : "Proveedor Desconocido";
                           })()}
                         </span>
-                        <span className="text-xs font-bold text-amber-700 px-2 py-1">{item.id_proveedor}</span>
+
+                        <span className="text-xs font-bold text-amber-700 px-2 py-1">
+                          {(() => {
+                            const provObj = proveedores.find(p => Number(p.id) === Number(item.id_proveedor));
+                            return provObj ? provObj.rut : `ID: ${item.id_proveedor}`;
+                          })()}
+                        </span>
                       </div>
                     </td>
 

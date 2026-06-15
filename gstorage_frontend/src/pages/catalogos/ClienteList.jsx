@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import apiClient from '../../services/api';
-import { Link } from 'react-router-dom';
-import { useUI } from '../../context/UIContext';
+import React, { useState, useEffect } from 'react'
+import apiClient from '../../services/api'
+import { Link } from 'react-router-dom'
+import { useUI } from '../../context/UIContext'
 import {
   Search, Plus, Edit, Briefcase, X, Users, Mail, Phone,
   CreditCard, User, MapPin, Building, AlertCircle, CheckCircle,
   XCircle, DollarSign, ChevronLeft, ChevronRight, ArrowLeft, Loader2
-} from 'lucide-react';
+} from 'lucide-react'
 
 import {
   normalizeRUT,
@@ -14,20 +14,20 @@ import {
   normalizeCity,
   normalizeEmail,
   normalizeName
-} from '../../utils/normalization';
+} from '../../utils/normalization'
 
 export default function ClientsCatalog() {
-  document.title = "Gestión de Clientes - GStorage";
-  const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [error, setError] = useState(null);
-  const { showLoader, hideLoader, showToast } = useUI();
-
-  const [showModal, setShowModal] = useState(false);
-  const [editingClient, setEditingClient] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  document.title = "Gestión de Clientes - GStorage"
+  const [clients, setClients] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [error, setError] = useState(null)
+  const { showLoader, hideLoader, showToast } = useUI()
+  const [showModal, setShowModal] = useState(false)
+  const [editingClient, setEditingClient] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 10
+  const [sinRut, setSinRut] = useState(false)
 
   const [formData, setFormData] = useState({
     nombre_cliente: '',
@@ -42,53 +42,56 @@ export default function ClientsCatalog() {
     direccion2: '',
     ciudad2: '',
     activo: true
-  });
+  })
 
 
   // --- CARGA DE DATOS ---
   const fetchClients = async () => {
-    setLoading(true);
+    setLoading(true)
     try {
-      const response = await apiClient.get('/api/inventario/clientes/');
-      setClients(response.data);
-      setError(null);
+      const response = await apiClient.get('/api/inventario/clientes/')
+      setClients(response.data)
+      setError(null)
     } catch (err) {
-      console.error(err);
-      showToast('Error al cargar los datos', 'error');
+      console.error(err)
+      showToast('Error al cargar los datos', 'error')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
-    fetchClients();
-  }, []);
+    fetchClients()
+  }, [])
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
+    setCurrentPage(1)
+  }, [searchTerm])
 
   // --- FILTRADO ---
   const filteredClients = clients.filter(client => {
-    const term = searchTerm.toLowerCase();
+    const term = searchTerm.toLowerCase()
     return (
       client.nombre_cliente?.toLowerCase().includes(term) ||
       client.rut_cliente?.toLowerCase().includes(term) ||
       client.email_contacto?.toLowerCase().includes(term) ||
       client.nombre_contacto?.toLowerCase().includes(term) ||
       client.ciudad?.toLowerCase().includes(term)
-    );
-  });
+    )
+  })
 
-  const totalPages = Math.ceil(filteredClients.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedClients = filteredClients.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(filteredClients.length / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const paginatedClients = filteredClients.slice(startIndex, startIndex + ITEMS_PER_PAGE)
 
   // --- HANDLERS (MODAL) ---
   const handleOpenModal = (client = null) => {
-    setError(null);
+    setError(null)
     if (client) {
-      setEditingClient(client);
+      setEditingClient(client)
+      const tieneRutVacio = !client.rut_cliente || client.rut_cliente.trim() === ''
+      setSinRut(tieneRutVacio)
+
       setFormData({
         nombre_cliente: client.nombre_cliente,
         rut_cliente: client.rut_cliente || '',
@@ -102,9 +105,10 @@ export default function ClientsCatalog() {
         ciudad2: client.ciudad2 || '',
         ciudad: client.ciudad || '',
         activo: client.activo !== undefined ? client.activo : true
-      });
+      })
     } else {
-      setEditingClient(null);
+      setEditingClient(null)  
+      setSinRut(false)
       setFormData({
         nombre_cliente: '',
         rut_cliente: '',
@@ -118,10 +122,10 @@ export default function ClientsCatalog() {
         direccion2: '',
         ciudad2: '',
         activo: true
-      });
+      })
     }
-    setShowModal(true);
-  };
+    setShowModal(true)
+  }
 
   const handleCloseModal = () => {
     setShowModal(false);
@@ -144,41 +148,50 @@ export default function ClientsCatalog() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!isValidRUT(formData.rut_cliente)) {
-      setError('El Rut ingresado no es valido')
-      return
+    e.preventDefault()
+    if (!sinRut && !isValidRUT(formData.rut_cliente)) {
+      setError('El RUT ingresado no es válido')
+      return;
     }
-    showLoader();
+
+    showLoader()
     const cleanData = {
       ...formData,
       nombre_cliente: normalizeName(formData.nombre_cliente),
-      rut_cliente: normalizeRUT(formData.rut_cliente),
+      rut_cliente: sinRut ? "" : normalizeRUT(formData.rut_cliente),
       email_contacto: normalizeEmail(formData.email_contacto),
       telefono_contacto: formData.telefono_contacto,
       ciudad: normalizeCity(formData.ciudad),
       ciudad2: normalizeCity(formData.ciudad2),
       nombre_contacto: normalizeName(formData.nombre_contacto)
     };
-    setError(null);
+    setError(null)
 
     try {
       if (editingClient) {
-        await apiClient.put(`/api/inventario/clientes/${editingClient.id_cliente}/`, formData);
-        showToast('Registro actualizado con éxito', 'success');
+        await apiClient.put(`/api/inventario/clientes/${editingClient.id_cliente}/`, cleanData)
+        showToast('Registro actualizado con éxito', 'success')
       } else {
-        await apiClient.post('/api/inventario/clientes/', formData);
-        showToast('Registro creado con éxito', 'success');
+        await apiClient.post('/api/inventario/clientes/', cleanData)
+        showToast('Registro creado con éxito', 'success')
       }
-      handleCloseModal();
-      fetchClients();
+      handleCloseModal()
+      fetchClients()
     } catch (err) {
-      console.error(err);
-      showToast(err.response?.data?.rut_cliente ? 'El RUT ingresado ya existe o no es válido.' : 'Error al guardar el cliente.', 'error');
+      console.error(err)
+      const errorData = err.response?.data
+      const esRutDuplicado = errorData?.rut_cliente || errorData?.rut_hash || errorData?.non_field_errors
+
+      showToast(
+        esRutDuplicado
+          ? 'El RUT ingresado ya existe en el sistema.'
+          : 'Error al guardar el cliente.',
+        'error'
+      )
     } finally {
-      hideLoader();
+      hideLoader()
     }
-  };
+  }
 
   // --- LÓGICA DE ESTADO ---
   const handleToggleStatus = async (client) => {
@@ -473,7 +486,7 @@ export default function ClientsCatalog() {
                   </h3>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo / Razón Social *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo / Razón Social</label>
                     <div className="relative">
                       <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <input
@@ -490,21 +503,40 @@ export default function ClientsCatalog() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">RUT</label>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-sm font-medium text-gray-700">RUT</label>
+                        <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none font-medium hover:text-indigo-600 transition">
+                          <input
+                            type="checkbox"
+                            checked={sinRut}
+                            onChange={(e) => {
+                              setSinRut(e.target.checked);
+                              if (e.target.checked) {
+                                setFormData({ ...formData, rut_cliente: '' });
+                              }
+                            }}
+                            className="rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 w-3.5 h-3.5 cursor-pointer"
+                          />
+                          Sin RUT
+                        </label>
+                      </div>
+
                       <div className="relative">
-                        <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <CreditCard className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${sinRut ? 'text-gray-300' : 'text-gray-400'}`} />
                         <input
                           type="text"
                           value={formData.rut_cliente}
-                          // 👇 Eliminamos onBlur y formateamos directamente en el onChange
                           onChange={(e) => {
                             const rutFormateado = formatRUT(e.target.value);
                             setFormData({ ...formData, rut_cliente: rutFormateado });
                           }}
-                          // 👇 Agregamos el límite visual del RUT
                           maxLength={12}
-                          className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                          placeholder="12.345.678-9"
+                          disabled={sinRut}
+                          className={`w-full pl-10 pr-4 py-2 border rounded-lg outline-none transition text-sm ${sinRut
+                            ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed select-none'
+                            : 'bg-gray-50 border-gray-300 text-gray-900 focus:bg-white focus:ring-2 focus:ring-indigo-500'
+                            }`}
+                          placeholder={sinRut ? "No requiere identificación" : "12.345.678-9"}
                         />
                       </div>
                     </div>

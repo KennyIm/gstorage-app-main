@@ -20,6 +20,8 @@ export default function BandejaCobranza() {
     const [filtroDespacho, setFiltroDespacho] = useState('')
     const [filtroDestino, setFiltroDestino] = useState('')
 
+
+    const [fechaEmision, setFechaEmision] = useState('')
     const [tipoDocumento, setTipoDocumento] = useState('Factura')
     const [condicionPago, setCondicionPago] = useState('Dias_30')
     const [numeroDocumento, setNumeroDocumento] = useState('')
@@ -74,14 +76,14 @@ export default function BandejaCobranza() {
 
     const mercanciasVisibles = useMemo(() => {
         if (!clienteSeleccionado) return []
-        
+
         return pendientes.filter(m => {
             const perteneceAlCliente = String(m.id_cliente) === String(clienteSeleccionado);
-            const cumpleOrden = !filtroOrden || 
+            const cumpleOrden = !filtroOrden ||
                 String(m.numero_orden_entrega || '').toLowerCase().includes(filtroOrden.toLowerCase());
-            const cumpleDespacho = !filtroDespacho || 
+            const cumpleDespacho = !filtroDespacho ||
                 String(m.codigo_ruta || '').toLowerCase().includes(filtroDespacho.toLowerCase());
-            const cumpleDestino = !filtroDestino || 
+            const cumpleDestino = !filtroDestino ||
                 String(m.destino_nombre || '').toLowerCase().includes(filtroDestino.toLowerCase());
             return perteneceAlCliente && cumpleOrden && cumpleDespacho && cumpleDestino;
         })
@@ -135,6 +137,7 @@ export default function BandejaCobranza() {
             formData.append('cliente_id', parseInt(clienteSeleccionado))
             formData.append('tipo_documento', tipoDocumento)
             formData.append('condicion_pago', condicionPago)
+            formData.append('fecha_emision', fechaEmision)
 
             if (numeroDocumento) formData.append('numero_documento', numeroDocumento)
             if (archivoPdf) formData.append('pdf_documento', archivoPdf)
@@ -377,6 +380,15 @@ export default function BandejaCobranza() {
                                             accept='.pdf, image/jpeg, image/png'
                                             onChange={(e) => setArchivoPdf(e.target.files[0])}
                                             className='mt-1 w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100' />
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[11px] font-bold text-slate-500 uppercase">Fecha de Emisión Financiera</label>
+                                        <input
+                                            type="date"
+                                            value={fechaEmision}
+                                            onChange={(e) => setFechaEmision(e.target.value)}
+                                            className="p-2 border border-slate-300 rounded-lg text-xs bg-white focus:ring-1 focus:ring-indigo-500"
+                                        />
                                     </div>
                                     <div>
                                         <label className='text-xs font-bold text-slate-500 uppercase'>Condición de Pago</label>

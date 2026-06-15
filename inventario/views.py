@@ -1,10 +1,12 @@
 from django.shortcuts import render
+import hashlib
 import os
 import json
 import copy
 from django.core.serializers.json import DjangoJSONEncoder
 from django.forms.models import model_to_dict
 from django.conf import settings
+from cryptography.fernet import Fernet
 from django.urls import reverse_lazy
 from django.db import transaction
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -18,6 +20,7 @@ from datetime import datetime, timedelta
 from django.utils import timezone
 from rest_framework.views import APIView     
 from rest_framework.response import Response
+from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from .utils import actualizar_estados_automaticos, registrar_auditoria, generar_numeros_orden_despacho
 import openpyxl
@@ -29,6 +32,7 @@ from rest_framework import status,filters,generics
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import PermissionDenied
 from django.db.models import Q, Exists, OuterRef
+from rest_framework.permissions import IsAuthenticated
 from django.views.generic import (
     ListView, 
     DetailView, 
@@ -93,18 +97,45 @@ def filtrar_por_sucursal_y_empresa(queryset, request):
             
     return qs
 
+
+class GuardarSecuenciaView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Despacho.objects.all()
+    
+    lookup_field = 'id_despacho' 
+    lookup_url_kwarg = 'pk'     
+
+    def post(self, request, *args, **kwargs):
+        despacho = self.get_object()
+        
+        orden_ids = request.data.get('orden_ids', [])
+        
+        try:
+            despacho.orden_mercancias = orden_ids
+            despacho.save()
+            
+            return Response({'status': 'Secuencia de despacho guardada con éxito'}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([IsAuthenticated])
 def sugerencias_direcciones(request, id_cliente):
     cliente = get_object_or_404(Cliente, pk=id_cliente)
     direcciones = []
 
-    if cliente.direccion and cliente.direccion.strip():
-        direcciones.append(cliente.direccion.strip())
-        
-    if getattr(cliente, 'direccion2', None) and cliente.direccion2.strip():
-        if cliente.direccion2.strip() not in direcciones: 
-            direcciones.append(cliente.direccion2.strip())
+    if cliente.rut_cliente_cifrado: 
+        try:
+            fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+            if cliente.direccion_cifrado:
+                dir_desencriptada = fernet.decrypt(cliente.direccion_cifrado.encode('utf-8')).decode('utf-8')
+                if dir_desencriptada.strip():
+                    direcciones.append(dir_desencriptada.strip())
+                dir_desencriptada2 = fernet.decrypt(cliente.direccion_cifrado2.encode('utf-8')).decode('utf-8')
+                if dir_desencriptada2.strip():
+                    direcciones.append(dir_desencriptada2.strip())
+        except Exception:
+            pass
 
     historicas = Mercancia.objects.filter(
         id_cliente=id_cliente
@@ -119,7 +150,6 @@ def sugerencias_direcciones(request, id_cliente):
         if dir_hist_clean and dir_hist_clean not in direcciones:
             direcciones.append(dir_hist_clean)
 
-    # Devolvemos el array a React
     return Response(direcciones)
 # --- Vistas de API para Mercancia ---
 
@@ -629,11 +659,19 @@ class ClienteListCreateAPI(generics.ListCreateAPIView):
 
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
-        return Cliente.objects.filter(empresa=empresa, activo=True)
+        qs = Cliente.objects.filter(empresa=empresa, activo=True)
+        
+        rut_query = self.request.query_params.get('rut') or self.request.query_params.get('rut_cliente')
+        if rut_query:
+            rut_limpio = rut_query.replace(".", "").replace("-", "").strip().upper()
+            hash_busqueda = hashlib.sha256(rut_limpio.encode('utf-8')).hexdigest()
+            qs = qs.filter(rut_hash=hash_busqueda)
+            
+        return qs
     
     def perform_create(self, serializer):
         empresa = get_empresa_from_user(self.request)
-        instance=serializer.save(empresa=empresa, activo=True)
+        instance = serializer.save(empresa=empresa, activo=True)
         registrar_auditoria(
             empresa=empresa,
             usuario=self.request.user,
@@ -688,7 +726,14 @@ class ConductorListCreateAPI(generics.ListCreateAPIView):
     
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
-        return Conductor.objects.filter(empresa=empresa)
+        qs = Conductor.objects.filter(empresa=empresa)
+        rut_query = self.request.query_params.get('rut') or self.request.query_params.get('rut_conductor')
+        if rut_query:
+            rut_limpio = rut_query.replace(".", "").replace("-", "").strip().upper()
+            hash_busqueda = hashlib.sha256(rut_limpio.encode('utf-8')).hexdigest()
+            qs = qs.filter(rut_hash=hash_busqueda)
+            
+        return qs
     
     def perform_create(self, serializer):
         empresa = get_empresa_from_user(self.request)
@@ -1254,11 +1299,18 @@ class ProveedorListCreateAPI(generics.ListCreateAPIView):
 
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
-        return Proveedor.objects.filter(empresa=empresa)
+        qs = Proveedor.objects.filter(empresa=empresa)        
+        rut_query = self.request.query_params.get('rut')
+        if rut_query:
+            rut_limpio = rut_query.replace(".", "").replace("-", "").strip().upper()
+            hash_busqueda = hashlib.sha256(rut_limpio.encode('utf-8')).hexdigest()
+            qs = qs.filter(rut_hash=hash_busqueda)
+            
+        return qs
 
     def perform_create(self, serializer):
         empresa = get_empresa_from_user(self.request)
-        instance=serializer.save(activo=True, empresa=empresa)
+        instance = serializer.save(activo=True, empresa=empresa)
         registrar_auditoria(
             empresa=empresa,
             usuario=self.request.user,
@@ -1451,6 +1503,15 @@ class GenerarHojaRutaExcelAPI(generics.RetrieveAPIView):
             ws['H3'] = "N/A"
 
         conductor = despacho.id_conductor
+        rut_desencriptado = ""
+        if conductor:
+            campo_rut_cifrado = getattr(conductor, 'rut_conductor_cifrado', getattr(conductor, 'rut_cifrado', None))
+        if campo_rut_cifrado:
+            try:
+                fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+                rut_desencriptado = fernet.decrypt(campo_rut_cifrado.encode('utf-8')).decode('utf-8')
+            except Exception:
+                rut_desencriptado = "Error al descifrar"
         camion = despacho.id_camion
         rampla = despacho.id_rampla
 
@@ -1465,7 +1526,7 @@ class GenerarHojaRutaExcelAPI(generics.RetrieveAPIView):
         ws['E7'] = getattr(rampla, 'patente', 'N/A')
 
         ws['A8'] = "Rut:"
-        ws['B8'] = formatear_rut(getattr(conductor, 'rut_conductor', '') if conductor else '') 
+        ws['B8'] = formatear_rut(rut_desencriptado)
         ws['D8'] = "Celular:"
         ws['E8'] = getattr(conductor, 'telefono', '') if conductor else ''
 

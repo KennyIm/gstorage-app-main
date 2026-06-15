@@ -126,7 +126,7 @@ export default function MercanciaCreate() {
       kg: formData.kg ? parseFloat(formData.kg.toString()) : 0,
       m3: formData.m3 ? parseFloat(formData.m3.toString()) : 0,
 
-      id_proveedor: formData.id_proveedor || null,
+      id_proveedor: formData.id_proveedor ? Number(formData.id_proveedor) : null,
 
       precio_total: formData.precio_total ? parseFloat(formData.precio_total.toString()) : 0,
       factura: formData.factura || null,
@@ -296,13 +296,13 @@ export default function MercanciaCreate() {
                           inputId="proveedor"
                           noOptionsMessage={() => "No se encontró el proveedor"}
                           options={proveedores.map(prov => ({
-                            value: prov.rut,
+                            value: prov.id,
                             label: `${prov.nombre_proveedor} (RUT: ${prov.rut})`
                           }))}
-                          value={proveedores.find(prov => prov.rut === formData.id_proveedor) ? {
+                          value={proveedores.find(prov => Number(prov.id) === Number(formData.id_proveedor)) ? {
                             value: formData.id_proveedor,
                             label: (() => {
-                              const p = proveedores.find(prov => prov.rut === formData.id_proveedor);
+                              const p = proveedores.find(prov => Number(prov.id) === Number(formData.id_proveedor));
                               return `${p.nombre_proveedor} (RUT: ${p.rut})`;
                             })()
                           } : null}
@@ -310,7 +310,7 @@ export default function MercanciaCreate() {
                             handleChange({
                               target: {
                                 name: 'id_proveedor',
-                                value: opcion ? opcion.value : ''
+                                value: opcion ? Number(opcion.value) : ''
                               }
                             });
                           }}

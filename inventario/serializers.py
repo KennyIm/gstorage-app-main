@@ -1,3 +1,6 @@
+import hashlib
+from cryptography.fernet import Fernet
+from django.conf import settings
 from rest_framework import serializers
 from django.utils import timezone
 from datetime import timedelta
@@ -6,6 +9,15 @@ from .models import (
     Camion, Ruta, Destino, Ubicacion, Estanteria, ReporteGenerado, HistorialMovimientos,
     AreaRestringida, Proveedor, Rampla, Cotizacion
 )
+
+def desencriptar_valor(valor_cifrado):
+    if not valor_cifrado:
+        return ""
+    try:
+        fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+        return fernet.decrypt(valor_cifrado.encode('utf-8')).decode('utf-8')
+    except Exception:
+        return "Error al desencriptar"
 
 class MercanciaListSerializer(serializers.ModelSerializer):
     id_cliente = serializers.StringRelatedField()
@@ -127,7 +139,7 @@ class DespachoListSerializer(serializers.ModelSerializer):
         fields = [
             'id_despacho', 'fecha_programada', 'fecha_salida_real',
             'id_camion', 'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor',
-            'origen','destino','id_rampla','sucursal_id','nombre_sucursal','es_colaborador'
+            'origen','destino','id_rampla','sucursal_id','nombre_sucursal','es_colaborador', 'orden_mercancias'
         ]
     
     def get_es_colaborador(self, obj):
@@ -146,7 +158,7 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
             'id_despacho',
             'fecha_programada', 'fecha_salida_real', 'id_camion', 
             'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor',
-            'origen','destino','id_rampla','sucursal_id', 'colaboradores_activos'
+            'origen','destino','id_rampla','sucursal_id', 'colaboradores_activos', 'orden_mercancias'
         ]
         read_only_fields = ['empresa']
 
@@ -229,16 +241,159 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
 # Usamos un solo Serializer, ya que leer y escribir es igual
 
 class ClienteSerializer(serializers.ModelSerializer):
+    rut_cliente = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    telefono_contacto = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    email_contacto = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    direccion = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    direccion2 = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     class Meta:
         model = Cliente
-        fields = '__all__'
+        fields = [
+            'id_cliente', 'nombre_cliente', 'precio_kg', 'precio_m3',
+            'nombre_contacto', 'ciudad', 'direccion2', 'ciudad2', 'activo', 'empresa',
+            'rut_cliente', 'telefono_contacto', 'email_contacto', 'direccion'
+        ]
         read_only_fields = ['empresa']
+    
+    def validate_rut_cliente(self, value):
+        if not value:
+            return value
+        rut_limpio = value.replace(".", "").replace("-", "").strip().upper()
+        hash_rut = hashlib.sha256(rut_limpio.encode('utf-8')).hexdigest()
+        queryset = Cliente.objects.filter(rut_hash=hash_rut)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError("El cliente con este RUT ya existe en el sistema.")
+        return value
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['rut_cliente'] = desencriptar_valor(instance.rut_cliente_cifrado)
+        ret['telefono_contacto'] = desencriptar_valor(instance.telefono_cifrado)
+        ret['email_contacto'] = desencriptar_valor(instance.email_cifrado)
+        ret['direccion'] = desencriptar_valor(instance.direccion_cifrado)
+        ret['direccion2'] = desencriptar_valor(instance.direccion_cifrado2)
+        
+        dir_plana = ret['direccion'] or ''
+        ciudad_plana = instance.ciudad or ''
+        
+        if dir_plana and ciudad_plana:
+            ret['destino'] = f"{dir_plana}, {ciudad_plana}"
+        else:
+            ret['destino'] = dir_plana or ciudad_plana or ""
+
+        tel_plano = ret['telefono_contacto'] or ''
+        email_plano = ret['email_contacto'] or ''
+        
+        if tel_plano and email_plano:
+            ret['contacto'] = f"{tel_plano} | {email_plano}"
+        else:
+            ret['contacto'] = tel_plano or email_plano or ""
+
+        return ret
+
+    def create(self, validated_data):
+        rut_plano = validated_data.pop('rut_cliente', None)
+        tel_plano = validated_data.pop('telefono_contacto', None)
+        email_plano = validated_data.pop('email_contacto', None)
+        dir_plano = validated_data.pop('direccion', None)
+        dir_plano2 = validated_data.pop('direccion2', None)
+
+        instance = Cliente(**validated_data)
+        fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+
+        if rut_plano:
+            instance.rut_plano_temporal = rut_plano 
+            instance.rut_cliente_cifrado = fernet.encrypt(rut_plano.encode('utf-8')).decode('utf-8')
+        if tel_plano:
+            instance.telefono_cifrado = fernet.encrypt(tel_plano.encode('utf-8')).decode('utf-8')
+        if email_plano:
+            instance.email_cifrado = fernet.encrypt(email_plano.encode('utf-8')).decode('utf-8')
+        if dir_plano:
+            instance.direccion_cifrado = fernet.encrypt(dir_plano.encode('utf-8')).decode('utf-8')
+        if dir_plano2:
+            instance.direccion_cifrado2 = fernet.encrypt(dir_plano2.encode('utf-8')).decode('utf-8')
+
+        instance.save()
+        return instance
+
+    def update(self, instance, validated_data):
+        rut_plano = validated_data.pop('rut_cliente', None)
+        tel_plano = validated_data.pop('telefono_contacto', None)
+        email_plano = validated_data.pop('email_contacto', None)
+        dir_plano = validated_data.pop('direccion', None)
+        dir_plano2 = validated_data.pop('direccion2', None)
+
+        fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+
+        if rut_plano:
+            instance.rut_plano_temporal = rut_plano
+            instance.rut_cliente_cifrado = fernet.encrypt(rut_plano.encode('utf-8')).decode('utf-8')
+        if tel_plano:
+            instance.telefono_cifrado = fernet.encrypt(tel_plano.encode('utf-8')).decode('utf-8')
+        if email_plano:
+            instance.email_cifrado = fernet.encrypt(email_plano.encode('utf-8')).decode('utf-8')
+        if dir_plano:
+            instance.direccion_cifrado = fernet.encrypt(dir_plano.encode('utf-8')).decode('utf-8')
+        if dir_plano2:
+            instance.direccion_cifrado2 = fernet.encrypt(dir_plano2.encode('utf-8')).decode('utf-8')
+
+        return super().update(instance, validated_data)
 
 class ConductorSerializer(serializers.ModelSerializer):
+    rut_conductor = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    telefono = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    numero_licencia = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     class Meta:
         model = Conductor
-        fields = '__all__'
+        fields = ['id_conductor', 'nombre_completo', 'numero_licencia', 'activo', 'empresa', 'rut_conductor', 'telefono']
         read_only_fields = ['empresa']
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['rut_conductor'] = desencriptar_valor(instance.rut_conductor_cifrado)
+        ret['telefono'] = desencriptar_valor(instance.telefono_conductor_cifrado)
+        ret['numero_licencia'] = desencriptar_valor(instance.licencia_cifrado)
+        return ret
+
+    def create(self, validated_data):
+        rut_plano = validated_data.pop('rut_conductor', None)
+        tel_plano = validated_data.pop('telefono', None)
+        lic_plano = validated_data.pop('numero_licencia', None)
+
+        instance = Conductor(**validated_data)
+        fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+
+        if rut_plano:
+            instance.rut_plano_temporal = rut_plano
+            instance.rut_conductor_cifrado = fernet.encrypt(rut_plano.encode('utf-8')).decode('utf-8')
+        if tel_plano:
+            instance.telefono_conductor_cifrado = fernet.encrypt(tel_plano.encode('utf-8')).decode('utf-8')
+        if lic_plano:
+            instance.licencia_cifrado = fernet.encrypt(lic_plano.encode('utf-8')).decode('utf-8')
+
+        instance.save()
+        return instance
+
+    def update(self, instance, validated_data):
+        rut_plano = validated_data.pop('rut_conductor', None)
+        tel_plano = validated_data.pop('telefono', None)
+        lic_plano = validated_data.pop('numero_licencia', None)
+
+        fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+
+        if rut_plano:
+            instance.rut_plano_temporal = rut_plano
+            instance.rut_conductor_cifrado = fernet.encrypt(rut_plano.encode('utf-8')).decode('utf-8')
+        if tel_plano:
+            instance.telefono_conductor_cifrado = fernet.encrypt(tel_plano.encode('utf-8')).decode('utf-8')
+        if lic_plano:
+            instance.licencia_cifrado = fernet.encrypt(lic_plano.encode('utf-8')).decode('utf-8')
+
+        return super().update(instance, validated_data)
 
 class CamionSerializer(serializers.ModelSerializer):
     class Meta:
@@ -313,10 +468,75 @@ class AreaRestringidaSerializer(serializers.ModelSerializer):
 
 
 class ProveedorSerializer(serializers.ModelSerializer):
+    rut = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    correo = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    telefono = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
     class Meta:
         model = Proveedor
-        fields = '__all__'
+        fields = ['id', 'empresa', 'nombre_proveedor', 'contacto', 'activo', 'rut', 'correo', 'telefono']
         read_only_fields = ['empresa']
+
+    def validate_rut(self, value):
+        if not value:
+            return value
+        
+        rut_limpio = value.replace(".", "").replace("-", "").strip().upper()
+        
+        hash_rut = hashlib.sha256(rut_limpio.encode('utf-8')).hexdigest()
+        
+        queryset = Proveedor.objects.filter(rut_hash=hash_rut)
+        
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+            
+        if queryset.exists():
+            raise serializers.ValidationError("El proveedor con este RUT ya existe en el sistema.")
+            
+        return value
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['rut'] = desencriptar_valor(instance.rut_cifrado)
+        ret['correo'] = desencriptar_valor(instance.correo_cifrado)
+        ret['telefono'] = desencriptar_valor(instance.telefono_cifrado)
+        return ret
+
+    def create(self, validated_data):
+        rut_plano = validated_data.pop('rut', None)
+        correo_plano = validated_data.pop('correo', None)
+        tel_plano = validated_data.pop('telefono', None)
+
+        instance = Proveedor(**validated_data)
+        fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+
+        if rut_plano:
+            instance.rut_plano_temporal = rut_plano
+            instance.rut_cifrado = fernet.encrypt(rut_plano.encode('utf-8')).decode('utf-8')
+        if correo_plano:
+            instance.correo_cifrado = fernet.encrypt(correo_plano.encode('utf-8')).decode('utf-8')
+        if tel_plano:
+            instance.telefono_cifrado = fernet.encrypt(tel_plano.encode('utf-8')).decode('utf-8')
+
+        instance.save()
+        return instance
+
+    def update(self, instance, validated_data):
+        rut_plano = validated_data.pop('rut', None)
+        correo_plano = validated_data.pop('correo', None)
+        tel_plano = validated_data.pop('telefono', None)
+
+        fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+
+        if rut_plano:
+            instance.rut_plano_temporal = rut_plano
+            instance.rut_cifrado = fernet.encrypt(rut_plano.encode('utf-8')).decode('utf-8')
+        if correo_plano:
+            instance.correo_cifrado = fernet.encrypt(correo_plano.encode('utf-8')).decode('utf-8')
+        if tel_plano:
+            instance.telefono_cifrado = fernet.encrypt(tel_plano.encode('utf-8')).decode('utf-8')
+
+        return super().update(instance, validated_data)
 
 class RamplaSerializer(serializers.ModelSerializer):
     class Meta:

@@ -5,6 +5,8 @@ from inventario.models import Estanteria
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
+from django.core import signing
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 class EmpresaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -51,7 +53,7 @@ class PerfilReadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Perfil
-        fields = ['empresa', 'empresa_nombre', 'telefono', 'rol', 'rol_display','sucursal','sucursal_nombre','sucursal_id']
+        fields = ['empresa', 'empresa_nombre', 'telefono', 'rol', 'rol_display','sucursal','sucursal_nombre','sucursal_id', 'is_2fa_enabled']
 
 class UserSerializer(serializers.ModelSerializer):
     perfil = PerfilReadSerializer(read_only=True)
@@ -151,3 +153,23 @@ class AdminPasswordResetSerializer(serializers.Serializer):
 
     def validate_password(self, value):
         return value
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        user = self.user
+        perfil = getattr(user, 'perfil', None)
+        print("¡Pasando por el validador 2FA!")
+        
+        if perfil and perfil.is_2fa_enabled:
+            pre_auth_id = signing.dumps({'user_id': user.id}, salt='2fa-pre-auth')
+            return {
+                'requires_2fa': True,
+                'pre_auth_id': pre_auth_id
+            }
+        return data
+
+
+class Verify2FASerializer(serializers.Serializer):
+    pre_auth_id = serializers.CharField(required=True)
+    code = serializers.CharField(max_length=6, min_length=6, required=True)

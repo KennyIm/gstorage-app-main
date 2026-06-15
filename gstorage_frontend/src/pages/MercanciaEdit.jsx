@@ -344,17 +344,22 @@ export default function MercanciaEdit() {
                         inputId="id_proveedor"
                         placeholder="Selecciona un proveedor..."
                         noOptionsMessage={() => "No se encontró el proveedor"}
+
                         options={proveedores.map(p => ({
-                          value: p.rut,
+                          value: p.id,
                           label: `${p.nombre_proveedor} (RUT: ${p.rut})`
                         }))}
-                        value={proveedores.find(p => p.rut === formData.id_proveedor) ? {
-                          value: formData.id_proveedor,
-                          label: (() => {
-                            const prov = proveedores.find(p => p.rut === formData.id_proveedor);
-                            return `${prov.nombre_proveedor} (RUT: ${prov.rut})`;
-                          })()
-                        } : null}
+
+                        value={(() => {
+                          if (!formData.id_proveedor) return null;
+                          const provObj = proveedores.find(p => Number(p.id) === Number(formData.id_proveedor));
+
+                          return provObj ? {
+                            value: provObj.id,
+                            label: `${provObj.nombre_proveedor} (RUT: ${provObj.rut})`
+                          } : null;
+                        })()}
+
                         onChange={(opcion) => {
                           handleChange({
                             target: {

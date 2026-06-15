@@ -351,7 +351,7 @@ export default function IngresoGastos() {
         <form onSubmit={handleSubmit} className="lg:col-span-1 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
           <div className="border-b border-slate-100 pb-2">
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-              <Receipt className="w-4 h-4 text-emerald-600" /> Registro Corto de Egreso
+              Registro de Egreso
             </h3>
           </div>
 
@@ -489,7 +489,7 @@ export default function IngresoGastos() {
                 className="w-full text-[11px] text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               />
               {form.estado !== 'Pagado' && (
-                <p className="text-[10px] text-amber-600 font-medium mt-0.5">⚠️ Bloqueado: Solo se adjunta respaldo en pagos inmediatos.</p>
+                <p className="text-[10px] text-amber-600 font-medium mt-0.5">Bloqueado: Solo se adjunta respaldo en pagos inmediatos.</p>
               )}
             </div>
           </div>

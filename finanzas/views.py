@@ -1,16 +1,25 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from rest_framework import generics, status, permissions
+from cryptography.fernet import Fernet
+from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.utils.dateparse import parse_date
 from django.db import transaction
 from decimal import Decimal
-from datetime import timedelta
+from datetime import timedelta, datetime
+import datetime
 from django.utils import timezone
-from django.db.models import Max
+from django.db.models import Max, Sum, Q
+from django.db.models.functions import ExtractMonth, ExtractYear
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from cryptography.fernet import Fernet
+from django.conf import settings
 
 from .models import DocumentoCobro, PagoRecibido, GastoOperativo, ProveedorGasto
-from .serializers import MercanciaPendienteCobroSerializer, DocumentoCobroSerializer, DocumentoCobroListSerializer, RegistrarPagoSerializer, GastoOperativoSerializer, ProveedorGastoSerializer
+from .serializers import MercanciaPendienteCobroSerializer, DocumentoCobroSerializer, DocumentoCobroListSerializer, RegistrarPagoSerializer, GastoOperativoSerializer, ProveedorGastoSerializer,DocumentoCobroDashboardSerializer
 from inventario.models import Mercancia, Cliente
 
 class MercanciasPendientesListaAPI(generics.ListAPIView):
@@ -47,6 +56,12 @@ class GenerarCobroAPIView(APIView):
         tipo_documento = datos.get('tipo_documento', 'Factura')
         condicion_pago = datos.get('condicion_pago', 'Dias_30')
         numero_documento = datos.get('numero_documento')
+        fecha_emision_str = datos.get('fecha_emision')
+        if fecha_emision_str:
+            naive_datetime = datetime.datetime.strptime(fecha_emision_str, '%Y-%m-%d')
+            fecha_emision = timezone.make_aware(naive_datetime)
+        else:
+            fecha_emision = timezone.now()
         archivo_pdf = request.FILES.get('pdf_documento')
 
         if not mercancias_ids or not cliente_id:
@@ -93,7 +108,7 @@ class GenerarCobroAPIView(APIView):
             dias_plazo = {
                 'Contra_Entrega': 0, 'Dias_15': 15, 'Dias_30': 30, 'Dias_45': 45, 'Dias_60': 60
             }.get(condicion_pago, 30)
-            vencimiento = timezone.now().date() + timedelta(days=dias_plazo)
+            vencimiento = fecha_emision + timedelta(days=dias_plazo)
             nuevo_documento = DocumentoCobro.objects.create(
                 empresa=empresa,
                 sucursal=sucursal,
@@ -103,6 +118,7 @@ class GenerarCobroAPIView(APIView):
                 tipo_documento=tipo_documento,
                 condicion_pago=condicion_pago,
                 fecha_vencimiento=vencimiento,
+                fecha_emision=fecha_emision,
                 numero_documento=numero_documento,
                 pdf_documento=archivo_pdf,
                 subtotal=subtotal,
@@ -113,6 +129,8 @@ class GenerarCobroAPIView(APIView):
             )
             nuevo_documento.mercancias_asociadas.set(mercancias)
             mercancias.update(estado_cobranza='En_Proceso', tipo_documento_pago=tipo_documento)
+
+            nuevo_documento.refresh_from_db()
 
             serializer = DocumentoCobroSerializer(nuevo_documento)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -261,10 +279,19 @@ class PerfilFinancieroClienteAPIView(APIView):
                     'estado' : d.get_estado_display()
                 })
             
+            rut_desencriptado = ""
+            if cliente.rut_cliente_cifrado:
+                try:
+                    fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+                    rut_desencriptado = fernet.decrypt(cliente.rut_cliente_cifrado.encode('utf-8')).decode('utf-8')
+                except Exception:
+                    rut_desencriptado = "Error al desencriptar"
+
+
             payload = {
                 'cliente':{
                     'nombre': cliente.nombre_cliente,
-                    'rut': cliente.rut_cliente
+                    'rut': rut_desencriptado
                 },
                 'metricas': {
                     'sin_facturar': float(monto_sin_facturar),
@@ -329,3 +356,70 @@ class PagarGastoOperativoAPIView(APIView):
             
         except GastoOperativo.DoesNotExist:
             return Response({"error": "Gasto operativo no encontrado."}, status=status.HTTP_404_NOT_FOUND)
+        
+
+class DashboardFinanzasConsolidadoAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        empresa_id = request.user.perfil.empresa_id
+        hoy = datetime.date.today()
+        documentos_qs = DocumentoCobro.objects.filter(
+            empresa_id=empresa_id, 
+            activo=True
+        ).select_related('cliente_deudor', 'proveedor_deudor').order_by('-fecha_emision')
+        
+        documentos_serializer = DocumentoCobroDashboardSerializer(documentos_qs, many=True)
+        gastos_mensuales = GastoOperativo.objects.filter(
+            empresa_id=empresa_id,
+            activo=True,
+            fecha_gasto__year=hoy.year
+        ).annotate(
+            mes=ExtractMonth('fecha_gasto')
+        ).values('mes').annotate(
+            total=Sum('monto_total')
+        ).order_by('mes')
+        ventas_mensuales = DocumentoCobro.objects.filter(
+            empresa_id=empresa_id,
+            activo=True,
+            fecha_emision__year=hoy.year
+        ).annotate(
+            mes=ExtractMonth('fecha_emision')
+        ).values('mes').annotate(
+            facturado=Sum('subtotal', filter=Q(tipo_documento='Factura')),
+            no_facturado=Sum('subtotal', filter=Q(tipo_documento='Guia_Cobro'))
+        ).order_by('mes')
+
+        tendencias_map = {}
+        for m in range(1, 13):
+            mes_str = f"{hoy.year}-{str(m).zfill(2)}"
+            tendencias_map[m] = {
+                "mes": mes_str, 
+                "ventas_facturadas": 0,    
+                "ventas_por_facturar": 0,
+                "compras": 0
+            }
+        for v in ventas_mensuales:
+            m_id = v['mes']
+            if m_id in tendencias_map:
+                tendencias_map[m_id]['ventas_facturadas'] = float(v['facturado'] or 0)
+                tendencias_map[m_id]['ventas_por_facturar'] = float(v['no_facturado'] or 0)
+        for g in gastos_mensuales:
+            m_id = g['mes']
+            if m_id in tendencias_map:
+                tendencias_map[m_id]['compras'] = float(g['total'] or 0)
+
+        total_por_pagar = GastoOperativo.objects.filter(
+            empresa_id=empresa_id,
+            estado='Pendiente',
+            activo=True
+        ).aggregate(total=Sum('monto_total'))['total'] or 0
+
+        payload = {
+            "saldo_bancos": 50000000, 
+            "cuentas_por_pagar_exigible": float(total_por_pagar),
+            "documentos": documentos_serializer.data,
+            "grafico_mensual": list(tendencias_map.values())
+        }
+
+        return Response(payload, status=status.HTTP_200_OK)
