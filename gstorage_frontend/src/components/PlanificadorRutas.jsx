@@ -8,28 +8,30 @@ import { useUI } from '../context/UIContext'
 
 export default function PlanificadorRutas() {
   document.title = "Planificador de Rutas - GStorage"
-  const [despachos, setDespachos] = useState([])
   const { showLoader, hideLoader, showToast } = useUI()
-  const [todasMercancias, setTodasMercancias] = useState([])
+
+  const [despachos, setDespachos] = useState([])
   const [clientes, setClientes] = useState([])
   const [proveedores, setProveedores] = useState([])
   const [destinos, setDestinos] = useState([])
   const [ramplas, setRamplas] = useState([])
   const [camiones, setCamiones] = useState([])
   const [rutas, setRutas] = useState([])
+
   const [despachoSeleccionado, setDespachoSeleccionado] = useState('')
   const [listaRuta, setListaRuta] = useState([])
   const [loading, setLoading] = useState(true)
   const [cambiosPendientes, setCambiosPendientes] = useState(false)
+  const [busquedaCorrelativo, setBusquedaCorrelativo] = useState('')
+  const [posicionDestino, setPosicionDestino] = useState('')
 
   useEffect(() => {
-
     const fetchData = async () => {
-      showLoader()
+      if (typeof showLoader === 'function') showLoader()
       try {
+        setLoading(true)
         const [
           despachosRes,
-          mercanciasRes,
           clientesRes,
           proveedoresRes,
           destinosRes,
@@ -38,7 +40,6 @@ export default function PlanificadorRutas() {
           rutasRes
         ] = await Promise.all([
           apiClient.get('/api/inventario/despachos/'),
-          apiClient.get('/api/inventario/mercancias/'),
           apiClient.get('/api/inventario/clientes/'),
           apiClient.get('/api/inventario/proveedores/'),
           apiClient.get('/api/inventario/destinos/'),
@@ -47,8 +48,7 @@ export default function PlanificadorRutas() {
           apiClient.get('/api/inventario/rutas/')
         ])
 
-        setDespachos(despachosRes.data)
-        setTodasMercancias(mercanciasRes.data)
+        setDespachos(despachosRes.data.results || despachosRes.data)
         setClientes(clientesRes.data)
         setProveedores(proveedoresRes.data)
         setDestinos(destinosRes.data)
@@ -57,10 +57,10 @@ export default function PlanificadorRutas() {
         setRutas(rutasRes.data)
         setLoading(false)
       } catch (error) {
-        console.error("Error cargando la base de datos:", error)
+        console.error("Error cargando catálogos iniciales:", error)
         setLoading(false)
       } finally {
-        hideLoader()
+        if (typeof hideLoader === 'function') hideLoader()
       }
     }
     fetchData()
@@ -70,67 +70,69 @@ export default function PlanificadorRutas() {
     const cliente = clientes.find(c => String(c.id_cliente) === String(id))
     return cliente ? cliente.nombre_cliente : 'Cliente Desconocido'
   }
-
   const getNombreProveedor = (id) => {
     const proveedor = proveedores.find(p => String(p.id) === String(id))
     return proveedor ? proveedor.nombre_proveedor : 'N/R'
   }
-
   const getNombreDestino = (id) => {
     const destino = destinos.find(d => String(d.id_destino) === String(id))
     return destino ? destino.nombre_ciudad : 'No especificado'
   }
-
   const getPatenteRampla = (id) => {
     const rampla = ramplas.find(r => String(r.id_rampla) === String(id))
     return rampla ? rampla.patente : 'S/R'
   }
-
   const getPatenteCamion = (id_camion) => {
     if (!id_camion) return 'Sin Camión';
     const camionEncontrado = camiones.find(c => String(c.id_camion) === String(id_camion))
     return camionEncontrado ? camionEncontrado.patente : 'Camión Desconocido'
   }
-
   const getCodigoRuta = (rutaId) => {
     if (!rutaId) return 'Sin Ruta asignada';
     const rutaEncontrada = rutas.find(r => String(r.id) === String(rutaId) || String(r.id_ruta) === String(rutaId))
-
     if (rutaEncontrada) {
       return rutaEncontrada.codigo_ruta || rutaEncontrada.codigo || `Encontrada (Sin código)`
     }
-
     return `Ruta N° ${rutaId}`
   }
-
-  const manejarSeleccionDespacho = (e) => {
+  const manejarSeleccionDespacho = async (e) => {
     const id = (e && e.target) ? e.target.value : e
     setDespachoSeleccionado(id)
+
     if (!id) {
       setListaRuta([])
       return
     }
-    const despachoObj = despachos.find(d => String(d.id_despacho) === String(id))
 
-    const ordenIds = (despachoObj?.orden_mercancias || []).map(String)
+    if (typeof showLoader === 'function') showLoader()
 
-    const mercanciasDelCamion = todasMercancias.filter(
-      m => String(m.id_despacho) === String(id)
-    )
+    try {
+      const response = await apiClient.get(`/api/inventario/mercancias/?id_despacho=${id}&page_size=500`)
+      const mercanciasDelCamion = response.data.results || response.data
+      const despachoObj = despachos.find(d => String(d.id_despacho) === String(id))
+      const ordenIds = (despachoObj?.orden_mercancias || []).map(String)
+      mercanciasDelCamion.sort((a, b) => {
+        const indexA = ordenIds.indexOf(String(a.id_mercancia))
+        const indexB = ordenIds.indexOf(String(b.id_mercancia))
 
-    mercanciasDelCamion.sort((a, b) => {
-      const indexA = ordenIds.indexOf(String(a.id_mercancia))
-      const indexB = ordenIds.indexOf(String(b.id_mercancia))
+        if (indexA === -1 && indexB === -1) return 0
+        if (indexA === -1) return 1
+        if (indexB === -1) return -1
 
-      if (indexA === -1 && indexB === -1) return 0
-      if (indexA === -1) return 1
-      if (indexB === -1) return -1
+        return indexA - indexB
+      })
 
-      return indexA - indexB
-    })
+      setListaRuta(mercanciasDelCamion)
+      setCambiosPendientes(false)
 
-    setListaRuta(mercanciasDelCamion)
-    setCambiosPendientes(false)
+    } catch (error) {
+      console.error("Error al traer mercancías del despacho selecto:", error)
+      if (typeof showToast === 'function') {
+        showToast('Error al conectar con el servidor de estibas.', 'error')
+      }
+    } finally {
+      if (typeof hideLoader === 'function') hideLoader()
+    }
   }
 
   const moverAlInicio = (indexActual) => {
@@ -237,7 +239,7 @@ export default function PlanificadorRutas() {
       "CALAMA": "4290f5",
       "SANTIAGO": "008000",
       "TOCOPILLA": "0120FF",
-      "COPIAPO": "d6a227",
+      "COPIAPO": "654321",
       "MEJILLONES": "42f55a"
     }
 
@@ -272,22 +274,39 @@ export default function PlanificadorRutas() {
     XLSX.writeFile(libro, `Ruta_Despacho_${getCodigoRuta(despachoSeleccionado)}.xlsx`)
   }
 
+  const handleAsignacionRapida = (e) => {
+    if (e) e.preventDefault()
+    if (!busquedaCorrelativo || !posicionDestino) return
+    const indexOrigen = listaRuta.findIndex(item =>
+      String(item.codigo_interno).trim().toLowerCase() === busquedaCorrelativo.trim().toLowerCase()
+    )
+    if (indexOrigen !== -1) {
+      moverAPosicion(indexOrigen, posicionDestino)
+      setBusquedaCorrelativo('')
+      setPosicionDestino('')
+      SetCambiosPendientes(true)
+      if (typeof showToast === 'function') {
+        showToast(`Código ${busquedaCorrelativo} movido a la posición ${posicionDestino}`, 'success')
+        setCambiosPendientes(false)
+      }
+    } else {
+      if (typeof showToast === 'function') showToast('Código correlativo no encontrado.', 'error')
+    }
+  }
+
   const handleGuardarSecuencia = async () => {
     if (!despachoSeleccionado) return
-
     setLoading(true)
     try {
       const listaIdsOrdenados = listaRuta.map(item => item.id_mercancia)
       await apiClient.post(`/api/inventario/despachos/${despachoSeleccionado}/guardar-secuencia/`, {
         orden_ids: listaIdsOrdenados
       })
-
       alert("¡Secuencia de carga guardada exitosamente en el despacho!")
       setCambiosPendientes(false)
 
       const despachosRes = await apiClient.get('/api/inventario/despachos/')
-      setDespachos(despachosRes.data)
-
+      setDespachos(despachosRes.data.results || despachosRes.data)
     } catch (error) {
       console.error("Error al guardar la secuencia:", error)
       alert("Hubo un error al intentar guardar el orden en el servidor.")
@@ -328,10 +347,38 @@ export default function PlanificadorRutas() {
 
       {listaRuta.length > 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-            </span>
-            <span className="text-[11px] text-emerald-700 bg-emerald-50 font-bold px-2 py-0.5 rounded">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center flex-wrap gap-4">
+            <form onSubmit={handleAsignacionRapida} className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-lg border border-slate-200 shadow-inner">
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  placeholder="Código correlativo (ej. 1045)..."
+                  value={busquedaCorrelativo}
+                  onChange={(e) => setBusquedaCorrelativo(e.target.value)}
+                  className="pl-2 pr-2 py-1 text-xs border border-slate-300 rounded bg-white text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 font-medium w-44 h-7"
+                />
+              </div>
+
+              <span className="text-slate-400 text-xs font-bold">→</span>
+
+              <input
+                type="number"
+                placeholder="N° Pos."
+                min="1"
+                max={listaRuta.length}
+                value={posicionDestino}
+                onChange={(e) => setPosicionDestino(e.target.value)}
+                className="w-16 text-center text-xs py-1 border border-slate-300 rounded bg-white text-slate-800 outline-none focus:ring-1 focus:ring-indigo-500 font-bold h-7"
+              />
+
+              <button
+                type="submit"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-xs font-bold transition shadow-sm h-7 flex items-center"
+              >
+                Asignar
+              </button>
+            </form>
+            <span className="text-[11px] text-emerald-700 bg-emerald-50 font-bold px-2 py-1 rounded border border-emerald-200/50">
               {Math.ceil(listaRuta.length / 10)} Columna(s) en total
             </span>
           </div>

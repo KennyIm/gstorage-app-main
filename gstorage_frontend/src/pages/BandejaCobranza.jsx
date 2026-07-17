@@ -15,11 +15,11 @@ export default function BandejaCobranza() {
     const [clienteBusqueda, setClienteBusqueda] = useState('')
     const [mostrarDropdown, setMostrarDropdown] = useState(false)
     const [seleccionados, setSeleccionados] = useState([])
+    const [clientesCatalog, setClientesCatalog] = useState([])
 
     const [filtroOrden, setFiltroOrden] = useState('')
     const [filtroDespacho, setFiltroDespacho] = useState('')
     const [filtroDestino, setFiltroDestino] = useState('')
-
 
     const [fechaEmision, setFechaEmision] = useState('')
     const [tipoDocumento, setTipoDocumento] = useState('Factura')
@@ -30,20 +30,23 @@ export default function BandejaCobranza() {
 
     const dropdownRef = useRef(null)
 
-    const fetchPendientes = async () => {
-        setLoading(true)
-        try {
-            const response = await apiClient.get('/api/finanzas/pendientes/')
-            setPendientes(response.data.results || response.data)
-        } catch (error) {
-            showToast('Error al cargar la bandeja de pendientes.', 'error')
-        } finally {
-            setLoading(false)
-        }
-    }
-
     useEffect(() => {
-        fetchPendientes()
+        const cargarClientesIniciales = async () => {
+            try {
+                const response = await apiClient.get('/api/inventario/clientes/')
+                const mapeados = response.data.map(c => ({
+                    id: c.id_cliente,
+                    nombre: c.nombre_cliente,
+                    rut: c.rut_cliente
+                }))
+                setClientesCatalog(mapeados)
+            } catch (error) {
+                console.error("Error al mapear catálogo de clientes:", error)
+            } finally {
+                setLoading(false)
+            }
+        }
+        cargarClientesIniciales()
 
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -54,38 +57,43 @@ export default function BandejaCobranza() {
         return () => document.removeEventListener("mousedown", handleClickOutside)
     }, [])
 
-    const clientesConDeuda = useMemo(() => {
-        const mapa = new Map()
-        pendientes.forEach(m => {
-            if (!mapa.has(m.id_cliente)) {
-                mapa.set(m.id_cliente, { id: m.id_cliente, nombre: m.cliente_nombre, rut: m.cliente_rut })
-            }
-        })
-        return Array.from(mapa.values())
-    }, [pendientes])
+    const fetchPendientesPorCliente = async (idCliente) => {
+        if (!idCliente) {
+            setPendientes([])
+            return
+        }
+        showLoader()
+        try {
+            const response = await apiClient.get(`/api/finanzas/pendientes/?cliente_id=${idCliente}`)
+            setPendientes(response.data.results || response.data)
+        } catch (error) {
+            showToast('Error al cargar la bandeja de pendientes del cliente.', 'error')
+        } finally {
+            hideLoader()
+        }
+    }
 
     const clientesFiltrados = useMemo(() => {
-        if (!clienteBusqueda) return clientesConDeuda
+        if (!clienteBusqueda) return clientesCatalog
         const term = clienteBusqueda.toLowerCase()
 
-        return clientesConDeuda.filter(c =>
+        return clientesCatalog.filter(c =>
             c.nombre.toLowerCase().includes(term) ||
             (c.rut && c.rut.toLowerCase().includes(term))
-        );
-    }, [clientesConDeuda, clienteBusqueda])
+        )
+    }, [clientesCatalog, clienteBusqueda])
 
     const mercanciasVisibles = useMemo(() => {
         if (!clienteSeleccionado) return []
 
         return pendientes.filter(m => {
-            const perteneceAlCliente = String(m.id_cliente) === String(clienteSeleccionado);
             const cumpleOrden = !filtroOrden ||
-                String(m.numero_orden_entrega || '').toLowerCase().includes(filtroOrden.toLowerCase());
+                String(m.numero_orden_entrega || '').toLowerCase().includes(filtroOrden.toLowerCase())
             const cumpleDespacho = !filtroDespacho ||
-                String(m.codigo_ruta || '').toLowerCase().includes(filtroDespacho.toLowerCase());
+                String(m.codigo_ruta || '').toLowerCase().includes(filtroDespacho.toLowerCase())
             const cumpleDestino = !filtroDestino ||
-                String(m.destino_nombre || '').toLowerCase().includes(filtroDestino.toLowerCase());
-            return perteneceAlCliente && cumpleOrden && cumpleDespacho && cumpleDestino;
+                String(m.destino_nombre || '').toLowerCase().includes(filtroDestino.toLowerCase())
+            return cumpleOrden && cumpleDespacho && cumpleDestino
         })
     }, [pendientes, clienteSeleccionado, filtroOrden, filtroDespacho, filtroDestino])
 
@@ -94,6 +102,12 @@ export default function BandejaCobranza() {
         setFiltroOrden('')
         setFiltroDespacho('')
         setFiltroDestino('')
+
+        if (clienteSeleccionado) {
+            fetchPendientesPorCliente(clienteSeleccionado)
+        } else {
+            setPendientes([])
+        }
     }, [clienteSeleccionado])
 
     const resumenCobro = useMemo(() => {
@@ -132,28 +146,28 @@ export default function BandejaCobranza() {
         showLoader()
 
         try {
-
             const formData = new FormData()
-            formData.append('cliente_id', parseInt(clienteSeleccionado))
+            formData.append('cliente_id', parseInt(clienteSeleccionado, 10))
             formData.append('tipo_documento', tipoDocumento)
             formData.append('condicion_pago', condicionPago)
-            formData.append('fecha_emision', fechaEmision)
+
+            formData.append('fecha_emision', fechaEmision || new Date().toISOString().split('T')[0])
 
             if (numeroDocumento) formData.append('numero_documento', numeroDocumento)
             if (archivoPdf) formData.append('pdf_documento', archivoPdf)
 
             seleccionados.forEach(id => formData.append('mercancias_ids', id))
+
             await apiClient.post('/api/finanzas/generar-cobro/', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
+                headers: { 'Content-Type': 'multipart/form-data' },
             })
 
             showToast('Documento de cobro generado exitosamente.', 'success')
             setSeleccionados([])
             setNumeroDocumento('')
             setArchivoPdf(null)
-            await fetchPendientes()
+
+            await fetchPendientesPorCliente(clienteSeleccionado)
         } catch (error) {
             const msg = error.response?.data?.error || 'Error al generar el cobro.'
             showToast(msg, 'error')
@@ -162,8 +176,6 @@ export default function BandejaCobranza() {
             setProcesando(false)
         }
     }
-
-    if (loading) return <div className="p-8 text-center text-slate-500">Cargando bandeja...</div>
 
     return (
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>

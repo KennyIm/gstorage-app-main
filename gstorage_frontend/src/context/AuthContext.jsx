@@ -1,61 +1,81 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiClient from '../services/api';
-
-const AuthContext = createContext()
+import apiClient, { setTokenEnMemoria, clearTokenEnMemoria, ejecutarRefreshSilencioso } from '../services/api';
+import { AuthContext } from '../services/AuthContextInstance'
 
 export const useAuth = () => useContext(AuthContext)
 
+const canalAutenticacion = new BroadcastChannel('gstorage_auth_sync')
+
 export const AuthProvider = ({ children }) => {
-  const [authTokens, setAuthTokens] = useState(() =>
-    localStorage.getItem('authTokens') ? JSON.parse(localStorage.getItem('authTokens')) : null
-  )
+  const [authTokens, setAuthTokens] = useState(null)
   const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
   const [isInitializing, setIsInitializing] = useState(true)
   const [authLoading, setAuthLoading] = useState(false)
   const navigate = useNavigate()
 
-  const registrarInicioSesionExitoso = async (tokensData) => {
-    setAuthTokens(tokensData)
-    localStorage.setItem('authTokens', JSON.stringify(tokensData))
+  const verificarSesionExistente = useCallback(async () => {
+    try {
+      const access = await ejecutarRefreshSilencioso()      
+      setAuthTokens({ access })
+      const userResponse = await apiClient.get('/api/usuarios/me/')
+      
+      setUser(userResponse.data)
+      return access;
+    } catch (error) {
+      clearTokenEnMemoria()
+      setAuthTokens(null)
+      setUser(null)
+      return null;
+    }
+  }, []);
 
-    apiClient.defaults.headers.common['Authorization'] = `Bearer ${tokensData.access}`
+  const registrarInicioSesionExitoso = async (tokensData) => {
+    setTokenEnMemoria(tokensData.access)
+    setAuthTokens(tokensData)
 
     const userResponse = await apiClient.get('/api/usuarios/me/')
     setUser(userResponse.data)
+
+    canalAutenticacion.postMessage({
+      tipo: 'LOGIN_EXITOSO',
+      access: tokensData.access,
+      user: userResponse.data
+    });
+
+    const rutaPrevia = sessionStorage.getItem('gstorage_ruta_retorno');
+    if (rutaPrevia && rutaPrevia !== '/login') {
+      sessionStorage.removeItem('gstorage_ruta_retorno');
+      navigate(rutaPrevia);
+    } else {
+      navigate('/');
+    }
   }
 
   const loginUser = async (username, password) => {
-    setLoading(true)
+    setAuthLoading(true)
     try {
-      const response = await apiClient.post('/api/token/', {
-        username: username,
-        password: password
-      })
-
+      const response = await apiClient.post('/api/token/', { username, password })
       const data = response.data
 
       if (data.requires_2fa) {
-        setLoading(false)
+        setAuthLoading(false)
         return { requires2fa: true, preAuthId: data.pre_auth_id }
       }
 
       await registrarInicioSesionExitoso(data)
-      setLoading(false)
-      navigate('/')
+      setAuthLoading(false)
       return { requires2fa: false }
-
     } catch (error) {
       console.error("Error de login paso 1:", error)
-      setLoading(false)
+      setAuthLoading(false)
       alert("Usuario o contraseña incorrectos.")
       return { error: true }
     }
   }
 
   const verify2fa = async (preAuthId, code) => {
-    setLoading(true)
+    setAuthLoading(true)
     try {
       const response = await apiClient.post('/api/token/verify-2fa/', {
         pre_auth_id: preAuthId,
@@ -63,66 +83,130 @@ export const AuthProvider = ({ children }) => {
       })
 
       await registrarInicioSesionExitoso(response.data)
-      setLoading(false)
-      navigate('/')
+      setAuthLoading(false)
       return { success: true }
-
     } catch (error) {
       console.error("Error en verificación 2FA:", error)
-      setLoading(false)
+      setAuthLoading(false)
       alert("Código verificador inválido o expirado.")
       return { success: false }
     }
   }
 
   const logoutUser = async () => {
+    const urlActual = window.location.pathname
+    if (urlActual && urlActual !== '/login') {
+      sessionStorage.setItem('gstorage_ruta_retorno', urlActual)
+    }
+    
+    clearTokenEnMemoria()
+    setAuthTokens(null)
+    setUser(null)
+    localStorage.removeItem('gstorage_last_activity')
+
+    canalAutenticacion.postMessage({ tipo: 'LOGOUT_PROCESADO' });
+
     try {
-      const storedTokens = JSON.parse(localStorage.getItem('authTokens'))
-      if (storedTokens && storedTokens.refresh) {
-        await apiClient.post('/api/logout/', { refresh: storedTokens.refresh })
-      }
+      await apiClient.post('/api/logout/')
     } catch (error) {
-      console.warn("No se pudo invalidar el token en el servidor.")
+      console.warn("La cookie de sesión ya estaba vencida en el servidor o fue destruida previamente.")
     } finally {
-      localStorage.clear()
-      delete apiClient.defaults.headers.common['Authorization']
-      setAuthTokens(null)
-      setUser(null)
-      window.location.href = '/login'
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
   }
+  useEffect(() => {
+    verificarSesionExistente().finally(() => {
+      setIsInitializing(false)
+    })
+  }, [verificarSesionExistente])
 
   useEffect(() => {
-    if (authTokens) {
-      apiClient.get('/api/usuarios/me/')
-        .then(response => {
-          setUser(response.data)
-          setIsInitializing(false)
-        })
-        .catch(() => {
-          setAuthTokens(null)
-          setUser(null)
-          setIsInitializing(false)
-        });
-    } else {
-      setIsInitializing(false)
+    if (!user) {
+      return
     }
-  }, [])
+
+    const KEY_LAST_ACTIVITY = 'gstorage_last_activity'
+    const MAX_INACTIVITY_TIME = 1800000
+
+    const registrarActividadOperador = () => {
+      localStorage.setItem(KEY_LAST_ACTIVITY, Date.now().toString())
+    };
+
+    window.addEventListener('keydown', registrarActividadOperador)
+    window.addEventListener('click', registrarActividadOperador)
+    window.addEventListener('scroll', registrarActividadOperador)
+    window.addEventListener('mousemove', registrarActividadOperador)
+
+    registrarActividadOperador()
+
+    const intervaloChequeo = setInterval(() => {
+      const ultimaActividad = parseInt(localStorage.getItem(KEY_LAST_ACTIVITY) || '0', 10)
+      const tiempoTranscurrido = Date.now() - ultimaActividad
+
+      if (tiempoTranscurrido >= MAX_INACTIVITY_TIME) {
+        clearInterval(intervaloChequeo)
+        console.log("Sesión cerrada por inactividad global del operador en todas las pestañas.")
+        logoutUser()
+      }
+    }, 10000)
+
+    return () => {
+      window.removeEventListener('keydown', registrarActividadOperador)
+      window.removeEventListener('click', registrarActividadOperador)
+      window.removeEventListener('scroll', registrarActividadOperador)
+      window.removeEventListener('mousemove', registrarActividadOperador)
+      clearInterval(intervaloChequeo)
+    }
+  }, [user])
+
+  useEffect(() => {
+    const escucharCanalInterPestañas = async (evento) => {
+      const { tipo, access, user: userData } = evento.data
+
+      if (tipo === 'LOGIN_EXITOSO') {
+        setTokenEnMemoria(access)
+        setAuthTokens({ access })
+        setUser(userData)
+
+        const rutaPrevia = sessionStorage.getItem('gstorage_ruta_retorno') || '/'
+        sessionStorage.removeItem('gstorage_ruta_retorno')
+        navigate(rutaPrevia)
+      }
+
+      if (tipo === 'LOGOUT_PROCESADO') {
+        clearTokenEnMemoria()
+        setAuthTokens(null)
+        setUser(null)
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      }
+    }
+
+    canalAutenticacion.addEventListener('message', escucharCanalInterPestañas)
+    return () => canalAutenticacion.removeEventListener('message', escucharCanalInterPestañas)
+  }, [navigate])
 
   const contextData = {
     authTokens,
     user,
     loginUser,
-    verify2fa, 
+    verify2fa,
     logoutUser,
-    loading: authLoading 
-  };
+    loading: authLoading
+  }
 
   return (
     <AuthContext.Provider value={contextData}>
-      {isInitializing ? <div className="p-8 text-center font-sans text-xs text-slate-400 uppercase tracking-widest">Iniciando GStorage...</div> : children}
+      {isInitializing ? (
+        <div className="min-h-screen flex items-center justify-center bg-slate-100 font-sans text-xs text-slate-400 uppercase tracking-widest">
+          Iniciando GStorage...
+        </div>
+      ) : children}
     </AuthContext.Provider>
   )
 }
 
-export default AuthContext
+export default AuthProvider

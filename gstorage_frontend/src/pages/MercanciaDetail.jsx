@@ -6,7 +6,8 @@ import {
   ArrowLeft, Edit, Trash2, Package, MapPin, User,
   Calendar, Activity, Truck, Scale, Box, FileText,
   Loader2, Info, DollarSign, Warehouse,
-  PackageCheck
+  PackageCheck,
+  Sparkle
 } from 'lucide-react';
 import { useUI } from '../context/UIContext';
 
@@ -314,10 +315,10 @@ export default function MercanciaDetail() {
               <div className="p-6 space-y-6">
 
                 <div className="relative pl-4 border-l-2 border-indigo-200">
-                  <span className="block text-xs font-medium text-gray-500 uppercase mb-1">Ubicación Actual</span>
+                  <span className="block text-xs font-medium text-gray-500 uppercase mb-1">N° de Orden</span>
                   <div className="flex items-center gap-2 text-gray-900 font-medium">
-                    <MapPin className="w-4 h-4 text-indigo-500" />
-                    {getCodigoUbicacion(mercancia.id_ubicacion_actual)}
+                    <Sparkle className="w-4 h-4 text-indigo-500" />
+                    {mercancia.numero_orden_entrega || "Sin número de orden"}
                   </div>
                 </div>
 

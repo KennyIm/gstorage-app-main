@@ -1,200 +1,172 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import apiClient from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import logomedalla from '../assets/logomedalla.png';
-import Select from 'react-select';
-import { useUI } from '../context/UIContext';
+import React, { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import apiClient from '../services/api'
+import { useAuth } from '../context/AuthContext'
+import logomedalla from '../assets/logomedalla.png'
+import Select from 'react-select'
+import { useUI } from '../context/UIContext'
 import {
     Plus, ChevronDown, ChevronUp, Edit, Trash2, CheckCircle,
     Calendar, User, Truck, Package, Scale, Box, MapPin, Clock, Search, FileText,
     Phone, ChevronLeft, ChevronRight, UserPlus, X, Printer
-} from 'lucide-react';
+} from 'lucide-react'
 
 export default function CotizacionList() {
-    document.title = "Cotizaciones - GStorage";
-    const navigate = useNavigate();
-    const { user } = useAuth();
-    const { showLoader, hideLoader, showToast } = useUI();
+    document.title = "Cotizaciones - GStorage"
+    const navigate = useNavigate()
+    const { user } = useAuth()
+    const { showLoader, hideLoader, showToast } = useUI()
 
-    const [cotizaciones, setCotizaciones] = useState([]);
-    const [loadingInicial, setLoadingInicial] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [expandedId, setExpandedId] = useState(null);
+    const [cotizaciones, setCotizaciones] = useState([])
+    const [totalCotizaciones, setTotalCotizaciones] = useState(0)
+    const [loadingInicial, setLoadingInicial] = useState(true)
+    const [currentPage, setCurrentPage] = useState(1)
+    const [itemsPerPage, setItemsPerPage] = useState(10)
+    const [searchTerm, setSearchTerm] = useState('')
 
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
-
-    const [modalInvitacionOpen, setModalInvitacionOpen] = useState(false);
-    const [cotizacionActivaId, setCotizacionActivaId] = useState(null);
-    const [usuarioAInvitar, setUsuarioAInvitar] = useState('');
-    const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
-    const [mensajeInvitacion, setMensajeInvitacion] = useState({ tipo: '', texto: '' });
-
-    const [usuarios, setUsuarios] = useState([]);
-
-    const [cotAImprimir, setCotAImprimir] = useState(null);
-
-    // --- CARGA DE DATOS ---
-
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm, itemsPerPage]);
-
-    useEffect(() => {
-        fetchCotizaciones();
-    }, []);
+    const [expandedId, setExpandedId] = useState(null)
+    const [modalInvitacionOpen, setModalInvitacionOpen] = useState(false)
+    const [cotizacionActivaId, setCotizacionActivaId] = useState(null)
+    const [usuarioAInvitar, setUsuarioAInvitar] = useState('')
+    const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null)
+    const [mensajeInvitacion, setMensajeInvitacion] = useState({ tipo: '', texto: '' })
+    const [usuarios, setUsuarios] = useState([])
+    const [cotAImprimir, setCotAImprimir] = useState(null)
 
     const fetchCotizaciones = async () => {
-        setLoadingInicial(true);
+        setLoadingInicial(true)
         try {
-            const res = await apiClient.get('/api/inventario/cotizaciones/');
-            setCotizaciones(res.data);
+            const params = {
+                page: currentPage,
+                page_size: itemsPerPage,
+                search: searchTerm
+            }
+            const res = await apiClient.get('/api/inventario/cotizaciones/', { params })
+            setCotizaciones(res.data.results || [])
+            setTotalCotizaciones(res.data.count || 0)
         } catch (err) {
-            showToast('Error al cargar las cotizaciones.', 'error');
+            showToast('Error al cargar las cotizaciones.', 'error')
         } finally {
-            setLoadingInicial(false);
+            setLoadingInicial(false)
         }
-    };
+    }
 
+    useEffect(() => {
+        fetchCotizaciones()
+    }, [currentPage, itemsPerPage, searchTerm])
+    useEffect(() => {
+        setCurrentPage(1)
+    }, [searchTerm, itemsPerPage])
     useEffect(() => {
         if (modalInvitacionOpen && cotizacionActivaId) {
             const fetchUsuarios = async () => {
                 try {
-                    const cotizacionActual = cotizaciones.find(c => c.id_cotizacion === cotizacionActivaId);
+                    const cotizacionActual = cotizaciones.find(c => c.id_cotizacion === cotizacionActivaId)
+                    const idsYaInvitados = cotizacionActual?.colaboradores_activos?.map(colab => String(colab.id)) || []
 
-                    const idsYaInvitados = cotizacionActual?.colaboradores_activos?.map(colab => String(colab.id)) || [];
-
-                    const res = await apiClient.get('/api/usuarios/users');
-                    const listaUsuarios = res.data.results || res.data;
+                    const res = await apiClient.get('/api/usuarios/users')
+                    const listaUsuarios = res.data.results || res.data
 
                     const usuariosElegibles = listaUsuarios.filter((u) => {
-                        const sucursalUsuario = u?.perfil?.sucursal_id || u?.perfil?.sucursal;
-                        const miSucursal = user?.perfil?.sucursal_id || user?.perfil?.sucursal;
-                        const esOtraSucursal = String(sucursalUsuario) !== String(miSucursal);
+                        const sucursalUsuario = u?.perfil?.sucursal_id || u?.perfil?.sucursal
+                        const miSucursal = user?.perfil?.sucursal_id || user?.perfil?.sucursal
+                        const esOtraSucursal = String(sucursalUsuario) !== String(miSucursal)
+                        const noEstaInvitado = !idsYaInvitados.includes(String(u.id))
+                        return esOtraSucursal && noEstaInvitado
+                    })
 
-                        const noEstaInvitado = !idsYaInvitados.includes(String(u.id));
-
-                        return esOtraSucursal && noEstaInvitado;
-                    });
-
-                    setUsuarios(usuariosElegibles);
+                    setUsuarios(usuariosElegibles)
 
                     if (usuariosElegibles.length > 0) {
-                        setUsuarioSeleccionado(usuariosElegibles[0]);
-                        setUsuarioAInvitar(`${usuariosElegibles[0].first_name} ${usuariosElegibles[0].last_name}`);
+                        setUsuarioSeleccionado(usuariosElegibles[0])
+                        setUsuarioAInvitar(`${usuariosElegibles[0].first_name} ${usuariosElegibles[0].last_name}`)
                     } else {
-                        setUsuarioSeleccionado(null);
-                        setUsuarioAInvitar('');
+                        setUsuarioSeleccionado(null)
+                        setUsuarioAInvitar('')
                     }
-
                 } catch (error) {
-                    console.error("Error cargando usuarios", error);
+                    console.error("Error cargando usuarios", error)
                 }
-            };
-
-            fetchUsuarios();
+            }
+            fetchUsuarios()
         }
-    }, [modalInvitacionOpen, cotizacionActivaId, user, cotizaciones]);
+    }, [modalInvitacionOpen, cotizacionActivaId, user, cotizaciones])
 
-    // --- ACCIONES ---
     const handleToggleExpand = (id) => {
-        setExpandedId(prev => prev === id ? null : id);
-    };
-
+        setExpandedId(prev => prev === id ? null : id)
+    }
     const handleEliminar = async (id, nombre) => {
-        if (!window.confirm(`¿Seguro que deseas eliminar (lógico) la cotización de ${nombre}?`)) return;
-
-        showLoader();
+        if (!window.confirm(`¿Seguro que deseas eliminar (lógico) la cotización de ${nombre}?`)) return
+        showLoader()
         try {
-            await apiClient.delete(`/api/inventario/cotizaciones/${id}/`);
-            showToast('Cotización eliminada correctamente.', 'success');
-            fetchCotizaciones();
+            await apiClient.delete(`/api/inventario/cotizaciones/${id}/`)
+            showToast('Cotización eliminada correctamente.', 'success')
+            await fetchCotizaciones()
         } catch (err) {
-            showToast('No se pudo eliminar la cotización.', 'error');
+            showToast('No se pudo eliminar la cotización.', 'error')
         } finally {
-            hideLoader();
+            hideLoader()
         }
     };
 
     const handleAbrirModalInvitacion = (id_cotizacion) => {
-        setCotizacionActivaId(id_cotizacion);
-        setMensajeInvitacion({ tipo: '', texto: '' });
-        setUsuarioAInvitar('');
-        setUsuarioSeleccionado(null);
-        setModalInvitacionOpen(true);
-    };
-
+        setCotizacionActivaId(id_cotizacion)
+        setMensajeInvitacion({ tipo: '', texto: '' })
+        setUsuarioAInvitar('')
+        setUsuarioSeleccionado(null)
+        setModalInvitacionOpen(true)
+    }
     const handleConfirmarCotizacion = async (id) => {
-        if (!window.confirm('¿Confirmar esta cotización? Ya no podrás editarla una vez confirmada.')) return;
-
-        showLoader();
+        if (!window.confirm('¿Confirmar esta cotización? Ya no podrás editarla una vez confirmada.')) return
+        showLoader()
         try {
             await apiClient.patch(`/api/inventario/cotizaciones/${id}/`, {
                 estado_cotizacion: 'Cotizado',
                 fecha_confirmacion: new Date().toISOString()
-            });
-            showToast('¡Cotización confirmada exitosamente!', 'success');
-            fetchCotizaciones();
+            })
+            showToast('¡Cotización confirmada exitosamente!', 'success')
+            await fetchCotizaciones()
         } catch (err) {
-            showToast('Error al confirmar la cotización.', 'error');
+            showToast('Error al confirmar la cotización.', 'error')
         } finally {
-            hideLoader();
+            hideLoader()
         }
-    };
-
-    // --- UTILIDADES ---
+    }
     const formatFecha = (fechaString) => {
-        if (!fechaString) return '-';
-        const date = new Date(fechaString);
+        if (!fechaString) return '-'
+        const date = new Date(fechaString)
         return date.toLocaleDateString('es-CL', {
             day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-        });
-    };
+        })
+    }
 
-    const formatoDinero = (valor) => Math.round(parseFloat(valor || 0)).toLocaleString('es-CL');
-
-    const filtradas = cotizaciones.filter(cot => {
-        const term = searchTerm.toLowerCase();
-        return (
-            cot.nombre_cliente?.toLowerCase().includes(term) ||
-            cot.rut_cliente?.toLowerCase().includes(term) ||
-            cot.estado_cotizacion?.toLowerCase().includes(term)
-        );
-    });
-
-    const totalPages = Math.ceil(filtradas.length / itemsPerPage);
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentItems = filtradas.slice(indexOfFirstItem, indexOfLastItem);
+    const formatoDinero = (valor) => Math.round(parseFloat(valor || 0)).toLocaleString('es-CL')
+    const totalPages = Math.ceil(totalCotizaciones / itemsPerPage)
+    const filtradas = cotizaciones
+    const indexOfLastItem = currentPage * itemsPerPage
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage
 
     const handleInvitarColaboradorCotizacion = async (e) => {
-        e.preventDefault();
-
+        e.preventDefault()
         if (!usuarioSeleccionado) return;
-        setMensajeInvitacion({ tipo: 'loading', texto: 'Procesando...' });
-
+        setMensajeInvitacion({ tipo: 'loading', texto: 'Procesando...' })
         try {
             const response = await apiClient.post(`/api/inventario/cotizaciones/${cotizacionActivaId}/invitar/`, {
                 usuario_invitado_id: usuarioSeleccionado.id
-            });
-
-            setMensajeInvitacion({ tipo: 'success', texto: response.data.mensaje });
-            setUsuarioAInvitar('');
-            setUsuarioSeleccionado(null);
-
+            })
+            setMensajeInvitacion({ tipo: 'success', texto: response.data.mensaje })
+            setUsuarioAInvitar('')
+            setUsuarioSeleccionado(null)
             setTimeout(() => {
-                setModalInvitacionOpen(false);
-                setMensajeInvitacion({ tipo: '', texto: '' });
-            }, 2000);
-
+                setModalInvitacionOpen(false)
+                setMensajeInvitacion({ tipo: '', texto: '' })
+            }, 2000)
         } catch (error) {
-            const errorMsg = error.response?.data?.error || "Error al compartir la cotización.";
-            setMensajeInvitacion({ tipo: 'error', texto: errorMsg });
+            const errorMsg = error.response?.data?.error || "Error al compartir la cotización."
+            setMensajeInvitacion({ tipo: 'error', texto: errorMsg })
         }
-    };
+    }
 
-    // --- RENDERIZADO ---
     if (loadingInicial) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
@@ -417,54 +389,34 @@ export default function CotizacionList() {
                 </div>
                 {/* CONTROLES DE PAGINACIÓN */}
                 {totalPages > 1 && (
-                    <div className="flex justify-center items-center gap-2 mt-8">
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                            disabled={currentPage === 1}
-                            className="p-2 border border-gray-300 rounded-lg bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
-                            title="Página anterior"
-                        >
-                            <ChevronLeft className="w-5 h-5" />
-                        </button>
-
-                        <div className="flex items-center gap-1">
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(number => {
-                                if (
-                                    totalPages <= 7 ||
-                                    number === 1 ||
-                                    number === totalPages ||
-                                    (number >= currentPage - 1 && number <= currentPage + 1)
-                                ) {
-                                    return (
-                                        <button
-                                            key={number}
-                                            onClick={() => setCurrentPage(number)}
-                                            className={`w-10 h-10 flex items-center justify-center rounded-lg font-medium transition shadow-sm ${currentPage === number
-                                                ? 'bg-red-800 text-white border border-red-800'
-                                                : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-                                                }`}
-                                        >
-                                            {number}
-                                        </button>
-                                    );
-                                } else if (
-                                    (number === currentPage - 2 && currentPage > 3) ||
-                                    (number === currentPage + 2 && currentPage < totalPages - 2)
-                                ) {
-                                    return <span key={number} className="px-1 text-gray-400">...</span>;
-                                }
-                                return null;
-                            })}
+                    <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 rounded-b-2xl">
+                        <div>
+                            Mostrando <span className="font-bold text-slate-800">{totalCotizaciones === 0 ? 0 : ((currentPage - 1) * itemsPerPage) + 1}</span> al{' '}
+                            <span className="font-bold text-slate-800">
+                                {Math.min(currentPage * itemsPerPage, totalCotizaciones)}
+                            </span>{' '}
+                            de <span className="font-bold text-slate-800">{totalCotizaciones}</span> cotizaciones comerciales.
                         </div>
 
-                        <button
-                            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                            disabled={currentPage === totalPages}
-                            className="p-2 border border-gray-300 rounded-lg bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
-                            title="Página siguiente"
-                        >
-                            <ChevronRight className="w-5 h-5" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-semibold"
+                            >
+                                Anterior
+                            </button>
+                            <span className="font-semibold text-slate-700">Página {currentPage} de {totalPages}</span>
+                            <button
+                                type="button"
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-semibold"
+                            >
+                                Siguiente
+                            </button>
+                        </div>
                     </div>
                 )}
                 {/* INVITAR COLABORADOR */}
@@ -554,6 +506,23 @@ export default function CotizacionList() {
                 )}
                 {cotAImprimir && (
                     <div id="molde-cotizacion" className="print:w-[210mm] mx-auto hidden print:block">
+
+                        {/* 🟢 SOLUCIÓN: Inyección de estilos de página limpios para remover cabeceras y pies del navegador */}
+                        <style>
+                            {`
+                @media print {
+                    @page {
+                        size: auto;
+                        margin: 0mm; /* 👈 Esto elimina el título, la fecha, la IP y el 1/1 */
+                    }
+                    body {
+                        margin: 0px;
+                        background-color: #ffffff;
+                    }
+                }
+            `}
+                        </style>
+
                         <div className="hoja-pdf w-[210mm] h-[278mm] flex flex-col bg-white px-8 py-8 box-border mx-auto print:shadow-none print:m-0 shadow-lg">
 
                             {/* --- ENCABEZADO PRINCIPAL --- */}
@@ -678,7 +647,6 @@ export default function CotizacionList() {
                                     </tbody>
                                 </table>
 
-                                {/* Condiciones / Notas de la cotización */}
                                 <div className="mt-8 p-3 bg-slate-50 rounded text-[10px] text-slate-600 border border-slate-100">
                                     <p className="font-bold text-slate-800 mb-1 uppercase">Condiciones del Servicio:</p>
                                     <ul className="list-disc pl-4 space-y-0.5">
@@ -689,7 +657,7 @@ export default function CotizacionList() {
                                     </ul>
                                 </div>
 
-                                <p className="font-bold text-red-800 mb-1 uppercase">TRAER IMPRESA ESTA COTIZACIÓN JUNTO CON SU MERCADERÍA EL DÍA DE RECEPCIÓN EN BODEGA. DE NO SER ASÍ, ESTA COTIZACIÓN PIERDE SU VALOR Y SE COBRARÁ EL PRECIO NORMAL.</p>
+                                <p className="font-bold text-red-800 mt-4 uppercase">TRAER IMPRESA ESTA COTIZACIÓN JUNTO CON SU MERCADERÍA EL DÍA DE RECEPCIÓN EN BODEGA. DE NO SER ASÍ, ESTA COTIZACIÓN PIERDE SU VALOR Y SE COBRARÁ EL PRECIO NORMAL.</p>
                             </div>
 
                             {/* --- TOTALES COMERCIALES --- */}

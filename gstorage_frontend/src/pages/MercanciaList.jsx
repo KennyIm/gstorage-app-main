@@ -8,19 +8,26 @@ import {
 } from 'lucide-react'
 import MermaModal from '../components/MermaModal'
 import { useUI } from '../context/UIContext'
+import { useMemo } from 'react'
 
 export default function MercanciaList() {
   document.title = "Listado de Mercancias - GStorage"
   const [mercancias, setMercancias] = useState([])
   const { showLoader, hideLoader, showToast } = useUI()
-  const [searchTerm, setSearchTerm] = useState('')
   const [despachos, setDespachos] = useState([])
   const [proveedores, setProveedores] = useState([])
   const [sucursales, setSucursales] = useState([])
   const [rutas, setRutas] = useState([])
+  const [clientes, setClientes] = useState([])
 
+  const [totalItems, setTotalItems] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
+  const [showFilterMenu, setShowFilterMenu] = useState(false)
+  const filterRef = useRef(null)
 
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('TODOS')
   const [filtros, setFiltros] = useState({
     cliente: '',
     estado: 'TODOS',
@@ -29,53 +36,20 @@ export default function MercanciaList() {
     codigoInterno: '',
     destino: '',
     despacho: '',
-    factura: ''
+    factura: '',
+    proveedor: ''
   })
-
-  // --- SELECCIÓN MASIVA ---
   const [selectedIds, setSelectedIds] = useState([])
   const [bulkDispatchId, setBulkDispatchId] = useState('')
-
   const [mermaTarget, setMermaTarget] = useState(null)
-  const [showFilterMenu, setShowFilterMenu] = useState(false)
-  const [statusFilter, setStatusFilter] = useState('TODOS')
-  const filterRef = useRef(null)
 
-  const [currentPage, setCurrentPage] = useState(1)
-  const ITEMS_PER_PAGE = 15
   const customSelectStyles = {
-    control: (base) => ({
-      ...base,
-      backgroundColor: '#1e293b',
-      borderColor: '#475569',
-      color: 'white',
-      minWidth: '250px',
-    }),
-    menu: (base) => ({
-      ...base,
-      backgroundColor: '#1e293b',
-      zIndex: 9999
-    }),
-    option: (base, { isFocused, isSelected }) => ({
-      ...base,
-      backgroundColor: isSelected ? '#991b1b' : isFocused ? '#334155' : '#1e293b',
-      color: 'white',
-      fontSize: '0.875rem',
-      cursor: 'pointer',
-    }),
-    singleValue: (base) => ({
-      ...base,
-      color: 'white',
-      fontSize: '0.875rem',
-    }),
-    input: (base) => ({
-      ...base,
-      color: 'white',
-    }),
-    placeholder: (base) => ({
-      ...base,
-      color: '#94a3b8',
-    }),
+    control: (base) => ({ ...base, backgroundColor: '#1e293b', borderColor: '#475569', color: 'white', minWidth: '250px' }),
+    menu: (base) => ({ ...base, backgroundColor: '#1e293b', zIndex: 9999 }),
+    option: (base, { isFocused, isSelected }) => ({ ...base, backgroundColor: isSelected ? '#991b1b' : isFocused ? '#334155' : '#1e293b', color: 'white', fontSize: '0.875rem', cursor: 'pointer' }),
+    singleValue: (base) => ({ ...base, color: 'white', fontSize: '0.875rem' }),
+    input: (base) => ({ ...base, color: 'white' }),
+    placeholder: (base) => ({ ...base, color: '#94a3b8' }),
   }
 
   const handleFiltroChange = (e) => {
@@ -84,37 +58,81 @@ export default function MercanciaList() {
     setCurrentPage(1)
   }
 
-  const fetchData = useCallback(async () => {
-    showLoader()
-    try {
-      const [mercRes, despRes, sucurRes, rutasRes, provRes] = await Promise.all([
-        apiClient.get('/api/inventario/mercancias/'),
-        apiClient.get('/api/inventario/despachos/'),
-        apiClient.get('/api/usuarios/sucursales/'),
-        apiClient.get('/api/inventario/rutas/'),
-        apiClient.get('/api/inventario/proveedores/')
-      ])
-      setMercancias(mercRes.data);
-      setDespachos(despRes.data);
-      setSucursales(sucurRes.data);
-      setRutas(rutasRes.data);
-      setProveedores(provRes.data)
-    } catch (err) {
-      console.error("Error al cargar datos iniciales:", err)
-      showToast('No se pudieron cargar las mercancias.', 'error')
-    } finally {
-      hideLoader()
+  useEffect(() => {
+    const cargarCatalogosEstaticos = async () => {
+      try {
+        const [despRes, sucurRes, rutasRes, provRes, clientesRes] = await Promise.all([
+          apiClient.get('/api/inventario/despachos/'),
+          apiClient.get('/api/usuarios/sucursales/'),
+          apiClient.get('/api/inventario/rutas/'),
+          apiClient.get('/api/inventario/proveedores/'),
+          apiClient.get('/api/inventario/clientes/')
+        ]);
+        setDespachos(despRes.data);
+        setSucursales(sucurRes.data);
+        setRutas(rutasRes.data);
+        setProveedores(provRes.data);
+        setClientes(clientesRes.data.results || clientesRes.data)
+      } catch (err) {
+        console.error("Error al cargar catálogos estáticos:", err)
+      }
     }
+    cargarCatalogosEstaticos();
   }, [])
 
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+
+  const fetchData = useCallback(async () => {
+    if (typeof showLoader === 'function') showLoader()
+
+    try {
+      const mercanciasParams = new URLSearchParams({
+        page: currentPage || 1,
+        page_size: 100,
+      })
+
+      if (searchTerm) mercanciasParams.append('search', searchTerm)
+
+      const estadoReal = filtros.estado !== 'TODOS' ? filtros.estado : statusFilter
+      if (estadoReal && estadoReal !== 'TODOS') mercanciasParams.append('estado', estadoReal)
+
+      if (filtros.cliente) mercanciasParams.append('cliente', filtros.cliente)
+      if (filtros.codigoInterno) mercanciasParams.append('codigo_interno', filtros.codigoInterno)
+      if (filtros.destino) mercanciasParams.append('destino', filtros.destino)
+      if (filtros.factura) mercanciasParams.append('factura', filtros.factura)
+      if (filtros.despacho) mercanciasParams.append('despacho', filtros.despacho)
+      if (filtros.fechaDesde) mercanciasParams.append('fechaDesde', filtros.fechaDesde)
+      if (filtros.fechaHasta) mercanciasParams.append('fechaHasta', filtros.fechaHasta)
+      if (filtros.proveedor) mercanciasParams.append('proveedor', filtros.proveedor)
+
+      const mercRes = await apiClient.get(`/api/inventario/mercancias/?${mercanciasParams.toString()}`)
+      setMercancias(mercRes.data.results || mercRes.data)
+      setTotalItems(mercRes.data.count || 0)
+
+    } catch (err) {
+      console.error("Error al cargar mercancías:", err)
+      if (typeof showToast === 'function') showToast('No se pudieron cargar las mercancías.', 'error')
+    } finally {
+      if (typeof hideLoader === 'function') hideLoader()
+    }
+  }, [currentPage, searchTerm, statusFilter, filtros])
+
 
   useEffect(() => {
-    setCurrentPage(1)
-  }, [searchTerm, statusFilter])
+    const delayDebounceFn = setTimeout(() => {
+      fetchData();
+    }, 450);
 
+    return () => clearTimeout(delayDebounceFn);
+  }, [fetchData]);
+
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchTerm, statusFilter, filtros.cliente, filtros.estado,
+    filtros.codigoInterno, filtros.destino, filtros.factura,
+    filtros.proveedor, filtros.despacho, filtros.fechaDesde, filtros.fechaHasta
+  ])
 
   const handleBulkAssign = async () => {
     if (!bulkDispatchId) return showToast('Selecciona un despacho primero.', 'info')
@@ -129,103 +147,69 @@ export default function MercanciaList() {
       setBulkDispatchId('')
       showToast(`Éxito: ${selectedIds.length} mercancías asignadas al Despacho #${bulkDispatchId}`, 'success')
     } catch (err) {
-      showToast('Error al realizar la asignación masiva. Verifica los estados de las mercancías.', 'error')
+      showToast('Error al realizar la asignación masiva.', 'error')
     } finally {
       hideLoader()
     }
   }
 
   const limpiarFiltros = () => {
-    setFiltros({
-      cliente: '',
-      estado: 'TODOS',
-      fechaDesde: '',
-      fechaHasta: '',
-      codigoInterno: '',
-      destino: '',
-      despacho: '',
-      factura: ''
-    })
+    setFiltros({ cliente: '', estado: 'TODOS', fechaDesde: '', fechaHasta: '', codigoInterno: '', destino: '', despacho: '', factura: '', proveedor: '' })
+    setSearchTerm('')
+    setStatusFilter('TODOS')
     setCurrentPage(1)
   }
-
   const uniqueClientes = [...new Set(mercancias.map(m => m.cliente_nombre).filter(Boolean))]
   const uniqueDestinos = [...new Set(mercancias.map(m => m.destino_nombre).filter(Boolean))]
-  const uniqueDespachos = [...new Set(mercancias.map(m => m.id_despacho).filter(Boolean))]
 
-  const opcionesClientes = uniqueClientes.map(cli => ({
-    value: cli,
-    label: cli
-  }))
-
-  const opcionSeleccionada = opcionesClientes.find(op => op.value === filtros.cliente) || null
-
+  const opcionesClientes = useMemo(() => {
+    return clientes.map(c => {
+      const nombre = c.nombre_cliente || 'Cliente Desconocido'
+      return {
+        value: nombre,
+        label: c.rut ? `${nombre} - ${c.rut}` : nombre
+      }
+    })
+  }, [clientes])
   const opcionesDespachos = [
     { value: 'null', label: 'Sin Despacho Asignado' },
-    ...uniqueDespachos
-      .filter(id => id !== null && id !== undefined)
-      .map(id => {
-        const despachoObj = despachos.find(d => String(d.id_despacho || d.id) === String(id))
-
-        const nombreRuta = despachoObj?.ruta_nombre || despachoObj?.id_ruta || 'Sin Ruta'
-
-        return {
-          value: id,
-          label: `${nombreRuta}`
-        }
-      })
+    ...despachos.map(d => ({
+      value: d.id_despacho || d.id,
+      label: `${d.ruta_nombre || d.id_ruta || 'Sin Ruta'} (Despacho #${d.id_despacho || d.id})`
+    }))
   ]
 
   const opcionSeleccionadaDespach = opcionesDespachos.find(op => String(op.value) === String(filtros.despacho)) || null
+  const opcionSeleccionada = opcionesClientes.find(op => op.value === filtros.cliente) || null
+  const filteredItems = useMemo(() => {
+    return mercancias.filter(item => {
+      if (!filtros.proveedor) return true;
+      const provAsociado = proveedores.find(p =>
+        String(p.id || p.id_proveedor) === String(item.id_proveedor || item.proveedor)
+      );
 
-  const filteredItems = mercancias.filter(item => {
-    if (!item) return false
-    const matchCliente = filtros.cliente === '' || item.cliente_nombre === filtros.cliente
-    const matchEstado = filtros.estado === 'TODOS' || item.estado === filtros.estado
-    const matchCodigo = !filtros.codigoInterno || String(item.codigo_interno || '').toLowerCase().includes(String(filtros.codigoInterno).toLowerCase())
-    const matchDestino = filtros.destino === '' || item.destino_nombre === filtros.destino
-    const matchFactura = !filtros.factura || String(item.factura || '').toLowerCase().includes(String(filtros.factura).toLowerCase())
-    let matchDespacho = true
-    if (filtros.despacho !== '') {
-      if (filtros.despacho === 'null') {
-        matchDespacho = item.id_despacho === null || item.id_despacho === undefined
-      } else {
-        matchDespacho = String(item.id_despacho) === String(filtros.despacho)
-      }
-    }
+      if (!provAsociado) return false;
 
-    let matchFecha = true
-    if (filtros.fechaDesde || filtros.fechaHasta) {
-      const itemDate = new Date(item.fecha_ingreso).getTime()
+      const termino = filtros.proveedor.toLowerCase();
 
-      if (filtros.fechaDesde) {
-        const desde = new Date(filtros.fechaDesde).getTime()
-        if (itemDate < desde) matchFecha = false;
-      }
-      if (filtros.fechaHasta) {
-        const hasta = new Date(filtros.fechaHasta).getTime() + 86400000
-        if (itemDate >= hasta) matchFecha = false
-      }
-    }
-    return matchCliente && matchEstado && matchCodigo && matchDestino && matchDespacho && matchFecha && matchFactura
-  })
+      const nombreMatches = String(provAsociado.nombre_proveedor || '').toLowerCase().includes(termino);
+      const rutMatches = String(provAsociado.rut_desencriptado || provAsociado.rut || provAsociado.rut_hash || '').toLowerCase().includes(termino);
 
-  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE)
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-  const paginatedItems = filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+      return nombreMatches || rutMatches;
+    })
+  }, [mercancias, filtros.proveedor, proveedores])
 
-  // --- LÓGICA DE SELECCIÓN ---
+  const paginatedItems = filteredItems
+  const startIndex = (currentPage - 1) * 100
+  const totalPages = Math.ceil(totalItems / 100)
   const toggleSelect = (id) => {
-    setSelectedIds(prev =>
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    )
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id])
   }
 
   const isAllCurrentPageSelected = paginatedItems.length > 0 && paginatedItems.every(item => selectedIds.includes(item.id_mercancia))
 
   const toggleSelectAll = () => {
     const currentPageIds = paginatedItems.map(item => item.id_mercancia)
-
     if (isAllCurrentPageSelected) {
       setSelectedIds(prev => prev.filter(id => !currentPageIds.includes(id)))
     } else {
@@ -353,6 +337,21 @@ export default function MercanciaList() {
                     name="codigoInterno"
                     placeholder=""
                     value={filtros.codigoInterno}
+                    onChange={handleFiltroChange}
+                    className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm"
+                  />
+                </div>
+              </div>
+              {/* Proveedor */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Proveedor</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    name="proveedor"
+                    placeholder="RUT o Nombre de Proveedor..."
+                    value={filtros.proveedor}
                     onChange={handleFiltroChange}
                     className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm"
                   />
@@ -548,7 +547,6 @@ export default function MercanciaList() {
                     <td className="py-4 px-4">
                       <div className="flex flex-col">
                         <p className="font-semibold text-gray-900">{item.cliente_nombre}</p>
-
                         {/* Descripción y Factura */}
                         <div className="flex items-center gap-3 mt-1">
                           <span className="text-xs text-gray-500 line-clamp-1 max-w-[200px]" title={item.descripcion_carga}>

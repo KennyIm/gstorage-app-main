@@ -168,10 +168,11 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=240),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    'REFRESH_TOKEN_LIFETIME': timedelta(hours=14),
+    'ROTATE_REFRESH_TOKENS': True, #CAMBIAR
+    'BLACKLIST_AFTER_ROTATION': True, #CAMBIAR
+    'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
 # Obliga a usar HTTPS (solo cuando tenga SSL/TLS)

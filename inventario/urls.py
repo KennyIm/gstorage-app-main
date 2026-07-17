@@ -11,6 +11,7 @@ urlpatterns = [
     path('mercancias/', views.MercanciaListCreateAPI.as_view(), name='api-mercancia-list-create'),
     path('mercancias/<int:pk>/', views.MercanciaDetailAPI.as_view(), name='api-mercancia-detail'),
     path('mercancias/asignar_masivo/', views.MercanciaAsignarMasivoAPI.as_view(), name='mercancias-asignar-masivo'),
+    path('mercancias/bulk-update-orden/', views.MercanciaBulkUpdateOrdenAPIView.as_view(), name='mercancias_bulk_update_orden'),
 
     # --- Endpoints de Despacho ---
     path('despachos/', views.DespachoListCreateAPI.as_view(), name='api-despacho-list-create'),
@@ -65,6 +66,7 @@ urlpatterns = [
     path('cotizaciones/', views.CotizacionListCreateAPI.as_view(), name='cotizaciones-list-create'),
     path('cotizaciones/<int:pk>/', views.CotizacionRetrieveUpdateDestroyAPI.as_view(), name='cotizaciones-detail'),
     path('cotizaciones/<int:id_cotizacion>/invitar/', views.InvitarColaboradorCotizacionAPI.as_view(), name='cotizacion-invitar-colaborador'),
+
 
 
 

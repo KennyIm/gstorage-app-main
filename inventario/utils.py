@@ -8,6 +8,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.forms.models import model_to_dict
 import json
 import math
+from collections import defaultdict
 
 def actualizar_estados_automaticos(empresa):
     now = timezone.now()
@@ -178,20 +179,23 @@ def generar_numeros_orden_despacho(despacho):
     
     orden_index = 1
     mercancias_a_actualizar = []
-
-    def procesar_lista(lista_cargas, es_proveedor, es_alternativa, index_actual, destino_nombre):
+    def procesar_lista(lista_cargas, es_proveedor, es_alternativa, index_actual, destino_nombre, prov_idx=0):
         if not lista_cargas:
             return
             
         destino_upper = str(destino_nombre).strip().upper() if destino_nombre else 'I'
-        
         if destino_upper == 'CALAMA':
             inicial_destino = 'CA'
         else:
             inicial_destino = destino_upper[0] if destino_upper else 'I'
 
         sufijo_alt = "-A" if es_alternativa else ""
-        sufijo_prov = "-P" if es_proveedor else ""
+        
+        if es_proveedor:
+            sufijo_prov = "-P" if prov_idx == 0 else f"-P{prov_idx}"
+        else:
+            sufijo_prov = ""
+            
         sufijo_final = f"{sufijo_alt}{sufijo_prov}"
         
         total_items = len(lista_cargas)
@@ -214,11 +218,23 @@ def generar_numeros_orden_despacho(despacho):
             continue
             
         destino_str = getattr(todas[0].id_destino, 'nombre_ciudad', 'Iquique')
-        
         procesar_lista(data['normales'], False, False, orden_index, destino_str)
-        procesar_lista(data['proveedor'], True, False, orden_index, destino_str)
+        prov_normales_grupos = defaultdict(list)
+        for m in data['proveedor']:
+            p_id = m.id_proveedor_id or 0
+            prov_normales_grupos[p_id].append(m)
+            
+        for p_idx, p_id in enumerate(sorted(prov_normales_grupos.keys())):
+            procesar_lista(prov_normales_grupos[p_id], True, False, orden_index, destino_str, prov_idx=p_idx)
         procesar_lista(data['normales_alt'], False, True, orden_index, destino_str)
-        procesar_lista(data['proveedor_alt'], True, True, orden_index, destino_str)
+        
+        prov_alt_grupos = defaultdict(list)
+        for m in data['proveedor_alt']:
+            p_id = m.id_proveedor_id or 0
+            prov_alt_grupos[p_id].append(m)
+            
+        for p_idx, p_id in enumerate(sorted(prov_alt_grupos.keys())):
+            procesar_lista(prov_alt_grupos[p_id], True, True, orden_index, destino_str, prov_idx=p_idx)
         
         orden_index += 1
 

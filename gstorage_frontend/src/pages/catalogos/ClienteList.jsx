@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import apiClient from '../../services/api'
+import apiClient, { limpiarCacheCatalogos } from '../../services/api'
 import { Link } from 'react-router-dom'
 import { useUI } from '../../context/UIContext'
 import {
@@ -84,7 +84,7 @@ export default function ClientsCatalog() {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
   const paginatedClients = filteredClients.slice(startIndex, startIndex + ITEMS_PER_PAGE)
 
-  // --- HANDLERS (MODAL) ---
+  // --- HANDLERS ---
   const handleOpenModal = (client = null) => {
     setError(null)
     if (client) {
@@ -107,7 +107,7 @@ export default function ClientsCatalog() {
         activo: client.activo !== undefined ? client.activo : true
       })
     } else {
-      setEditingClient(null)  
+      setEditingClient(null)
       setSinRut(false)
       setFormData({
         nombre_cliente: '',
@@ -175,8 +175,11 @@ export default function ClientsCatalog() {
         await apiClient.post('/api/inventario/clientes/', cleanData)
         showToast('Registro creado con éxito', 'success')
       }
+
+      limpiarCacheCatalogos()
+
       handleCloseModal()
-      fetchClients()
+      fetchClients() 
     } catch (err) {
       console.error(err)
       const errorData = err.response?.data
@@ -184,7 +187,7 @@ export default function ClientsCatalog() {
 
       showToast(
         esRutDuplicado
-          ? 'El RUT ingresado ya existe en el sistema.'
+          ? 'El RUT ingresado ya existe del sistema.'
           : 'Error al guardar el cliente.',
         'error'
       )

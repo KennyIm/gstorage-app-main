@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import apiClient from '../services/api'
 import logomedalla from '../assets/logomedalla.png'
 import { useReactToPrint } from 'react-to-print'
 import { Printer, ArrowLeft, Truck, Calendar, User, MapPin } from 'lucide-react'
+import { useUI } from '../context/UIContext'
 
 export default function OrdenEntregaPlantilla() {
     document.title = "Ordenes - GStorage"
@@ -20,6 +21,8 @@ export default function OrdenEntregaPlantilla() {
     const [ramplas, setRamplas] = useState([])
     const [rutas, setRutas] = useState([])
     const [comunaImpresion, setComunaImpresion] = useState('TODAS')
+    const [filtroRut, setFiltroRut] = useState('')
+    const { showLoader, hideLoader, showToast } = useUI()
 
     const TASA_IVA = 0.19
     const ITEMS_POR_PAGINA = 5
@@ -30,7 +33,7 @@ export default function OrdenEntregaPlantilla() {
                 setLoading(true)
                 const [despachoRes, mercanciasRes, clientesRes, proveedoresRes, camionesRes, ramplasRes, rutasRes] = await Promise.all([
                     apiClient.get(`/api/inventario/despachos/${id}/`),
-                    apiClient.get('/api/inventario/mercancias/'),
+                    apiClient.get(`/api/inventario/mercancias/?id_despacho=${id}&page_size=200`),
                     apiClient.get('/api/inventario/clientes/'),
                     apiClient.get('/api/inventario/proveedores/'),
                     apiClient.get('/api/inventario/camiones/'),
@@ -47,7 +50,9 @@ export default function OrdenEntregaPlantilla() {
                 setRamplas(ramplasRes.data)
                 setRutas(rutasRes.data)
 
-                const mercanciasDelViaje = mercanciasRes.data.filter(carga =>
+                const dataNativaMercancias = mercanciasRes.data.results || mercanciasRes.data;
+
+                const mercanciasDelViaje = dataNativaMercancias.filter(carga =>
                     String(carga.despacho) === String(id) || String(carga.id_despacho) === String(id)
                 )
 
@@ -87,12 +92,11 @@ export default function OrdenEntregaPlantilla() {
                     const infoGrupo = gruposPorClienteYDestino[claveGrupo]
                     const cargasTotales = infoGrupo.cargas
                     const cargasCliente = cargasTotales.filter(c => !c.paga_proveedor)
-                    const cargasProveedor = cargasTotales.filter(c => c.paga_proveedor)
                     const clienteObj = clientesData.find(c => String(c.id_cliente) === String(cargasTotales[0].id_cliente)) || {}
                     const clienteNombre = cargasTotales[0].cliente_nombre || 'Sin Cliente'
                     const destino = cargasTotales[0].destino_nombre || 'No especificado'
 
-                    const procesarChunks = (cargas, esPagaProveedor) => {
+                    const procesarChunks = (cargas, esPagaProveedor, provIdx = 0) => {
                         if (cargas.length === 0) return
                         const totalNeto = cargas.reduce((sum, c) => sum + (parseFloat(c.precio_total) || 0), 0)
                         const iva = totalNeto * TASA_IVA
@@ -113,13 +117,25 @@ export default function OrdenEntregaPlantilla() {
                                 totalPaginas: totalPaginas,
                                 esUltimaPaginaDelCliente: numPaginaActual === totalPaginas,
                                 esPagaProveedor: esPagaProveedor,
+                                provIdx: provIdx,
                                 esAlternativa: infoGrupo.esAlternativa,
                                 direccionAlternativa: infoGrupo.direccionUsada,
                             })
                         }
                     }
                     procesarChunks(cargasCliente, false)
-                    procesarChunks(cargasProveedor, true)
+                    const cargasProveedorTodas = cargasTotales.filter(c => c.paga_proveedor)
+                    const provGruposJS = {}
+
+                    cargasProveedorTodas.forEach(carga => {
+                        const pId = carga.id_proveedor_id || carga.id_proveedor || 0
+                        if (!provGruposJS[pId]) provGruposJS[pId] = []
+                        provGruposJS[pId].push(carga)
+                    })
+                    const sortedProvIds = Object.keys(provGruposJS).sort((a, b) => Number(a) - Number(b))
+                    sortedProvIds.forEach((pId, index) => {
+                        procesarChunks(provGruposJS[pId], true, index)
+                    })
                 })
 
                 setPaginas(paginasCalculadas)
@@ -194,7 +210,42 @@ export default function OrdenEntregaPlantilla() {
             alert("Hubo un error al generar las órdenes.");
             setLoading(false);
         }
-    };
+    }
+
+    const handleUpdateCodigoOrden = async (inputElement, codigoOriginal, cargasHoja) => {
+        const nuevoCodigo = inputElement.value.trim()
+
+        const codigoActual = inputElement.getAttribute('data-actual') || codigoOriginal
+        if (!nuevoCodigo || nuevoCodigo === '' || nuevoCodigo === codigoActual) return
+
+        const idsMercancias = cargasHoja.map(m => m.id || m.id_mercancia)
+        if (idsMercancias.length === 0) return
+
+        try {
+            if (typeof showLoader === 'function') showLoader()
+
+            await apiClient.post('/api/inventario/mercancias/bulk-update-orden/', {
+                ids: idsMercancias,
+                nuevo_codigo_orden: nuevoCodigo
+            })
+            inputElement.setAttribute('data-actual', nuevoCodigo)
+
+            if (typeof showToast === 'function') {
+                showToast(`Número de orden actualizado a ${nuevoCodigo}.`, 'success')
+            }
+
+            if (typeof fetchData === 'function') fetchData()
+
+        } catch (error) {
+            console.error("Error al guardar la orden manual:", error)
+            if (typeof showToast === 'function') {
+                showToast('Error al conectar con el servidor de Transportes Medalla.', 'error')
+            }
+        } finally {
+            if (typeof hideLoader === 'function') hideLoader()
+        }
+    }
+
     const generarPDF = useReactToPrint({
         contentRef: componenteRef,
         documentTitle: `Orden_Entrega_Ruta_${getCodigoRuta(id)}_${comunaImpresion}`,
@@ -252,11 +303,11 @@ export default function OrdenEntregaPlantilla() {
 
     return (
         <div className="bg-slate-200 min-h-screen p-4 sm:p-8 text-slate-900 font-sans print:p-0 print:bg-white">
-            <div className="max-w-4xl mx-auto mb-6 flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100 print:hidden">
+            <div className="max-w-5xl mx-auto mb-6 flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100 print:hidden">
                 <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-600 hover:text-indigo-600 font-medium transition flex-shrink-0">
                     <ArrowLeft className="w-5 h-5" /> Volver al Despacho
                 </button>
-                <div className="flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-1.5 bg-slate-50 w-full md:w-auto justify-between md:justify-start">
+                <div className="flex items-center gap-2 rounded-xl px-3 py-1.5 w-full md:w-auto justify-between md:justify-start">
                     <select
                         value={comunaImpresion}
                         onChange={(e) => setComunaImpresion(e.target.value)}
@@ -268,6 +319,13 @@ export default function OrdenEntregaPlantilla() {
                         <option value="COPIAPO">COPIAPÓ</option>
                         <option value="ZONA_ANTOFAGASTA">ZONA ANTOFAGASTA</option>
                     </select>
+                    <input
+                        type="text"
+                        placeholder="Buscar por RUT..."
+                        value={filtroRut}
+                        onChange={(e) => setFiltroRut(e.target.value)}
+                        className="text-xs bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-44 h-9 font-bold tracking-wide"
+                    />
                 </div>
 
                 <div className="flex items-center gap-2 flex-shrink-0 w-full md:w-auto justify-end">
@@ -285,22 +343,31 @@ export default function OrdenEntregaPlantilla() {
             <div ref={componenteRef} className="print:w-[210mm] mx-auto text-slate-900 print:bg-white print:text-black">
                 {(() => {
                     const normalizarTexto = (text) => (text || '').toUpperCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
                     const paginasFiltradas = paginas.filter(pagina => {
-                        if (comunaImpresion === 'TODAS') return true;
-
-                        const destinoLimpio = normalizarTexto(pagina.destino);
-
-                        if (comunaImpresion === 'ZONA_ANTOFAGASTA') {
-                            return ['ANTOFAGASTA', 'MEJILLONES', 'CALAMA', 'TOCOPILLA'].includes(destinoLimpio);
+                        let cumpleComuna = true;
+                        if (comunaImpresion !== 'TODAS') {
+                            const destinoLimpio = normalizarTexto(pagina.destino);
+                            if (comunaImpresion === 'ZONA_ANTOFAGASTA') {
+                                cumpleComuna = ['ANTOFAGASTA', 'MEJILLONES', 'CALAMA', 'TOCOPILLA'].includes(destinoLimpio);
+                            } else {
+                                cumpleComuna = (destinoLimpio === normalizarTexto(comunaImpresion));
+                            }
                         }
-                        return destinoLimpio === normalizarTexto(comunaImpresion);
+                        let cumpleRut = true;
+                        if (filtroRut.trim() !== '') {
+                            const terminoLimpio = filtroRut.toLowerCase().replace(/[^0-9kK]/g, '');
+                            const rutCliente = pagina.clienteObj?.rut_cliente || pagina.clienteObj?.rut || pagina.cargas?.[0]?.rut_cliente || '';
+                            const rutLimpio = String(rutCliente).toLowerCase().replace(/[^0-9kK]/g, '');
+                            cumpleRut = rutLimpio.includes(terminoLimpio);
+                        }
+
+                        return cumpleComuna && cumpleRut;
                     });
 
                     if (paginasFiltradas.length === 0) {
                         return (
                             <div className="max-w-4xl mx-auto bg-white p-12 text-center rounded-2xl shadow border border-slate-200 text-slate-400 font-semibold print:hidden">
-                                No se encontraron registros de carga para la zona especificada: "{comunaImpresion}".
+                                No se encontraron registros de carga para los criterios especificados.
                             </div>
                         );
                     }
@@ -309,13 +376,13 @@ export default function OrdenEntregaPlantilla() {
                         const codigoOrden = pagina.cargas.length > 0 ? pagina.cargas[0].numero_orden_entrega : 'Sin N/O';
                         const idUnicoHoja = pagina.cargas.length > 0 ? pagina.cargas[0].id_mercancia : index;
                         const destinoNombre = pagina.destino || '';
-                        const ciudadSecundaria = pagina.clienteObj.ciudad2 || '';
+                        const citySecundaria = pagina.clienteObj.ciudad2 || '';
                         const ciudadMostrar = destinoNombre || 'Sin ciudad';
                         let direccionMostrar = pagina.clienteObj.direccion || 'Sin dirección';
                         if (pagina.esAlternativa && pagina.direccionAlternativa) {
                             direccionMostrar = pagina.direccionAlternativa;
                         }
-                        else if (ciudadSecundaria && destinoNombre.toLowerCase().includes(ciudadSecundaria.toLowerCase())) {
+                        else if (citySecundaria && destinoNombre.toLowerCase().includes(citySecundaria.toLowerCase())) {
                             direccionMostrar = pagina.clienteObj.direccion2 || direccionMostrar;
                         }
 
@@ -348,7 +415,6 @@ export default function OrdenEntregaPlantilla() {
                                                     <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Orden de Entrega</h1>
                                                 </div>
                                                 <div>
-                                                    {/*GLOSA*/}
                                                     <p className="mt-0.5 text-[7px] text-slate-900 font-medium leading-tight m-0 p-0 text-center whitespace-nowrap">
                                                     </p>
                                                 </div>
@@ -373,7 +439,13 @@ export default function OrdenEntregaPlantilla() {
                                                         type="text"
                                                         defaultValue={codigoOrden}
                                                         placeholder="N/R"
-                                                        className="w-16 h-6 bg-white border border-slate-300 rounded text-center focus:outline-none text-[11px] font-bold text-slate-900"
+                                                        className="w-16 h-6 bg-white border border-slate-300 rounded text-center focus:outline-none text-[10px] font-bold text-slate-900 focus:ring-2 focus:ring-red-800 transition-all"
+                                                        onBlur={(e) => handleUpdateCodigoOrden(e.target, codigoOrden, pagina.cargas)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.target.blur();
+                                                            }
+                                                        }}
                                                     />
                                                 </div>
                                                 <div className="flex items-center justify-end gap-1.5 text-xs font-semibold text-slate-900 pt-1 mt-1">
@@ -394,8 +466,8 @@ export default function OrdenEntregaPlantilla() {
                                         <div className="w-3/4 pr-2">
                                             <div className="flex flex-wrap items-baseline gap-x-2 mb-1">
                                                 <h2 className="text-base font-black text-slate-900 leading-tight break-words">{pagina.clienteNombre}</h2>
-                                                <span className="text-[10px] font-semibold text-slate-900 whitespace-nowrap">RUT: {pagina.clienteObj.rut_cliente || 'N/R'}</span>
-                                                <span className="text-[10px] font-semibold text-slate-900 whitespace-nowrap">Tel: {pagina.clienteObj.telefono_contacto || pagina.clienteObj.celular || 'N/R'}</span>
+                                                <span className="text-[10px] font-semibold text-slate-900 whitespace-nowrap">RUT: {pagina.clienteObj?.rut_cliente || pagina.clienteObj?.rut || 'N/R'}</span>
+                                                <span className="text-[10px] font-semibold text-slate-900 whitespace-nowrap">Tel: {pagina.clienteObj?.telefono_contacto || pagina.clienteObj?.celular || 'N/R'}</span>
                                             </div>
                                             <div className="flex flex-wrap items-start gap-x-4 gap-y-1 text-[10px] font-medium text-slate-600">
                                                 <p className="flex items-start gap-1 flex-1 min-w-[50%]">
@@ -431,8 +503,8 @@ export default function OrdenEntregaPlantilla() {
                                                 {pagina.cargas.map((carga) => {
                                                     const peso = parseFloat(carga.kg || 0);
                                                     const volumen = parseFloat(carga.m3 || 0);
-                                                    const precioKg = parseFloat(pagina.clienteObj.precio_kg || 0);
-                                                    const precioM3 = parseFloat(pagina.clienteObj.precio_m3 || 0);
+                                                    const precioKg = parseFloat(pagina.clienteObj?.precio_kg || 0);
+                                                    const precioM3 = parseFloat(pagina.clienteObj?.precio_m3 || 0);
                                                     const costoPorPeso = peso * precioKg;
                                                     const costoPorVolumen = volumen * precioM3;
                                                     const cobroPorM3 = costoPorVolumen > costoPorPeso;
@@ -484,13 +556,47 @@ export default function OrdenEntregaPlantilla() {
                                         </table>
                                     </div>
                                     <div className="mt-4 pt-4 border-t border-slate-100 shrink-0">
-                                        <div className="flex justify-between items-end w-full">
+                                        <div className="flex justify-between items-end w-full gap-4">
                                             <div className="text-center w-72 mb-1">
                                                 <div className="border-t-2 border-slate-400 pt-1.5">
                                                     <p className="font-bold text-[9px] text-slate-900 uppercase">Recibe Conforme, Nombre, RUT, Firma y Fecha</p>
                                                 </div>
                                             </div>
+                                            <div className="border border-slate-400 rounded-md py-1 px-2 w-72 text-[9px] text-slate-900 font-semibold bg-white mb-1 shrink-0">
+                                                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                                                    <div className="flex items-center gap-1.5 w-full">
+                                                        <span className="shrink-0">Efectivo</span>
+                                                        <div className="w-2.5 h-2.5 border border-slate-900 rounded-sm shrink-0"></div>
+                                                        <div className="flex-1 border-b border-slate-400 h-2"></div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 w-full">
+                                                        <span className="shrink-0">Vale Vista</span>
+                                                        <div className="w-2.5 h-2.5 border border-slate-900 rounded-sm shrink-0"></div>
+                                                        <div className="flex-1 border-b border-slate-400 h-2"></div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 w-full">
+                                                        <span className="shrink-0">Transferencia</span>
+                                                        <div className="w-2.5 h-2.5 border border-slate-900 rounded-sm shrink-0"></div>
+                                                        <div className="flex-1 border-b border-slate-400 h-2"></div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 w-full">
+                                                        <span className="shrink-0">Cheque</span>
+                                                        <div className="w-2.5 h-2.5 border border-slate-900 rounded-sm shrink-0"></div>
+                                                        <div className="flex-1 border-b border-slate-400 h-2"></div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 w-full">
+                                                        <span className="shrink-0">Credito</span>
+                                                        <div className="w-2.5 h-2.5 border border-slate-900 rounded-sm shrink-0"></div>
+                                                        <div className="flex-1 border-b border-slate-400 h-2"></div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 w-full">
+                                                        <span className="shrink-0">Orden de Compra</span>
+                                                        <div className="w-2.5 h-2.5 border border-slate-900 rounded-sm shrink-0"></div>
+                                                        <div className="flex-1 border-b border-slate-400 h-2 min-w-[35px]"></div>
+                                                    </div>
 
+                                                </div>
+                                            </div>
                                             <div className="w-48 text-right">
                                                 {pagina.esUltimaPaginaDelCliente ? (
                                                     <div className="border-t border-slate-200 pt-2">
@@ -510,9 +616,9 @@ export default function OrdenEntregaPlantilla() {
                                                     </p>
                                                 )}
                                             </div>
+
                                         </div>
                                     </div>
-
                                 </div>
                             </React.Fragment>
                         );

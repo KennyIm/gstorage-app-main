@@ -177,7 +177,7 @@ export default function CotizacionCreate() {
     }
 
     const formatearRUT = (rut) => {
-        if (!rut) return 'Sin RUT'
+        if (!rut) return ''
         let valor = rut.replace(/\./g, '').replace(/-/g, '').trim()
 
         if (valor.length < 2) return valor
@@ -198,8 +198,6 @@ export default function CotizacionCreate() {
     return (
         <div className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8 font-sans">
             <div className="max-w-4xl mx-auto">
-
-                {/* ENCABEZADO */}
                 <div className="mb-8 flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-black text-slate-900 tracking-tight">Nueva Cotización</h1>
@@ -211,8 +209,6 @@ export default function CotizacionCreate() {
 
                 <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
                     <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-8">
-
-                        {/* SECCIÓN 1: CLIENTE */}
                         <div>
                             <h3 className="text-sm font-bold text-red-800 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
                                 <User className="w-5 h-5" /> Datos del Cliente
@@ -319,8 +315,6 @@ export default function CotizacionCreate() {
                                 </div>
                             </div>
                         </div>
-
-                        {/* SECCIÓN 2: PROVEEDOR */}
                         <div>
                             <h3 className="text-sm font-bold text-red-800 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
                                 <Truck className="w-5 h-5" /> Datos del Proveedor
@@ -369,8 +363,6 @@ export default function CotizacionCreate() {
                                 </div>
                             </div>
                         </div>
-
-                        {/* SECCIÓN 3: ESPECIFICACIONES DE CARGA */}
                         <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
                             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-slate-200 pb-2">
                                 <Package className="w-5 h-5" /> Especificaciones de la Carga
@@ -473,8 +465,6 @@ export default function CotizacionCreate() {
 
                             </div>
                         </div>
-
-                        {/* ACCIONES */}
                         <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-200">
                             <Link
                                 to="/cotizaciones"

@@ -1,66 +1,66 @@
-import React, { useState, useEffect } from 'react';
-import apiClient from '../../services/api';
-import { Link } from 'react-router-dom';
-import { useUI } from '../../context/UIContext';
+import React, { useState, useEffect } from 'react'
+import apiClient, { limpiarCacheCatalogos } from '../../services/api'
+import { Link } from 'react-router-dom'
+import { useUI } from '../../context/UIContext'
 import {
     Search, Plus, Edit, Trash2, User, Building,
     Mail, Phone, X, Briefcase, CreditCard, AlertCircle
     , ChevronLeft, ChevronRight, ArrowLeft, CheckCircle,
     XCircle, Loader2
-} from 'lucide-react';
+} from 'lucide-react'
 
 import {
     normalizePhone,
     normalizeEmail,
     normalizeName
-} from '../../utils/normalization';
+} from '../../utils/normalization'
 
 const formatRUT = (rut) => {
-    let value = rut.replace(/[^0-9kK]/g, '').toUpperCase();
-    if (value.length <= 1) return value;
-    const body = value.slice(0, -1);
-    const dv = value.slice(-1);
-    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    return `${formattedBody}-${dv}`;
-};
+    let value = rut.replace(/[^0-9kK]/g, '').toUpperCase()
+    if (value.length <= 1) return value
+    const body = value.slice(0, -1)
+    const dv = value.slice(-1)
+    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+    return `${formattedBody}-${dv}`
+}
 
 const isValidRUT = (rut) => {
-    const cleanRUT = rut.replace(/[^0-9kK]/g, '').toUpperCase();
-    if (cleanRUT.length < 7) return false;
-    const body = cleanRUT.slice(0, -1);
-    const dv = cleanRUT.slice(-1);
-    let sum = 0;
-    let multiplier = 2;
+    const cleanRUT = rut.replace(/[^0-9kK]/g, '').toUpperCase()
+    if (cleanRUT.length < 7) return false
+    const body = cleanRUT.slice(0, -1)
+    const dv = cleanRUT.slice(-1)
+    let sum = 0
+    let multiplier = 2
     for (let i = body.length - 1; i >= 0; i--) {
-        sum += parseInt(body.charAt(i)) * multiplier;
-        multiplier = multiplier === 7 ? 2 : multiplier + 1;
+        sum += parseInt(body.charAt(i)) * multiplier
+        multiplier = multiplier === 7 ? 2 : multiplier + 1
     }
-    const expectedDV = 11 - (sum % 11);
-    const finalDV = expectedDV === 11 ? '0' : expectedDV === 10 ? 'K' : expectedDV.toString();
-    return dv === finalDV;
-};
+    const expectedDV = 11 - (sum % 11)
+    const finalDV = expectedDV === 11 ? '0' : expectedDV === 10 ? 'K' : expectedDV.toString()
+    return dv === finalDV
+}
 
 export default function Proveedores() {
 
-    document.title = "Gestión de Proveedores - GStorage";
-    const [proveedores, setProveedores] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const { showLoader, hideLoader, showToast } = useUI();
+    document.title = "Gestión de Proveedores - GStorage"
+    const [proveedores, setProveedores] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(null)
+    const [searchTerm, setSearchTerm] = useState('')
+    const { showLoader, hideLoader, showToast } = useUI()
     const [sinRut, setSinRut] = useState(false)
 
 
-    const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 10;
+    const [currentPage, setCurrentPage] = useState(1)
+    const ITEMS_PER_PAGE = 10
 
     useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm]);
+        setCurrentPage(1)
+    }, [searchTerm])
 
-    const [showModal, setShowModal] = useState(false);
-    const [editingProveedor, setEditingProveedor] = useState(null);
-    const [submitting, setSubmitting] = useState(false);
+    const [showModal, setShowModal] = useState(false)
+    const [editingProveedor, setEditingProveedor] = useState(null)
+    const [submitting, setSubmitting] = useState(false)
 
     const [formData, setFormData] = useState({
         rut: '',
@@ -69,41 +69,41 @@ export default function Proveedores() {
         correo: '',
         telefono: '',
         activo: true
-    });
+    })
 
     const fetchProveedores = async () => {
-        setLoading(true);
+        setLoading(true)
         try {
-            const response = await apiClient.get('/api/inventario/proveedores/');
-            setProveedores(response.data);
-            setError(null);
+            const response = await apiClient.get('/api/inventario/proveedores/')
+            setProveedores(response.data)
+            setError(null)
         } catch (err) {
-            console.error(err);
-            showToast('Error al cargar la lista de proveedores.', 'error');
+            console.error(err)
+            showToast('Error al cargar la lista de proveedores.', 'error')
         } finally {
-            setLoading(false);
+            setLoading(false)
         }
-    };
+    }
 
     useEffect(() => {
-        fetchProveedores();
-    }, []);
+        fetchProveedores()
+    }, [])
 
     const filteredProveedores = proveedores.filter(prov => {
-        const term = searchTerm.toLowerCase();
+        const term = searchTerm.toLowerCase()
         return (
             prov.nombre_proveedor?.toLowerCase().includes(term) ||
             prov.rut?.toLowerCase().includes(term) ||
             prov.contacto?.toLowerCase().includes(term)
-        );
-    });
+        )
+    })
 
-    const totalPages = Math.ceil(filteredProveedores.length / ITEMS_PER_PAGE);
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    const paginatedProveedores = filteredProveedores.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    const totalPages = Math.ceil(filteredProveedores.length / ITEMS_PER_PAGE)
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+    const paginatedProveedores = filteredProveedores.slice(startIndex, startIndex + ITEMS_PER_PAGE)
 
     const handleOpenModal = (proveedor = null) => {
-        setError(null);
+        setError(null)
         if (proveedor) {
             setEditingProveedor(proveedor)
             const tieneRutVacio = !proveedor.rut || proveedor.rut.trim() === ''
@@ -115,9 +115,9 @@ export default function Proveedores() {
                 correo: proveedor.correo || '',
                 telefono: proveedor.telefono || '',
                 activo: proveedor.activo
-            });
+            })
         } else {
-            setEditingProveedor(null);
+            setEditingProveedor(null)
             setSinRut(false)
             setFormData({
                 rut: '',
@@ -126,24 +126,24 @@ export default function Proveedores() {
                 correo: '',
                 telefono: '',
                 activo: true
-            });
+            })
         }
-        setShowModal(true);
-    };
+        setShowModal(true)
+    }
 
     const handleCloseModal = () => {
-        setShowModal(false);
-        setEditingProveedor(null);
-    };
+        setShowModal(false)
+        setEditingProveedor(null)
+    }
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!sinRut && !isValidRUT(formData.rut)) {
-            setError('El RUT ingresado no es válido.');
-            return;
+            setError('El RUT ingresado no es válido.')
+            return
         }
-        showLoader();
-        setSubmitting(true);
+        showLoader()
+        setSubmitting(true)
 
         const cleanData = {
             ...formData,
@@ -152,7 +152,7 @@ export default function Proveedores() {
             contacto: normalizeName(formData.contacto),
             correo: normalizeEmail(formData.correo),
             telefono: formData.telefono,
-        };
+        }
 
         try {
             if (editingProveedor) {
@@ -162,22 +162,22 @@ export default function Proveedores() {
                 await apiClient.post('/api/inventario/proveedores/', cleanData);
                 showToast('Registro creado con éxito', 'success');
             }
-            await fetchProveedores();
-            handleCloseModal();
+            limpiarCacheCatalogos() 
+            await fetchProveedores()
+            handleCloseModal()
         } catch (err) {
-            console.error(err);
-            const errorData = err.response?.data;
-            const esRutDuplicado = errorData?.rut || errorData?.rut_hash || errorData?.non_field_errors;
-
+            console.error(err)
+            const errorData = err.response?.data
+            const esRutDuplicado = errorData?.rut || errorData?.rut_hash || errorData?.non_field_errors
             showToast(
                 esRutDuplicado
                     ? 'El RUT ingresado ya existe en el sistema.'
                     : 'Error al guardar el proveedor.',
                 'error'
-            );
+            )
         } finally {
-            setSubmitting(false);
-            hideLoader();
+            setSubmitting(false)
+            hideLoader()
         }
     }
 
@@ -193,22 +193,22 @@ export default function Proveedores() {
             fetchProveedores()
         } catch (err) {
             console.error(err)
-            showToast('Error al cambiar el estado.', 'error');
+            showToast('Error al cambiar el estado.', 'error')
         }
-    };
+    }
 
     const getVisiblePages = (current, total) => {
         if (total <= 5) {
-            return Array.from({ length: total }, (_, i) => i + 1);
+            return Array.from({ length: total }, (_, i) => i + 1)
         }
         if (current <= 3) {
-            return [1, 2, 3, 4, 5];
+            return [1, 2, 3, 4, 5]
         }
         if (current >= total - 2) {
-            return [total - 4, total - 3, total - 2, total - 1, total];
+            return [total - 4, total - 3, total - 2, total - 1, total]
         }
-        return [current - 2, current - 1, current, current + 1, current + 2];
-    };
+        return [current - 2, current - 1, current, current + 1, current + 2]
+    }
 
     if (loading) {
         return (
@@ -216,7 +216,7 @@ export default function Proveedores() {
                 <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
                 <p>Cargando proveedores...</p>
             </div>
-        );
+        )
     }
 
     return (

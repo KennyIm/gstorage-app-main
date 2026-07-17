@@ -12,8 +12,9 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
 from inventario.models import HistorialMovimientos
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -23,6 +24,7 @@ import io
 import base64
 from cryptography.fernet import Fernet
 from django.core import signing
+from rest_framework.decorators import action
 import copy
 
 
@@ -38,7 +40,8 @@ from .serializers import (
     SucursalSerializer,
     AdminPasswordResetSerializer,
     CustomTokenObtainPairSerializer,
-    Verify2FASerializer
+    Verify2FASerializer,
+    UserMeSerializer
     
 )
 class EmpresaViewSet(viewsets.ModelViewSet):
@@ -110,9 +113,10 @@ class PerfilUpdateView(generics.UpdateAPIView):
         )
 
 
+@action(detail=False, methods=['get'])
 class MeView(generics.RetrieveUpdateAPIView):
     queryset = User.objects.all()
-    serializer_class = UserSerializer
+    serializer_class = UserMeSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
@@ -196,6 +200,7 @@ class EmpresaConfigView(generics.RetrieveUpdateAPIView):
 class SucursalListAPI(generics.ListAPIView):
     serializer_class = SucursalSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         usuario = self.request.user
@@ -225,11 +230,29 @@ class AdminResetPasswordView(generics.UpdateAPIView):
             )
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
+
+def set_refresh_cookie(response, refresh_token_string):
+    response.set_cookie(
+        key='refresh_token',
+        value=refresh_token_string,
+        httponly=True,                     # TODO
+        secure=False,                      # CAMBIAR A True EN PRODUCCIÓN CON HTTPS
+        samesite='Lax',                    # Protege contra ataques CSRF
+        max_age=7 * 24 * 60 * 60,
+        path='/',                  
+    )
 
 class LoginThrottleView(TokenObtainPairView):
     throttle_scope = 'login'
     serializer_class = CustomTokenObtainPairSerializer
+    
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200 and 'refresh' in response.data:
+            refresh_token = response.data.pop('refresh')
+            set_refresh_cookie(response, refresh_token)
+        return response
 
 
 class Verify2FAView(APIView):
@@ -248,10 +271,7 @@ class Verify2FAView(APIView):
             user_id = vuelo_data.get('user_id')
             user = User.objects.get(pk=user_id)
         except (signing.SignatureExpired, signing.BadSignature, User.DoesNotExist):
-            return Response(
-                {"error": "La sesión de verificación ha expirado o es inválida."}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "La sesión de verificación ha expirado o es inválida."}, status=status.HTTP_400_BAD_REQUEST)
         
         perfil = user.perfil
         if not perfil.two_factor_secret:
@@ -265,12 +285,49 @@ class Verify2FAView(APIView):
         totp = pyotp.TOTP(secreto_plano)
         if totp.verify(code):
             refresh = RefreshToken.for_user(user)
-            return Response({
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }, status=status.HTTP_200_OK)
+            
+            response = Response({'access': str(refresh.access_token)}, status=status.HTTP_200_OK)
+            set_refresh_cookie(response, str(refresh))
+            return response
             
         return Response({"error": "Código verificador incorrecto."}, status=status.HTTP_400_BAD_REQUEST)
+
+class CustomTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.COOKIES.get('refresh_token')
+        if not refresh_token:
+            return Response({"error": "Falta el token de actualización."}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        serializer = self.get_serializer(data={'refresh': refresh_token})
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as e:
+            raise InvalidToken(e.args[0])
+            
+        res_data = serializer.validated_data
+        response = Response({'access': res_data.get('access')}, status=status.HTTP_200_OK)
+        
+        if 'refresh' in res_data:
+            set_refresh_cookie(response, res_data['refresh'])
+            
+        return response
+
+class CustomLogoutView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        refresh_token = request.COOKIES.get('refresh_token')
+        response = Response({"detail": "Sesión cerrada correctamente."}, status=status.HTTP_200_OK)
+        response.delete_cookie('refresh_token', path='/api/')
+        
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            except Exception:
+                pass 
+                
+        return response
 
 
 class ObtenerQR2FAView(APIView):

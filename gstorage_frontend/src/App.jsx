@@ -85,6 +85,8 @@ import VistaGlobalDespachosCobranza from './pages/VistaGlobalDespachosCobranza'
 
 import Configurar2FA from './components/Configurar2FA'
 
+import FinanzasGrillaExcel from './pages/FinanzasGrillaExcel'
+
 function App() {
   return (
     <Routes>
@@ -168,6 +170,8 @@ function App() {
           <Route path='/dashboard-finanzas' element={<DashboardGeneralFinanzas/>}/>
 
           <Route path='/despachos-cobranza' element={<VistaGlobalDespachosCobranza/>}/>
+
+          <Route path='/grilla-finanzas' element={<FinanzasGrillaExcel/>}/>
         </Route>
       </Route>
     </Routes>

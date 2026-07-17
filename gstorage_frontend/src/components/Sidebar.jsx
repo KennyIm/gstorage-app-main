@@ -1,43 +1,44 @@
-import React, { useState, useEffect } from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react'
+import { NavLink, Link } from 'react-router-dom'
 import { 
   ChevronDown, ChevronRight, LayoutDashboard, Package, 
   Truck, Users, Settings, Menu, X, DollarSign, 
-  UserCircle, LogOut, ShieldCheck, Home, DiamondPlus 
-} from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import apiClient from '../services/api';
-import logoImg from '../assets/logomedalla.png';
+  UserCircle, LogOut, ShieldCheck, Home, DiamondPlus, 
+  BadgeDollarSign
+} from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import apiClient from '../services/api'
+import logoImg from '../assets/logomedalla.png'
 
 export default function Sidebar() {
-  const { user, logoutUser } = useAuth();
-  const [isOpen, setIsOpen] = useState(true);
-  const [openMenus, setOpenMenus] = useState({});
-  const [sucursales, setSucursales] = useState([]);
+  const { user, logoutUser } = useAuth()
+  const [isOpen, setIsOpen] = useState(true)
+  const [openMenus, setOpenMenus] = useState({})
+  const [sucursales, setSucursales] = useState([])
 
-  const userRol = user?.perfil?.rol?.trim() || '';
-  const isAdmin = userRol === 'DUENO' || userRol === 'SECRETARIA';
+  const userRol = user?.perfil?.rol?.trim() || ''
+  const isAdmin = userRol === 'DUENO' || userRol === 'SECRETARIA'
 
   useEffect(() => {
     const fetchSucursales = async () => {
       try {
-        const res = await apiClient.get('/api/usuarios/sucursales/');
-        setSucursales(res.data);
+        const res = await apiClient.get('/api/usuarios/sucursales/')
+        setSucursales(res.data)
       } catch (error) {
-        console.error("Error al traer sucursales", error);
+        console.error("Error al traer sucursales", error)
       }
-    };
-    if (user) fetchSucursales();
-  }, [user]);
+    }
+    if (user) fetchSucursales()
+  }, [user])
 
   const getNombreSucursal = (id) => {
-    const sucursal = sucursales.find(s => String(s.id) === String(id));
-    return sucursal ? sucursal.nombre : `Suc ${id}`;
-  };
+    const sucursal = sucursales.find(s => String(s.id) === String(id))
+    return sucursal ? sucursal.nombre : `Suc ${id}`
+  }
 
   const toggleSubmenu = (menu) => {
-    setOpenMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
-  };
+    setOpenMenus(prev => ({ ...prev, [menu]: !prev[menu] }))
+  }
 
   const menuConfig = [
     { name: 'Inicio', icon: <Home size={20} />, path: '/' },
@@ -65,13 +66,23 @@ export default function Sidebar() {
     },
     { name: 'Clientes', icon: <Users size={20} />, path: '/clientes' },
     { name: 'Cotizaciones', icon: <DiamondPlus size={20}/>, path: '/cotizaciones'},
+    {
+      name : 'Finanzas',
+      icon: <BadgeDollarSign size={20} />,
+      subItems: [
+        {name: 'Facturar', path: '/generar-cobro'},
+        {name: 'Ingresar Pago', path: '/documentos'},
+        {name: 'Ingresar Gasto', path: '/ingreso-gastos'},
+        {name: 'Dashboard', path: '/dashboard-finanzas'},
+        {name: 'Flujo por Ruta', path: '/despachos-cobranza'},
+        {name: 'Perfil de Clientes', path:'/perfil-financiero'},
+      ]
+    },
     { name: 'Gestión Usuarios', icon: <ShieldCheck size={20} />, path: '/gestionar-empleados', show: isAdmin },
-  ];
+  ]
 
   return (
     <div className={`flex flex-col h-screen bg-[#451a1a] text-slate-100 transition-all duration-300 shadow-2xl border-r border-red-900 ${isOpen ? 'w-64' : 'w-20'}`}>
-      
-      {/* --- HEADER --- */}
       <div className="flex items-center justify-between p-4 h-20 border-b border-red-700">
         <Link to="/" className="text-[#ff0000] flex items-center gap-3 overflow-hidden">
           <div className="bg-[#ede1e1] p-1.5 rounded-xl shadow-inner">
@@ -83,9 +94,7 @@ export default function Sidebar() {
           {isOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
       </div>
-
-      {/* --- NAVEGACIÓN --- */}
-      <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-2 custom-scrollbar">
+      <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-[#960018] [&::-webkit-scrollbar-track]:rounded-r-xl [&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-thumb]:rounded-full">
         {menuConfig.map((item) => {
           if (item.show === false) return null;
 
@@ -139,8 +148,6 @@ export default function Sidebar() {
           );
         })}
       </nav>
-
-      {/* --- PANEL DE USUARIO --- */}
       <div className="p-4 bg-[#751111] border-t border-red-700">
         <div className={`flex ${isOpen ? 'flex-row' : 'flex-col'} items-center gap-3`}>
           <Link to="/perfil" className="shrink-0">
@@ -150,8 +157,6 @@ export default function Sidebar() {
               </span>
             </div>
           </Link>
-
-          {/* Info del Usuario */}
           {isOpen && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-black text-white truncate leading-tight">{user?.first_name || user?.username}</p>

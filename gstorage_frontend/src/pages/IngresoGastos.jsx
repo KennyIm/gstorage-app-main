@@ -10,26 +10,27 @@ export default function IngresoGastos() {
   const [proveedores, setProveedores] = useState([])
   const [camiones, setCamiones] = useState([])
   const [conductores, setConductores] = useState([])
+
   const [gastos, setGastos] = useState([])
   const [loading, setLoading] = useState(true)
-
+  const [paginaActual, setPaginaActual] = useState(1)
+  const [totalGastos, setTotalGastos] = useState(0)
+  const itemsPorPagina = 10
 
   const [proveedorBusqueda, setProveedorBusqueda] = useState('')
   const [mostrarDropdownProv, setMostrarDropdownProv] = useState(false)
   const provDropdownRef = React.useRef(null)
-
   const [mostrarModalProv, setMostrarModalProv] = useState(false)
   const [nuevoProv, setNuevoProv] = useState({ nombre_proveedor: '', rut_proveedor: '' })
   const [creandoProv, setCreandoProv] = useState(false)
-
-  const [filtroBusqueda, setFiltroBusqueda] = useState('')
-  const [filtroTipo, setFiltroTipo] = useState('Todos')
-  const [filtroEstado, setFiltroEstado] = useState('Todos')
-
   const [mostrarModalPagar, setMostrarModalPagar] = useState(false)
   const [gastoAPagarId, setGastoAPagarId] = useState(null)
   const [comprobantePago, setComprobantePago] = useState(null)
   const [liquidandoGasto, setLiquidandoGasto] = useState(false)
+
+  const [filtroBusqueda, setFiltroBusqueda] = useState('')
+  const [filtroTipo, setFiltroTipo] = useState('Todos')
+  const [filtroEstado, setFiltroEstado] = useState('Todos')
 
   const [form, setForm] = useState({
     tipo_gasto: 'Combustible',
@@ -46,30 +47,60 @@ export default function IngresoGastos() {
   const [comprobante, setComprobante] = useState(null)
   const [guardando, setGuardando] = useState(false)
 
-  const cargarDatos = async () => {
-    setLoading(true)
-    try {
-      const [resProv, resCam, resCond, resGastos] = await Promise.all([
-        apiClient.get('/api/finanzas/proveedores-gastos/selector/').catch(() => ({ data: [] })),
-        apiClient.get('/api/inventario/camiones/').catch(() => ({ data: [] })),
-        apiClient.get('/api/inventario/conductores/').catch(() => ({ data: [] })),
-        apiClient.get('/api/finanzas/gastos-operativos/')
-      ]);
+  useEffect(() => {
+    const cargarCatalogosIniciales = async () => {
+      try {
+        const [resProv, resCam, resCond] = await Promise.all([
+          apiClient.get('/api/finanzas/proveedores-gastos/selector/').catch(() => ({ data: [] })),
+          apiClient.get('/api/inventario/camiones/').catch(() => ({ data: [] })),
+          apiClient.get('/api/inventario/conductores/').catch(() => ({ data: [] }))
+        ])
+        setProveedores(resProv.data.results || resProv.data)
+        setCamiones(resCam.data.results || resCam.data)
+        setConductores(resCond.data.results || resCond.data)
+      } catch (error) {
+        showToast('Error al sincronizar catálogos operativos.', 'error')
+      }
+    }
+    cargarCatalogosIniciales()
 
-      setProveedores(resProv.data.results || resProv.data)
-      setCamiones(resCam.data.results || resCam.data)
-      setConductores(resCond.data.results || resCond.data)
-      setGastos(resGastos.data.results || resGastos.data)
+    const handleClickOutside = (event) => {
+      if (provDropdownRef.current && !provDropdownRef.current.contains(event.target)) {
+        setMostrarDropdownProv(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const fetchGastosPaginados = async () => {
+    showLoader()
+    try {
+      const params = {
+        page: paginaActual,
+        tipo: filtroTipo,
+        estado: filtroEstado,
+        busqueda: filtroBusqueda
+      }
+      const response = await apiClient.get('/api/finanzas/gastos-operativos/', { params })
+
+      setGastos(response.data.results || [])
+      setTotalGastos(response.data.count || 0)
     } catch (error) {
-      showToast('Error al sincronizar catálogos operativos.', 'error')
+      showToast('Error al obtener el historial de egresos.', 'error')
     } finally {
+      hideLoader()
       setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
-    cargarDatos()
-  }, [])
+    fetchGastosPaginados()
+  }, [paginaActual, filtroTipo, filtroEstado, filtroBusqueda])
+
+  useEffect(() => {
+    setPaginaActual(1)
+  }, [filtroTipo, filtroEstado, filtroBusqueda])
 
   const proveedoresFiltrados = useMemo(() => {
     if (!proveedorBusqueda) return proveedores
@@ -80,39 +111,22 @@ export default function IngresoGastos() {
     );
   }, [proveedores, proveedorBusqueda])
 
-
-  const gastosFiltrados = useMemo(() => {
-    return gastos.filter(g => {
-      const matchTipo = filtroTipo === 'Todos' || g.tipo_gasto === filtroTipo
-      const matchEstado = filtroEstado === 'Todos' || g.estado === filtroEstado
-      const matchBusqueda = !filtroBusqueda ||
-        g.descripcion.toLowerCase().includes(filtroBusqueda.toLowerCase()) ||
-        String(g.numero_documento || '').toLowerCase().includes(filtroBusqueda.toLowerCase()) ||
-        g.proveedor_nombre.toLowerCase().includes(filtroBusqueda.toLowerCase())
-
-      return matchTipo && matchEstado && matchBusqueda
-    })
-  }, [gastos, filtroBusqueda, filtroTipo, filtroEstado])
+  const gastosFiltrados = gastos
+  const totalPaginas = Math.ceil(totalGastos / itemsPorPagina)
 
   const handleChange = (e) => {
     const { name, value } = e.target
-
-    if (name === 'estado' && value === 'Pendiente') {
-      setComprobante(null)
-    }
-
+    if (name === 'estado' && value === 'Pendiente') setComprobante(null)
     setForm({ ...form, [name]: value });
   };
 
   const handleCrearProveedorRapido = async (e) => {
     e.preventDefault()
     if (!nuevoProv.nombre_proveedor.trim()) return;
-
     setCreandoProv(true)
     try {
       const res = await apiClient.post('/api/finanzas/proveedores-gastos/selector/', nuevoProv)
-      showToast('Proveedor registrado e inyectado con éxito.', 'success')
-
+      showToast('Proveedor registrado con éxito.', 'success')
       const nuevoObjeto = res.data
 
       setProveedores(prev => [...prev, nuevoObjeto].sort((a, b) =>
@@ -120,7 +134,6 @@ export default function IngresoGastos() {
       ))
       setForm(prev => ({ ...prev, proveedor: nuevoObjeto.id }))
       setProveedorBusqueda(nuevoObjeto.nombre_proveedor)
-
       setNuevoProv({ nombre_proveedor: '', rut_proveedor: '' })
       setMostrarModalProv(false)
     } catch (error) {
@@ -128,21 +141,17 @@ export default function IngresoGastos() {
     } finally {
       setCreandoProv(false)
     }
-  };
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (parseFloat(form.monto_total) <= 0) {
-      showToast('El monto total debe ser mayor a 0.', 'warning')
-      return
+      showToast('El monto total debe ser mayor a 0.', 'warning'); return;
     }
-
     setGuardando(true)
     showLoader()
-
     try {
       const formData = new FormData()
-
       const datosAEnviar = { ...form }
       if (!['Combustible', 'Peaje', 'Mantenimiento'].includes(form.tipo_gasto)) datosAEnviar.camion_asociado = ''
       if (form.tipo_gasto !== 'Viatico') datosAEnviar.conductor_asociado = ''
@@ -150,7 +159,6 @@ export default function IngresoGastos() {
       Object.keys(datosAEnviar).forEach(key => {
         if (datosAEnviar[key]) formData.append(key, datosAEnviar[key])
       })
-
       if (comprobante) formData.append('comprobante_adjunto', comprobante)
 
       await apiClient.post('/api/finanzas/gastos-operativos/', formData, {
@@ -158,21 +166,15 @@ export default function IngresoGastos() {
       })
 
       showToast('Gasto operativo registrado con éxito.', 'success')
-
       setForm({
         ...form,
-        descripcion: '',
-        proveedor: '',
-        camion_asociado: '',
-        conductor_asociado: '',
-        despacho_asociado: '',
-        numero_documento: '',
-        monto_total: ''
+        descripcion: '', proveedor: '', camion_asociado: '',
+        conductor_asociado: '', despacho_asociado: '', numero_documento: '', monto_total: ''
       })
       setComprobante(null)
-      const resGastos = await apiClient.get('/api/finanzas/gastos-operativos/')
-      setGastos(resGastos.data.results || resGastos.data)
+      setProveedorBusqueda('')
 
+      await fetchGastosPaginados()
     } catch (error) {
       const msg = error.response?.data?.error || 'Error al guardar el egreso.'
       showToast(msg, 'error')
@@ -185,28 +187,22 @@ export default function IngresoGastos() {
   const handleConfirmarPagoGasto = async (e) => {
     e.preventDefault()
     if (!gastoAPagarId) return
-
     setLiquidandoGasto(true)
     showLoader()
-
     try {
       const formData = new FormData()
-      if (comprobantePago) {
-        formData.append('comprobante_adjunto', comprobantePago)
-      }
+      if (comprobantePago) formData.append('comprobante_adjunto', comprobantePago)
 
       await apiClient.patch(`/api/finanzas/gastos-operativos/${gastoAPagarId}/pagar/`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
 
-      showToast('Gasto liquidado y cerrado con éxito.', 'success')
-
+      showToast('Gasto liquidado con éxito.', 'success')
       setMostrarModalPagar(false)
       setGastoAPagarId(null)
       setComprobantePago(null)
 
-      const resGastos = await apiClient.get('/api/finanzas/gastos-operativos/')
-      setGastos(resGastos.data.results || resGastos.data)
+      await fetchGastosPaginados()
     } catch (error) {
       const msg = error.response?.data?.error || 'No se pudo liquidar el gasto.'
       showToast(msg, 'error')
@@ -215,16 +211,6 @@ export default function IngresoGastos() {
       hideLoader()
     }
   };
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (provDropdownRef.current && !provDropdownRef.current.contains(event.target)) {
-        setMostrarDropdownProv(false)
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 text-slate-700">
@@ -345,6 +331,37 @@ export default function IngresoGastos() {
                   )}
                 </tbody>
               </table>
+              {totalPaginas > 1 && (
+                <div className="bg-white px-4 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 rounded-b-2xl shadow-sm">
+                  <div>
+                    Mostrando <span className="font-bold text-slate-800">{totalGastos === 0 ? 0 : ((paginaActual - 1) * itemsPorPagina) + 1}</span> al{' '}
+                    <span className="font-bold text-slate-800">
+                      {Math.min(paginaActual * itemsPorPagina, totalGastos)}
+                    </span>{' '}
+                    de <span className="font-bold text-slate-800">{totalGastos}</span> registros de gastos.
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaginaActual(prev => Math.max(prev - 1, 1))}
+                      disabled={paginaActual === 1}
+                      className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-semibold"
+                    >
+                      Anterior
+                    </button>
+                    <span className="font-semibold text-slate-700">Página {paginaActual} de {totalPaginas}</span>
+                    <button
+                      type="button"
+                      onClick={() => setPaginaActual(prev => Math.min(prev + 1, totalPaginas))}
+                      disabled={paginaActual === totalPaginas}
+                      className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-semibold"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

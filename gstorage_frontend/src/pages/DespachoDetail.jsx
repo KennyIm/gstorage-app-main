@@ -55,7 +55,7 @@ export default function DespachoDetail() {
       try {
         const [despachoRes, mercanciasRes, rutasRes, camionesRes, conductoresRes, clientesRes] = await Promise.all([
           apiClient.get(`/api/inventario/despachos/${id}/`),
-          apiClient.get(`/api/inventario/mercancias/?id_despacho=${id}`),
+          apiClient.get(`/api/inventario/mercancias/?id_despacho=${id}&page_size=100`),
           apiClient.get('/api/inventario/rutas/'),
           apiClient.get('/api/inventario/camiones/'),
           apiClient.get('/api/inventario/conductores/'),
@@ -63,7 +63,7 @@ export default function DespachoDetail() {
         ]);
 
         setDespacho(despachoRes.data);
-        setMercancias(mercanciasRes.data);
+        setMercancias(mercanciasRes.data.results || mercanciasRes.data)
         setRutas(rutasRes.data);
         setCamiones(camionesRes.data);
         setConductores(conductoresRes.data);
@@ -112,7 +112,6 @@ export default function DespachoDetail() {
     }
   }, [modalInvitacionOpen, despacho]);
 
-  // --- Helpers para obtener Nombres ---
   const getNombreRuta = (id) => {
     const found = rutas.find(r => r.id_ruta === id);
     return found ? found.codigo_ruta : `Ruta ID: ${id}`;
@@ -174,7 +173,6 @@ export default function DespachoDetail() {
 
   const getIniciales = (nombre) => nombre ? String(nombre).substring(0, 2).toUpperCase() : '??';
 
-  // Helper para colores de estado
   const getStatusStyle = (status) => {
     switch (status) {
       case 'Entregado': return 'bg-green-100 text-green-800 border-green-200';
@@ -205,8 +203,6 @@ export default function DespachoDetail() {
       alert("Hubo un problema al generar la hoja de ruta.");
     }
   };
-
-  // --- RENDERIZADO ---
 
   if (loading) {
     return (
@@ -322,7 +318,7 @@ export default function DespachoDetail() {
                           className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm ${focus ? 'bg-green-50 text-green-700' : 'text-gray-700'
                             }`}
                         >
-                          <Download className="w-4 h-4 text-green-600" /> {/* Cambié a icono genérico de descarga */}
+                          <Download className="w-4 h-4 text-green-600" />
                           Descargar Excel
                         </button>
                       )}

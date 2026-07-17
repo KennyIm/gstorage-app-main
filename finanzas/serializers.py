@@ -1,25 +1,58 @@
 from rest_framework import serializers
 from .models import DocumentoCobro, PagoRecibido, GastoOperativo, ProveedorGasto
 from inventario.models import Mercancia
+from decimal import Decimal
 
 class MercanciaPendienteCobroSerializer(serializers.ModelSerializer):
     cliente_nombre = serializers.CharField(source='id_cliente.nombre_cliente', read_only=True)
+    cliente_rut = serializers.CharField(source='id_cliente.rut_cliente', read_only=True)
+    proveedor_nombre = serializers.CharField(source='id_proveedor.nombre_proveedor', read_only=True)
     destino_nombre = serializers.CharField(source='id_destino.nombre_ciudad', read_only=True)
     despacho_id = serializers.CharField(source='id_despacho.id_despacho', read_only=True)
-    cliente_rut = serializers.CharField(source='id_cliente.rut_cliente', read_only=True)
     codigo_ruta = serializers.CharField(source='id_despacho.id_ruta.codigo_ruta', read_only=True)
-
     fecha_ingreso = serializers.DateTimeField(format="%Y-%m-%d", read_only=True)
     
+    mes = serializers.SerializerMethodField()
+    valor_iva = serializers.SerializerMethodField()
+    venta_final = serializers.SerializerMethodField()
+    numero_documento_asociado = serializers.SerializerMethodField()
+    
+    descuento_autorizado = serializers.DecimalField(max_digits=12, decimal_places=0, default=0, read_only=True)
+    monto_pagado = serializers.DecimalField(max_digits=12, decimal_places=0, default=0, read_only=True)
+    deuda = serializers.SerializerMethodField()
 
     class Meta:
         model = Mercancia
         fields = [
-            'id_mercancia', 'cliente_nombre', 'id_cliente', 'destino_nombre',
-            'despacho_id', 'cantidad_bultos', 'kg', 'm3','cliente_rut',
-            'precio_total', 'tipo_documento_pago', 'fecha_ingreso', 'codigo_ruta',
-            'numero_orden_entrega',
+            'id_mercancia', 'mes', 'fecha_ingreso', 'codigo_ruta', 'despacho_id',
+            'numero_orden_entrega', 'factura', 'id_cliente', 'cliente_nombre', 'cliente_rut',
+            'proveedor_nombre', 'destino_nombre', 'cantidad_bultos', 
+            'kg', 'm3', 'precio_total', 'descuento_autorizado', 'valor_iva', 'venta_final',
+            'monto_pagado', 'deuda', 'paga_proveedor', 'tipo_documento_pago',
+            'estado_cobranza', 'numero_documento_asociado'
         ]
+
+    def get_mes(self, obj):
+        if obj.fecha_ingreso:
+            meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+            return meses[obj.fecha_ingreso.month - 1]
+        return "-"
+    def get_valor_iva(self, obj):
+        neto = Decimal(str(obj.precio_total or 0))
+        return neto * Decimal('0.19')
+    def get_venta_final(self, obj):
+        neto = Decimal(str(obj.precio_total or 0))
+        iva = neto * Decimal('0.19')
+        return neto + iva
+    def get_deuda(self, obj):
+        neto = Decimal(str(obj.precio_total or 0))
+        venta_final = neto + (neto * Decimal('0.19'))
+        return venta_final - Decimal(0)
+    def get_numero_documento_asociado(self, obj):
+        documento = obj.documentos_cobro_asociados.filter(activo=True).first()
+        if documento:
+            return f"{documento.numero_documento or 'Borrador'}"
+        return ""
 
 class DocumentoCobroSerializer(serializers.ModelSerializer):
     fecha_emision = serializers.DateField(format="%Y-%m-%d")

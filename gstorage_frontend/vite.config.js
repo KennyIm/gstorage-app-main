@@ -8,4 +8,15 @@ export default defineConfig({
     react(),
     nodePolyfills(), 
   ],
+  server: {
+    host: true,
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://192.168.4.65:8000',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
+  }
 })

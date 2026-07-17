@@ -18,12 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-    TokenBlacklistView
-)
-from usuarios.views import LoginThrottleView, Verify2FAView
+from usuarios.views import LoginThrottleView, Verify2FAView, CustomLogoutView, CustomTokenRefreshView
 
 
 urlpatterns = [
@@ -31,10 +26,10 @@ urlpatterns = [
     path('api/inventario/', include('inventario.urls')),
     path('api/usuarios/', include('usuarios.urls')),
     path('api/finanzas/', include('finanzas.urls')),
-    path('api/token/', LoginThrottleView.as_view(), name='token_obtain_pair'),    
+    path('api/token/', LoginThrottleView.as_view(), name='token_obtain_pair'),     
     path('api/token/verify-2fa/', Verify2FAView.as_view(), name='token_verify_2fa'),
-    path('api/logout/', TokenBlacklistView.as_view(), name='token_logout'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/token/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
+    path('api/logout/', CustomLogoutView.as_view(), name='token_logout'),
 
     path('api/visualizacion/', include('visualizacion.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

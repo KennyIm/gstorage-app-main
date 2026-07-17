@@ -30,74 +30,47 @@ export default function DocumentosEmitidos() {
     const [venceDesde, setVenceDesde] = useState('')
     const [venceHasta, setVenceHasta] = useState('')
     const [tabActiva, setTabActiva] = useState('activos')
+    const [totalDocumentos, setTotalDocumentos] = useState(0)
     const [paginaActual, setPaginaActual] = useState(1)
     const itemsPorPagina = 10
 
     const fetchDocumentos = async () => {
-        setLoading(true)
+        showLoader()
         try {
-            const response = await apiClient.get('/api/finanzas/documentos/')
-            setDocumentos(response.data.results || response.data)
+            const params = {
+                page: paginaActual,
+                tab: tabActiva,
+                estado: filtroEstado,
+                numero_documento: filtroNumeroDoc,
+                deudor: filtroDeudor,
+                emision_desde: emisionDesde,
+                emision_hasta: emisionHasta,
+                vence_desde: venceDesde,
+                vence_hasta: venceHasta
+            }
+
+            const response = await apiClient.get('/api/finanzas/documentos/', { params })
+
+            setDocumentos(response.data.results || [])
+            setTotalDocumentos(response.data.count || 0)
         } catch (error) {
-            showToast('Error al cargar los documentos.', 'error')
+            showToast('Error al cargar la bandeja de documentos.', 'error')
         } finally {
+            hideLoader()
             setLoading(false)
         }
     }
 
     useEffect(() => {
         fetchDocumentos()
-    }, [])
+    }, [paginaActual, tabActiva, filtroEstado, filtroDeudor, filtroNumeroDoc, emisionDesde, emisionHasta, venceDesde, venceHasta])
 
     useEffect(() => {
         setPaginaActual(1)
     }, [tabActiva, filtroEstado, filtroDeudor, filtroNumeroDoc, emisionDesde, emisionHasta, venceDesde, venceHasta])
 
-    const documentosFiltrados = useMemo(() => {
-        return documentos.filter(doc => {
-            if (tabActiva === 'activos' && doc.estado === 'Pagado') return false;
-            if (tabActiva === 'pagados' && doc.estado !== 'Pagado') return false;
-
-            const matchEstado = filtroEstado === 'Todos' || doc.estado === filtroEstado;
-
-            const matchNumero = !filtroNumeroDoc ||
-                String(doc.numero_documento || '').toLowerCase().includes(filtroNumeroDoc.toLowerCase());
-
-            const esProv = doc.proveedor_nombre !== 'N/A' && doc.proveedor_nombre
-            const rutRaw = esProv ? doc.rut : doc.rut_cliente
-            const limpiarRUT = (text) => String(text || '').replace(/[^0-9kK]/g, '').toLowerCase()
-            const busquedaLimpia = limpiarRUT(filtroDeudor)
-            const rutLimpio = limpiarRUT(rutRaw)
-            const matchDeudor = !filtroDeudor || rutLimpio.includes(busquedaLimpia)
-            const fechaE = doc.fecha_emision || doc.fecha || ''
-            const fechaV = doc.fecha_vencimiento || ''
-            const matchEmisionDesde = !emisionDesde || (fechaE && fechaE >= emisionDesde)
-            const matchEmisionHasta = !emisionHasta || (fechaE && fechaE <= emisionHasta)
-            const matchVenceDesde = !venceDesde || (fechaV && fechaV >= venceDesde)
-            const matchVenceHasta = !venceHasta || (fechaV && fechaV <= venceHasta)
-
-            return matchEstado && matchDeudor && matchNumero &&
-                matchEmisionDesde && matchEmisionHasta &&
-                matchVenceDesde && matchVenceHasta
-        })
-    }, [documentos, tabActiva, filtroEstado, filtroDeudor, filtroNumeroDoc, emisionDesde, emisionHasta, venceDesde, venceHasta])
-
-    const totalPaginas = Math.ceil(documentosFiltrados.length / itemsPorPagina)
-
-    const documentosPaginados = useMemo(() => {
-        const inicio = (paginaActual - 1) * itemsPorPagina
-        return documentosFiltrados.slice(inicio, inicio + itemsPorPagina)
-    }, [documentosFiltrados, paginaActual])
-
-    const limpiarTodosLosFiltros = () => {
-        setFiltroEstado('Todos')
-        setFiltroDeudor('')
-        setFiltroNumeroDoc('')
-        setEmisionDesde('')
-        setEmisionHasta('')
-        setVenceDesde('')
-        setVenceHasta('')
-    }
+    const documentosPaginados = documentos
+    const totalPaginas = Math.ceil(totalDocumentos / itemsPorPagina)
 
     const getEstadoBadge = (estado, fechaVencimiento) => {
         if (estado === 'Pagado') return <span className="px-2.5 py-1 text-[10px] uppercase font-bold rounded-full bg-emerald-100 text-emerald-700">Pagado</span>
@@ -109,6 +82,17 @@ export default function DocumentosEmitidos() {
         if (vence < hoy) return <span className="px-2.5 py-1 text-[10px] uppercase font-bold rounded-full bg-red-100 text-red-700 border border-red-200">Vencido</span>
         if (estado === 'Abonado') return <span className="px-2.5 py-1 text-[10px] uppercase font-bold rounded-full bg-amber-100 text-amber-700">Abonado</span>
         return <span className="px-2.5 py-1 text-[10px] uppercase font-bold rounded-full bg-blue-100 text-blue-700">Emitido</span>
+    }
+
+    const limpiarTodosLosFiltros = () => {
+        setFiltroEstado('Todos')
+        setFiltroDeudor('')
+        setFiltroNumeroDoc('')
+        setEmisionDesde('')
+        setEmisionHasta('')
+        setVenceDesde('')
+        setVenceHasta('')
+        setPaginaActual(1)
     }
 
     const abrirModalPago = (doc) => {
@@ -139,13 +123,12 @@ export default function DocumentosEmitidos() {
                 formData.append('comprobante_banco', comprobanteFile)
             }
             await apiClient.post('/api/finanzas/registrar-pago/', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
+                headers: { 'Content-Type': 'multipart/form-data' },
             })
             showToast('Pago registrado correctamente.', 'success')
             setModalOpen(false)
             setComprobanteFile(null)
+
             await fetchDocumentos()
         } catch (error) {
             const msg = error.response?.data?.error || 'Error al registrar el pago.'
@@ -160,9 +143,8 @@ export default function DocumentosEmitidos() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4 text-xs text-slate-700">
 
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center justify-between pb-2 ">
                     <div className="flex items-center gap-1.5 font-bold text-slate-800 text-sm">
-                        <Search className="w-4 h-4 text-blue-600" /> Filtros de Búsqueda
                     </div>
                     {(filtroEstado !== 'Todos' || filtroDeudor || filtroNumeroDoc || emisionDesde || emisionHasta || venceDesde || venceHasta) && (
                         <button
@@ -269,9 +251,9 @@ export default function DocumentosEmitidos() {
 
                 </div>
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mt-3">
                 <div className="overflow-x-auto">
-                    <div className="flex border-b border-slate-200 text-xs font-bold mb-4">
+                    <div className="flex border-b border-slate-200 text-xs font-bold">
                         <button
                             type="button"
                             onClick={() => { setTabActiva('activos'); limpiarTodosLosFiltros(); }}
@@ -377,11 +359,11 @@ export default function DocumentosEmitidos() {
                 {totalPaginas > 1 && (
                     <div className="bg-slate-50 px-4 py-3 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 rounded-b-2xl">
                         <div>
-                            Mostrando <span className="font-bold text-slate-800">{((paginaActual - 1) * itemsPorPagina) + 1}</span> al{' '}
+                            Mostrando <span className="font-bold text-slate-800">{totalDocumentos === 0 ? 0 : ((paginaActual - 1) * itemsPorPagina) + 1}</span> al{' '}
                             <span className="font-bold text-slate-800">
-                                {Math.min(paginaActual * itemsPorPagina, documentosFiltrados.length)}
+                                {Math.min(paginaActual * itemsPorPagina, totalDocumentos)}
                             </span>{' '}
-                            de <span className="font-bold text-slate-800">{documentosFiltrados.length}</span> documentos.
+                            de <span className="font-bold text-slate-800">{totalDocumentos}</span> documentos.
                         </div>
 
                         <div className="flex items-center gap-2">

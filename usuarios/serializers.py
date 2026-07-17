@@ -62,6 +62,24 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'perfil', 'is_active']
 
+
+#UTILIZADO PARA EL ME
+class PerfilMeSerializer(serializers.ModelSerializer):
+    empresa_nombre = serializers.StringRelatedField(source='empresa', read_only=True)
+    sucursal_nombre = serializers.StringRelatedField(source='sucursal', read_only=True)
+    rol_display = serializers.CharField(source='get_rol_display', read_only=True)
+
+    class Meta:
+        model = Perfil
+        fields = ['empresa_nombre', 'rol', 'rol_display', 'sucursal_id', 'sucursal_nombre', 'is_2fa_enabled']
+
+class UserMeSerializer(serializers.ModelSerializer):
+    perfil = PerfilMeSerializer(read_only=True)
+    
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'perfil']
+
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
     

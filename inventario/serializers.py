@@ -19,15 +19,6 @@ def desencriptar_valor(valor_cifrado):
     except Exception:
         return "Error al desencriptar"
 
-class MercanciaListSerializer(serializers.ModelSerializer):
-    id_cliente = serializers.StringRelatedField()
-    id_ubicacion_actual = serializers.StringRelatedField()
-    id_destino = serializers.StringRelatedField()
-
-    class Meta:
-        model = Mercancia
-        fields = ['id_mercancia', 'id_cliente', 'id_ubicacion_actual', 'id_destino', 'estado', 'fecha_ingreso','id_proveedor']
-
 class MercanciaCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Mercancia

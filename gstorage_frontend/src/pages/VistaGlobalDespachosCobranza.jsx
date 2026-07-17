@@ -12,7 +12,7 @@ export default function VistaGlobalDespachosCobranza() {
     const [mercancias, setMercancias] = useState([])
     const [documentosCobro, setDocumentosCobro] = useState([])
     const [proveedores, setProveedores] = useState([])
-    const [busquedaRuta, setBusquedaRuta] = useState('') 
+    const [busquedaRuta, setBusquedaRuta] = useState('')
     const [despachoSeleccionado, setDespachoSeleccionado] = useState(null)
     const [loadingDatos, setLoadingDatos] = useState(true)
     const [filtroEstado, setFiltroEstado] = useState('Todos')
@@ -23,19 +23,18 @@ export default function VistaGlobalDespachosCobranza() {
     const itemsPorPagina = 5
 
     useEffect(() => {
-        const cargarInformacion = async () => {
+        const cargarInformacionInicial = async () => {
             try {
                 setLoadingDatos(true);
-                const [despachosRes, mercanciasRes, finanzasRes, provRes] = await Promise.all([
+                const [despachosRes, finanzasRes, provRes] = await Promise.all([
                     apiClient.get('/api/inventario/despachos/'),
-                    apiClient.get('/api/inventario/mercancias/'),
                     apiClient.get('/api/finanzas/dashboard-consolidado/'),
                     apiClient.get('/api/inventario/proveedores/')
                 ]);
 
                 setDespachos(despachosRes.data);
-                setMercancias(mercanciasRes.data);
                 setDocumentosCobro(finanzasRes.data?.documentos || []);
+
                 const listaProv = provRes.data.results || provRes.data;
                 setProveedores(listaProv.map(p => ({
                     id: p.id_proveedor || p.id,
@@ -43,13 +42,31 @@ export default function VistaGlobalDespachosCobranza() {
                     rut: p.rut
                 })));
             } catch (e) {
-                showToast('Error al conectar con los servidores contables y de bodega.', 'error');
+                console.error("Error en dashboard:", e);
+                showToast('Error al cargar catálogos iniciales.', 'error')
             } finally {
-                setLoadingDatos(false);
+                setLoadingDatos(false)
             }
         }
-        cargarInformacion()
+        cargarInformacionInicial()
     }, [])
+
+    const refrescarMercanciasDelDespacho = async () => {
+        if (!despachoSeleccionado) return;
+        try {
+            const response = await apiClient.get(`/api/inventario/mercancias/?id_despacho=${despachoSeleccionado.id_despacho}&page_size=1000`)
+            setMercancias(response.data.results || response.data)
+        } catch (error) {
+            console.log("Error al actualizar mercancías del viaje:", error)
+            if (typeof showToast === 'function') {
+                showToast('Error al actualizar mercancías del viaje:', 'error')
+            }
+        }
+    }
+
+    useEffect(() => {
+        refrescarMercanciasDelDespacho();
+    }, [despachoSeleccionado])
 
     useEffect(() => {
         setPaginaActual(1)
@@ -133,6 +150,45 @@ export default function VistaGlobalDespachosCobranza() {
         return historialFiltrado.slice(inicio, inicio + itemsPorPagina)
     }, [historialFiltrado, paginaActual])
 
+    const handleDescargarExcel = async () => {
+        if (!despachoSeleccionado) {
+            if (typeof showToast === 'function') {
+                showToast('Por favor, selecciona un despacho primero.', 'error')
+            }
+            return
+        }
+
+        try {
+            if (typeof showLoader === 'function') showLoader()
+
+            const response = await apiClient.get(
+                `/api/finanzas/despachos-cobranza/${despachoSeleccionado.id_despacho}/exportar-excel/`,
+                { responseType: 'blob' }
+            );
+            const urlBlob = window.URL.createObjectURL(new Blob([response.data]))
+            const linkDescarga = document.createElement('a')
+            linkDescarga.href = urlBlob
+            const codigoRuta = despachoSeleccionado.id_ruta || 'Sin_Ruta';
+            linkDescarga.setAttribute('download', `Facturacion_Despacho_Ruta_${codigoRuta}.xlsx`)
+            document.body.appendChild(linkDescarga)
+            linkDescarga.click()
+
+            document.body.removeChild(linkDescarga)
+            window.URL.revokeObjectURL(urlBlob)
+
+            if (typeof showToast === 'function') {
+                showToast('Excel contable descargado con éxito.', 'success')
+            }
+        } catch (error) {
+            console.error("Error al obtener el reporte Excel de AWS:", error)
+            if (typeof showToast === 'function') {
+                showToast('Error al conectar con el servidor contable.', 'error')
+            }
+        } finally {
+            if (typeof hideLoader === 'function') hideLoader()
+        }
+    }
+
     if (loadingDatos) {
         return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-600 font-medium">Sincronizando flujos de despacho globales...</div>
     }
@@ -212,6 +268,16 @@ export default function VistaGlobalDespachosCobranza() {
                                     <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
                                         <div className="text-[9px] uppercase font-black text-emerald-500 mb-1">Liquidado Exitoso</div>
                                         <div className="text-xs font-black text-emerald-700">${Math.round(metricsDespacho.pagado).toLocaleString('es-CL')}</div>
+                                    </div>
+                                    <div className="flex justify-end items-center mt-1">
+                                        <button
+                                            onClick={handleDescargarExcel}
+                                            disabled={!despachoSeleccionado || loadingDatos}
+                                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition-all"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v4a2 2 0 0 0 2 2h4" /><path d="M8 13h2" /><path d="M14 13h2" /><path d="M8 17h2" /><path d="M14 17h2" /><path d="M10 11v8" /><path d="M14 11v8" /></svg>
+                                            Descargar Excel
+                                        </button>
                                     </div>
                                 </div>
                             </div>
