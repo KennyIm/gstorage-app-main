@@ -10,6 +10,8 @@ from .models import (
     AreaRestringida, Proveedor, Rampla, Cotizacion
 )
 
+from seguiminto.serializers import ControlEntregaSerializer
+
 def desencriptar_valor(valor_cifrado):
     if not valor_cifrado:
         return ""
@@ -34,6 +36,7 @@ class MercanciaListSerializer(serializers.ModelSerializer):
     despacho_str = serializers.CharField(source='id_despacho.__str__', read_only=True)
     es_colaborador = serializers.SerializerMethodField()
     id_ruta = serializers.StringRelatedField()
+    control_entrega = ControlEntregaSerializer(source='controlentrega', read_only=True)
 
     class Meta:
         model = Mercancia
@@ -60,16 +63,22 @@ class MercanciaListSerializer(serializers.ModelSerializer):
             'numero_orden_entrega',
             'es_colaborador',
             'id_ruta',
-            'direccion_entrega'        
+            'direccion_entrega',
+            'tipo_documento_mercancia',
+            'control_entrega'        
         ]
     
     def get_es_colaborador(self, obj):
-        user = self.context.get('request').user
-        if obj.id_despacho:
-            colaboradores = obj.id_despacho.colaboradores_invitados.all()
-            for colab in colaboradores:
-                if colab.usuario_invitado_id == user.id and colab.activo:
-                    return True
+        if hasattr(obj, 'es_colaborador'):
+            return obj.es_colaborador
+            
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated and obj.id_despacho_id:
+            user = request.user
+            return obj.id_despacho.colaboradores_invitados.filter(
+                usuario_invitado_id=user.id, 
+                activo=True
+            ).exists()
         return False
 
 
@@ -85,7 +94,7 @@ class MercanciaWriteSerializer(serializers.ModelSerializer):
             'estado', 'id_despacho', 
             'motivo_baja', 'precio_total','id_usuario_creacion_id','id_proveedor','factura','tipo'
             ,'paga_proveedor','codigo_interno','sucursal_id','numero_orden_entrega','creador_nombre',
-            'ultima_modificacion', 'colaboradores_activos','direccion_entrega'   
+            'ultima_modificacion', 'colaboradores_activos','direccion_entrega','tipo_documento_mercancia'   
         ]
         read_only_fields = ['empresa', 'sucursal', 'sucursal_id', 'id_usuario_creacion']
     
@@ -121,6 +130,7 @@ class DespachoListSerializer(serializers.ModelSerializer):
     id_camion = serializers.StringRelatedField()
     id_conductor = serializers.StringRelatedField()
     id_ruta = serializers.StringRelatedField()
+    nombre_ruta = serializers.CharField(source='id_ruta.codigo_ruta', read_only=True)
     es_colaborador = serializers.SerializerMethodField(read_only=True)
     nombre_conductor = serializers.CharField(source='id_conductor.nombre_completo', read_only=True)
     nombre_sucursal = serializers.CharField(source='sucursal_id.nombre', read_only=True)
@@ -129,25 +139,27 @@ class DespachoListSerializer(serializers.ModelSerializer):
         model = Despacho
         fields = [
             'id_despacho', 'fecha_programada', 'fecha_salida_real',
-            'id_camion', 'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor',
+            'id_camion', 'id_conductor', 'id_ruta','nombre_ruta', 'estado_despacho','nombre_conductor',
             'origen','destino','id_rampla','sucursal_id','nombre_sucursal','es_colaborador', 'orden_mercancias'
         ]
     
     def get_es_colaborador(self, obj):
+        if hasattr(obj, 'es_colaborador'):
+            return obj.es_colaborador
         request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            user = request.user
-            return obj.colaboradores_invitados.filter(usuario_invitado=user, activo=True).exists()
+        if request and request.user and request.user.is_authenticated:
+            return obj.colaboradores_invitados.filter(usuario_invitado=request.user, activo=True).exists()
         return False
 
 class DespachoWriteSerializer(serializers.ModelSerializer):
     nombre_conductor = serializers.CharField(source='id_conductor.nombre_completo', read_only=True)
+    nombre_ruta = serializers.CharField(source='id_ruta.codigo_ruta', read_only=True)
     colaboradores_activos = serializers.SerializerMethodField(read_only=True)
     class Meta:
         model = Despacho
         fields = [
             'id_despacho',
-            'fecha_programada', 'fecha_salida_real', 'id_camion', 
+            'fecha_programada', 'fecha_salida_real', 'id_camion', 'nombre_ruta',
             'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor',
             'origen','destino','id_rampla','sucursal_id', 'colaboradores_activos', 'orden_mercancias'
         ]
@@ -550,7 +562,10 @@ class CotizacionSerializer(serializers.ModelSerializer):
         ]
     
     def get_colaboradores_activos(self, obj):
-        permisos = obj.colaboradores_invitados.filter(activo=True)
+        if hasattr(obj, '_prefetched_objects_cache') and 'colaboradores_invitados' in obj._prefetched_objects_cache:
+            permisos = [p for p in obj.colaboradores_invitados.all() if p.activo]
+        else:
+            permisos = obj.colaboradores_invitados.filter(activo=True)
         return [{"id": p.usuario_invitado.id, "username": p.usuario_invitado.username} for p in permisos]
     
     def get_usuario_creacion_nombre(self, obj):

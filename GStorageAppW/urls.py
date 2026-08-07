@@ -26,10 +26,12 @@ urlpatterns = [
     path('api/inventario/', include('inventario.urls')),
     path('api/usuarios/', include('usuarios.urls')),
     path('api/finanzas/', include('finanzas.urls')),
+    path('api/seguimiento/', include('seguiminto.urls')),
     path('api/token/', LoginThrottleView.as_view(), name='token_obtain_pair'),     
     path('api/token/verify-2fa/', Verify2FAView.as_view(), name='token_verify_2fa'),
     path('api/token/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
     path('api/logout/', CustomLogoutView.as_view(), name='token_logout'),
+    path('silk/', include('silk.urls', namespace='silk')),
 
     path('api/visualizacion/', include('visualizacion.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

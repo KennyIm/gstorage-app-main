@@ -24,6 +24,8 @@ export default function OrdenEntregaPlantilla() {
     const [filtroRut, setFiltroRut] = useState('')
     const { showLoader, hideLoader, showToast } = useUI()
 
+    const [imprimirDescripciones, setImprimirDescripciones] = useState(false)
+
     const TASA_IVA = 0.19
     const ITEMS_POR_PAGINA = 5
 
@@ -303,6 +305,22 @@ export default function OrdenEntregaPlantilla() {
 
     return (
         <div className="bg-slate-200 min-h-screen p-4 sm:p-8 text-slate-900 font-sans print:p-0 print:bg-white">
+            <div className="max-w-52 mx-40 flex flex-col md:flex-row gap-4 justify-between items-start bg-white p-4 rounded-2xl shadow-sm border border-slate-100 print:hidden">
+                <div className="flex items-center gap-3">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={imprimirDescripciones}
+                            onChange={(e) => setImprimirDescripciones(e.target.checked)}
+                            className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        <span className="ml-3 text-sm font-bold text-slate-700">
+                            Incluir Anexo
+                        </span>
+                    </label>
+                </div>
+            </div>
             <div className="max-w-5xl mx-auto mb-6 flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100 print:hidden">
                 <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-600 hover:text-indigo-600 font-medium transition flex-shrink-0">
                     <ArrowLeft className="w-5 h-5" /> Volver al Despacho
@@ -327,7 +345,6 @@ export default function OrdenEntregaPlantilla() {
                         className="text-xs bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-44 h-9 font-bold tracking-wide"
                     />
                 </div>
-
                 <div className="flex items-center gap-2 flex-shrink-0 w-full md:w-auto justify-end">
                     <button
                         onClick={handleGenerarOrdenes}
@@ -340,6 +357,7 @@ export default function OrdenEntregaPlantilla() {
                     </button>
                 </div>
             </div>
+
             <div ref={componenteRef} className="print:w-[210mm] mx-auto text-slate-900 print:bg-white print:text-black">
                 {(() => {
                     const normalizarTexto = (text) => (text || '').toUpperCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -389,7 +407,6 @@ export default function OrdenEntregaPlantilla() {
                         return (
                             <React.Fragment key={`pagina-real-${idUnicoHoja}-${pagina.paginaActual}-${pagina.esPagaProveedor ? 'prov' : 'cli'}`}>
                                 {index > 0 && <div className="saltopagina" style={{ pageBreakBefore: 'always' }}></div>}
-
                                 <div
                                     className="hoja-pdf w-[210mm] h-[277mm] flex flex-col bg-white px-8 py-6 box-border mx-auto print:shadow-none print:m-0 shadow-lg mb-8"
                                     style={{ pageBreakAfter: 'always' }}
@@ -413,10 +430,6 @@ export default function OrdenEntregaPlantilla() {
                                             <div className="flex items-center gap-x-20">
                                                 <div className="flex items-center justify-center shrink-0">
                                                     <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Orden de Entrega</h1>
-                                                </div>
-                                                <div>
-                                                    <p className="mt-0.5 text-[7px] text-slate-900 font-medium leading-tight m-0 p-0 text-center whitespace-nowrap">
-                                                    </p>
                                                 </div>
                                             </div>
                                         </div>
@@ -494,7 +507,7 @@ export default function OrdenEntregaPlantilla() {
                                                     <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[4%]">Tipo</th>
                                                     <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[35%]">Proveedor</th>
                                                     <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[12%]">Paga Prov</th>
-                                                    <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[15%]">Factura</th>
+                                                    <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[15%]">Documento</th>
                                                     <th className="py-1.5 px-1 text-center font-bold text-slate-900 uppercase tracking-wider w-[15%]">Medidas</th>
                                                     <th className="py-1.5 px-1 text-right font-bold text-slate-900 uppercase tracking-wider w-[15%]">Valor Neto</th>
                                                 </tr>
@@ -534,7 +547,7 @@ export default function OrdenEntregaPlantilla() {
                                                                     readOnly
                                                                 />
                                                             </td>
-                                                            <td className="py-1.5 px-1 text-center font-medium text-slate-700 align-middle">{carga.factura || '-'}</td>
+                                                            <td className="py-1.5 px-1 text-center font-medium text-slate-700 align-middle">{carga.tipo_documento_mercancia}:{carga.factura || '-'}</td>
                                                             <td className="py-1.5 px-1 text-center leading-tight align-middle">
                                                                 {cobroPorM3 ? (
                                                                     <>
@@ -594,7 +607,6 @@ export default function OrdenEntregaPlantilla() {
                                                         <div className="w-2.5 h-2.5 border border-slate-900 rounded-sm shrink-0"></div>
                                                         <div className="flex-1 border-b border-slate-400 h-2 min-w-[35px]"></div>
                                                     </div>
-
                                                 </div>
                                             </div>
                                             <div className="w-48 text-right">
@@ -616,10 +628,65 @@ export default function OrdenEntregaPlantilla() {
                                                     </p>
                                                 )}
                                             </div>
-
                                         </div>
                                     </div>
                                 </div>
+                                {imprimirDescripciones && (
+                                    <>
+                                        <div className="saltopagina" style={{ pageBreakBefore: 'always' }}></div>
+                                        <div
+                                            className="hoja-pdf w-[210mm] h-[277mm] flex flex-col bg-white px-8 py-6 box-border mx-auto print:shadow-none print:m-0 shadow-lg mb-8"
+                                            style={{ pageBreakAfter: 'always' }}
+                                        >
+                                            <div className="flex justify-between items-center w-full border-b-2 border-slate-900 pb-3 mb-4 shrink-0">
+                                                <div className="flex items-center gap-3">
+                                                    <img src={logomedalla} alt="Logo" className="h-10 object-contain" />
+                                                    <div>
+                                                        <h2 className="text-xs font-black text-slate-900 uppercase">DETALLE DE CARGA - ANEXO</h2>
+                                                        <p className="text-[9px] text-slate-600 font-medium">Cliente: {pagina.clienteNombre} | RUT: {pagina.clienteObj?.rut_cliente || pagina.clienteObj?.rut || 'N/R'}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Orden de Entrega</span>
+                                                    <span className="text-lg font-black text-slate-900">
+                                                        N° {codigoOrden}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <div className="flex-grow flex flex-col gap-4 overflow-hidden">
+                                                {pagina.cargas.map((carga, idx) => (
+                                                    <div
+                                                        key={`anexo-carga-${carga.id_mercancia || idx}`}
+                                                        className="border border-slate-300 rounded-lg p-3 bg-slate-50/50 print:bg-slate-50 flex flex-col gap-2 shrink-0 break-inside-avoid"
+                                                    >
+                                                        <div className="flex justify-between items-center border-b border-slate-200 pb-2 text-[10px] font-bold text-slate-900">
+                                                            <div className="flex items-center gap-4">
+                                                                <span>
+                                                                    Código: <span className="text-slate-700 font-black">{carga.codigo_interno || 'S/C'}</span>
+                                                                </span>
+                                                                <span>
+                                                                    <span className="text-slate-700 font-black">{carga.tipo_documento_mercancia || 'DOC'}: {carga.factura || '-'}</span>
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <span className="text-slate-700 font-black">{getNombreProveedor(carga.id_proveedor) || 'N/R'}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="pt-1">
+                                                            <div className="text-xs font-medium text-slate-900 bg-white p-2.5 rounded border border-slate-200 min-h-[50px] whitespace-pre-wrap leading-relaxed">
+                                                                {carga.descripcion_carga || 'Sin descripción detallada registrada.'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="mt-auto pt-3 border-t border-slate-800 flex justify-between items-center text-[9px] text-slate-800 font-medium shrink-0">
+                                                <span>Documento Anexo a la Orden de Entrega N° {codigoOrden}</span>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </React.Fragment>
                         );
                     });

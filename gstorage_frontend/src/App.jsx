@@ -87,12 +87,16 @@ import Configurar2FA from './components/Configurar2FA'
 
 import FinanzasGrillaExcel from './pages/FinanzasGrillaExcel'
 
+import DespachoMovil from './pages/seguimiento/DespachoMovil'
+import SeguimientoDespacho from './pages/seguimiento/SeguimientoDespacho'
+
 function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
       <Route element={<PrivateRoute />}>
+        <Route path="/reparto/ruta" element={<DespachoMovil />} />
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="dashboard" element={<Dashboard />} />
@@ -107,6 +111,7 @@ function App() {
           <Route path="despachos/:id/editar" element={<DespachoEdit />} />
           <Route path="/despachos/:id/imprimir-plantilla" element={<OrdenEntregaPrint />} />
           <Route path="/planificar" element={<PlanificadorRutas />} />
+          <Route path="/despachos/:id/seguimiento" element={<SeguimientoDespacho />} />
 
           <Route path="clientes" element={<ClienteList />} />
           <Route path="clientes/nuevo" element={<ClienteCreate />} />
@@ -159,19 +164,19 @@ function App() {
 
           <Route path="/ayuda" element={<ManualUsuario />} />
 
-          <Route path='/generar-cobro' element={<BandejaCobranza/>} />
+          <Route path='/generar-cobro' element={<BandejaCobranza />} />
 
-          <Route path='/documentos' element={<DocumentosEmitidos/>} />
+          <Route path='/documentos' element={<DocumentosEmitidos />} />
 
-          <Route path='/perfil-financiero' element={<PerfilFinancieroCliente/>}/>
+          <Route path='/perfil-financiero' element={<PerfilFinancieroCliente />} />
 
-          <Route path='/ingreso-gastos' element={<IngresoGastos/>}/>
+          <Route path='/ingreso-gastos' element={<IngresoGastos />} />
 
-          <Route path='/dashboard-finanzas' element={<DashboardGeneralFinanzas/>}/>
+          <Route path='/dashboard-finanzas' element={<DashboardGeneralFinanzas />} />
 
-          <Route path='/despachos-cobranza' element={<VistaGlobalDespachosCobranza/>}/>
+          <Route path='/despachos-cobranza' element={<VistaGlobalDespachosCobranza />} />
 
-          <Route path='/grilla-finanzas' element={<FinanzasGrillaExcel/>}/>
+          <Route path='/grilla-finanzas' element={<FinanzasGrillaExcel />} />
         </Route>
       </Route>
     </Routes>

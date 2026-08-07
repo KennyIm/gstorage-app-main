@@ -390,6 +390,13 @@ class Mercancia(models.Model):
         ('Eliminado', 'Eliminado'),
         ('Merma', 'Merma'),
     ]
+    TIPOS_DOC_MERCANCIA = [
+        ('Factura', 'Factura Electrónica'),
+        ('Boleta', 'Boleta'),
+        ('Guia', 'Guía de Despacho'),
+        ('DUS', 'Documento Único de Salida (Aduana)'),
+        ('Solicitud Envio', 'Solicitud de envió')
+    ]
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="mercancias")
     sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE)
     id_mercancia = models.AutoField(primary_key=True)
@@ -399,6 +406,12 @@ class Mercancia(models.Model):
     m3 = models.DecimalField(max_digits=10, decimal_places=3, null=True, blank=True, verbose_name="Volumen (m³)")
     precio_total = models.DecimalField(max_digits=12, decimal_places=0, default=0.0, verbose_name="Precio Calculado")
     factura = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número de Factura")
+    tipo_documento_mercancia = models.CharField(
+        max_length=30,
+        choices=TIPOS_DOC_MERCANCIA,
+        default='Factura',
+        verbose_name="Tipo de Documento de Mercancía"
+    )
     tipo = models.CharField(max_length=50, blank=True, null=True, verbose_name="Tipo de carga")
     codigo_interno= models.CharField(max_length=50,  blank=True, null=True, verbose_name="Código Interno Bodega")
     direccion_entrega = models.CharField(max_length=255, null=True, blank=True, verbose_name="Dirección de entrega", help_text="Dirección específica de entrega para esta carga")

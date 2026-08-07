@@ -14,7 +14,7 @@ import {
 
 export default function MercanciaCreate() {
   document.title = "Creación de Mercancias - GStorage";
-  const [formData, setFormData] = useState({
+  const initialFormState = {
     id_cliente: '',
     id_destino: '',
     id_ubicacion_actual: '',
@@ -25,10 +25,12 @@ export default function MercanciaCreate() {
     rut_proveedor: '',
     descripcion_carga: '',
     factura: '',
+    tipo_documento_mercancia: 'Factura',
     tipo: '',
     codigo_interno: '',
-    paga_proveedor: false
-  });
+    paga_proveedor: false,
+    direccion_entrega: ''
+  }
 
   const { logoutUser } = useAuth();
 
@@ -36,138 +38,147 @@ export default function MercanciaCreate() {
   const [destinos, setDestinos] = useState([]);
   const [proveedores, setProveedores] = useState([]);
 
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const { showLoader, hideLoader, showToast } = useUI();
   const [direccionesSugeridas, setDireccionesSugeridas] = useState([]);
   const [showPricing, setShowPricing] = useState(false);
-  const navigate = useNavigate();
+  const navigate = useNavigate()
+  const [formData, setFormData] = useState(initialFormState)
 
 
   useEffect(() => {
+    console.log("🟢 Componente MONTADO en memoria");
+
+    const controller = new AbortController();
+
     const fetchData = async () => {
-      setLoading(true);
+      setLoading(true)
       try {
         const [clientesRes, destinosRes, provRes] = await Promise.all([
-          apiClient.get('/api/inventario/clientes/'),
-          apiClient.get('/api/inventario/destinos/'),
-          apiClient.get('/api/inventario/proveedores/')
-        ]);
+          apiClient.get('/api/inventario/clientes/', { signal: controller.signal }),
+          apiClient.get('/api/inventario/destinos/', { signal: controller.signal }),
+          apiClient.get('/api/inventario/proveedores/', { signal: controller.signal })
+        ])
 
-        setClientes(clientesRes.data);
-        setDestinos(destinosRes.data);
+        setClientes(clientesRes.data)
+        setDestinos(destinosRes.data)
         setProveedores(provRes.data)
-        setLoading(false);
       } catch (err) {
+        if (err.name === 'CanceledError' || err.name === 'AbortError') return
         if (err.response && err.response.status === 401) {
-          showToast('Sesión caducada, ingresa nuevamente.', 'error');
-          logoutUser();
+          showToast('Sesión caducada, ingresa nuevamente.', 'error')
+          logoutUser()
         } else {
-          console.error("Error al buscar la información:", err);
-          showToast('No se pudo cargar la información necesaria para el formulario.', 'error');
+          console.error("Error al buscar la información:", err)
+          showToast('No se pudo cargar la información necesaria.', 'error')
         }
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
+    }
 
-    fetchData();
-  }, [logoutUser, showToast]);
+    fetchData()
+    return () => {
+      controller.abort()
+      console.log("🔴 Componente DESMONTADO y destruido de RAM");
+    };
+  }, [])
 
   // --- CÁLCULO DE PRECIO EN VIVO ---
   useEffect(() => {
-    if (formData && formData.id_cliente && formData.kg && formData.m3) {
-      const clienteSeleccionado = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente));
-
+    if (formData?.id_cliente && formData?.kg && formData?.m3) {
+      const clienteSeleccionado = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente))
       if (clienteSeleccionado) {
-        const pesoLimpio = String(formData.kg).replace(',', '.');
-        const volumenLimpio = String(formData.m3).replace(',', '.');
-
-        const peso = parseFloat(pesoLimpio) || 0;
-        const volumen = parseFloat(volumenLimpio) || 0;
-
-        const precioKg = parseFloat(clienteSeleccionado.precio_kg) || 0;
-        const precioM3 = parseFloat(clienteSeleccionado.precio_m3) || 0;
-
-        const costoPorPeso = peso * precioKg;
-        const costoPorVolumen = volumen * precioM3;
-
-        const totalCalculado = Math.max(costoPorPeso, costoPorVolumen);
-
-        setFormData(prev => ({
-          ...prev,
-          precio_total: totalCalculado.toFixed(0)
-        }));
+        const peso = parseFloat(String(formData.kg).replace(',', '.')) || 0
+        const volumen = parseFloat(String(formData.m3).replace(',', '.')) || 0
+        const precioKg = parseFloat(clienteSeleccionado.precio_kg) || 0
+        const precioM3 = parseFloat(clienteSeleccionado.precio_m3) || 0
+        const costoPorPeso = peso * precioKg
+        const costoPorVolumen = volumen * precioM3
+        const totalCalculado = Math.max(costoPorPeso, costoPorVolumen).toFixed(0)
+        if (formData.precio_total !== totalCalculado) {
+          setFormData(prev => ({
+            ...prev,
+            precio_total: totalCalculado
+          }))
+        }
       }
     }
-  }, [formData?.kg, formData?.m3, formData?.id_cliente, clientes]);
+  }, [formData?.kg, formData?.m3, formData?.id_cliente, clientes])
+
+  const destinoSeleccionado = destinos.find(d => String(d.id_destino) === String(formData.id_destino))
+  const nombreCiudad = destinoSeleccionado ? destinoSeleccionado.nombre_ciudad : ''
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value, type, checked } = e.target
     setFormData(prevData => ({
       ...prevData,
       [name]: type === 'checkbox' ? checked : value
-    }));
-  };
+    }))
+  }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    showLoader();
-
+  const handleSubmit = async (e, crearOtra = false) => {
+    if (e) e.preventDefault()
+    setSubmitting(true)
+    showLoader()
     const payload = {
       ...formData,
-      id_cliente: formData.id_cliente ? parseInt(formData.id_cliente.toString()) : null,
-      id_destino: formData.id_destino ? parseInt(formData.id_destino.toString()) : null,
+      id_cliente: formData.id_cliente ? parseInt(formData.id_cliente.toString(), 10) : null,
+      id_destino: formData.id_destino ? parseInt(formData.id_destino.toString(), 10) : null,
       id_ubicacion_actual: null,
-
-      cantidad_bultos: parseInt(formData.cantidad_bultos?.toString()) || 1,
+      cantidad_bultos: parseInt(formData.cantidad_bultos?.toString(), 10) || 1,
       kg: formData.kg ? parseFloat(formData.kg.toString()) : 0,
       m3: formData.m3 ? parseFloat(formData.m3.toString()) : 0,
-
       id_proveedor: formData.id_proveedor ? Number(formData.id_proveedor) : null,
-
       precio_total: formData.precio_total ? parseFloat(formData.precio_total.toString()) : 0,
       factura: formData.factura || null,
+      tipo_documento_mercancia: formData.tipo_documento_mercancia || null,
       tipo: formData.tipo || null,
       paga_proveedor: formData.paga_proveedor || false,
       codigo_interno: formData.codigo_interno || null,
-
       direccion_entrega: formData.direccion_entrega || null,
-    };
-
-    try {
-      await apiClient.post('/api/inventario/mercancias/', payload);
-      showToast('Mercancía registrada con éxito.', 'success');
-      navigate('/mercancias');
-    } catch (err) {
-      console.error(err);
-      console.log("Django dice que el error está en:", err.response?.data);
-      showToast('Error al guardar la mercancía. Revisa los campos e intenta nuevamente.', 'error');
-    } finally {
-      setSubmitting(false);
-      hideLoader();
     }
-  };
+    try {
+      const res = await apiClient.post('/api/inventario/mercancias/', payload)
+      showToast('Mercancía registrada con éxito.', 'success')
+      if (crearOtra) {
+        setFormData(initialFormState)
+        setDireccionesSugeridas([])
+        if (typeof setMostrarMapa === 'function') setMostrarMapa(false)
+
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      } else {
+        navigate('/mercancias', { state: { nuevaMercancia: res.data } })
+      }
+    } catch (err) {
+      console.error(err)
+      showToast('Error al guardar la mercancía. Revisa los campos e intenta nuevamente.', 'error')
+    } finally {
+      setSubmitting(false)
+      hideLoader()
+    }
+  }
 
   const handleClienteChange = async (selectedOption) => {
     if (!selectedOption) {
-      setFormData(prev => ({ ...prev, id_cliente: '', direccion_entrega: '' }));
-      setDireccionesSugeridas([]);
-      return;
+      setFormData(prev => ({ ...prev, id_cliente: '', direccion_entrega: '' }))
+      setDireccionesSugeridas([])
+      return
     }
 
-    const clienteId = selectedOption.value;
+    const clienteId = selectedOption.value
 
-    setFormData(prev => ({ ...prev, id_cliente: clienteId }));
+    setFormData(prev => ({ ...prev, id_cliente: clienteId }))
 
     try {
-      const response = await apiClient.get(`/api/inventario/clientes/${clienteId}/direcciones/`);
+      const response = await apiClient.get(`/api/inventario/clientes/${clienteId}/direcciones/`)
       const suggestions = response.data.map(dir => ({
         label: String(dir),
         value: String(dir)
-      }));
+      }))
 
       setDireccionesSugeridas(suggestions);
 
@@ -344,7 +355,27 @@ export default function MercanciaCreate() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>
                   <label htmlFor="factura" className="block text-sm font-medium text-gray-700 mb-1">
-                    N° de Factura
+                    Tipo de Documento
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="tipo_documento_mercancia"
+                      name="tipo_documento_mercancia"
+                      value={formData.tipo_documento_mercancia || 'Factura'}
+                      onChange={handleChange}
+                      className="w-full h-[46px] px-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition cursor-pointer text-sm"
+                    >
+                      <option value="Factura">Factura Electrónica</option>
+                      <option value="Boleta">Boleta</option>
+                      <option value="Guia">Guía de Despacho</option>
+                      <option value="DUS">Aduana (DUS)</option>
+                      <option value="Solicitud Envio">Solicitud de envió</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="factura" className="block text-sm font-medium text-gray-700 mb-1">
+                    N° de {formData.tipo_documento_mercancia || 'Documento'}
                   </label>
                   <div className="relative">
                     <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-700 pointer-events-none" />
@@ -355,7 +386,11 @@ export default function MercanciaCreate() {
                       value={formData.factura}
                       onChange={handleChange}
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                      placeholder="Ej: 10293"
+                      placeholder={
+                        formData.tipo_documento_mercancia === 'Factura' ? "Ej: 10293" :
+                          formData.tipo_documento_mercancia === 'Guia' ? "Ej: 88234" :
+                            "Ej: Número o Folio"
+                      }
                     />
                   </div>
                 </div>
@@ -502,9 +537,9 @@ export default function MercanciaCreate() {
               >
                 Cancelar
               </Link>
-
               <button
                 type="submit"
+                onClick={(e) => handleSubmit(e, false)}
                 disabled={submitting}
                 className={`flex items-center gap-2 px-8 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-200 transition shadow-md ${submitting ? 'opacity-75 cursor-not-allowed' : ''}`}
               >
@@ -514,9 +549,17 @@ export default function MercanciaCreate() {
                   </>
                 ) : (
                   <>
-                    <Save className="w-4 h-4" /> Guardar Mercancía
+                    Guardar y Salir
                   </>
                 )}
+              </button>
+              <button
+                type="submit"
+                onClick={(e) => handleSubmit(e, true)}
+                disabled={submitting}
+                className={`flex items-center gap-2 px-8 py-2.5 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 focus:ring-4 focus:ring-emerald-200 transition shadow-md ${submitting ? 'opacity-75 cursor-not-allowed' : ''}`}
+              >
+                Guardar y Crear Otra
               </button>
             </div>
 

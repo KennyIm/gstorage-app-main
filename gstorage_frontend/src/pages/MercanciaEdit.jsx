@@ -133,6 +133,7 @@ export default function MercanciaEdit() {
           id_despacho: currentData.id_despacho || '',
           id_proveedor: currentData.id_proveedor || '',
           factura: currentData.factura || '',
+          tipo_documento_mercancia: currentData.tipo_documento_mercancia || '',
           tipo: currentData.tipo || '',
           paga_proveedor: currentData.paga_proveedor || false,
           codigo_interno: currentData.codigo_interno || '',
@@ -181,6 +182,7 @@ export default function MercanciaEdit() {
       id_despacho: formData.id_despacho ? parseInt(formData.id_despacho) : null,
       id_proveedor: formData.id_proveedor || null,
       factura: formData.factura || null,
+      tipo_documento_mercancia: formData.tipo_documento_mercancia || null,
       tipo: formData.tipo || null,
       paga_proveedor: formData.paga_proveedor || false,
       codigo_interno: formData.codigo_interno || null,
@@ -408,18 +410,42 @@ export default function MercanciaEdit() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>
                   <label htmlFor="factura" className="block text-sm font-medium text-gray-700 mb-1">
-                    N° de Factura
+                    Tipo de Documento
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="tipo_documento_mercancia"
+                      name="tipo_documento_mercancia"
+                      value={formData.tipo_documento_mercancia || 'Factura'}
+                      onChange={handleChange}
+                      className="w-full h-[46px] px-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition cursor-pointer text-sm"
+                    >
+                      <option value="Factura">Factura Electrónica</option>
+                      <option value="Boleta">Boleta</option>
+                      <option value="Guia">Guía de Despacho</option>
+                      <option value="DUS">Aduana (DUS)</option>
+                      <option value="Solicitud Envio">Solicitud de envió</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="factura" className="block text-sm font-medium text-gray-700 mb-1">
+                    N° de {formData.tipo_documento_mercancia || 'Documento'}
                   </label>
                   <div className="relative">
                     <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-700 pointer-events-none" />
                     <input
                       type="text"
-                      name="factura"
                       id="factura"
+                      name='factura'
                       value={formData.factura}
                       onChange={handleChange}
                       className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                      placeholder="Ej: 10293"
+                      placeholder={
+                        formData.tipo_documento_mercancia === 'Factura' ? "Ej: 10293" :
+                          formData.tipo_documento_mercancia === 'Guia' ? "Ej: 88234" :
+                            "Ej: Número o Folio"
+                      }
                     />
                   </div>
                 </div>

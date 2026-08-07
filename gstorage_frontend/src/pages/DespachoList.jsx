@@ -176,7 +176,7 @@ export default function DespachoList() {
 
   const opcionesConductores = uniqueConductores.map(cond => ({
     value: cond,
-    label: formatRUT(cond)
+    label: cond
   }))
 
   const opcionRutaSeleccionada = opcionesRutas.find(op => op.value === filtros.ruta) || null

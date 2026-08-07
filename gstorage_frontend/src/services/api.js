@@ -4,8 +4,8 @@ const API_BASE_URL = ''
 
 let accessTokenEnMemoria = null
 let promesaRefreshEnCurso = null
-let promesaClientes = null
-let promesaProveedores = null
+
+const cachePromesasGet = new Map()
 
 export const setTokenEnMemoria = (token) => {
   accessTokenEnMemoria = token
@@ -14,6 +14,7 @@ export const setTokenEnMemoria = (token) => {
 export const clearTokenEnMemoria = () => {
   accessTokenEnMemoria = null
   promesaRefreshEnCurso = null
+  cachePromesasGet.clear()
 }
 
 const apiClient = axios.create({
@@ -42,37 +43,42 @@ apiClient.interceptors.request.use(
     }
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
 apiClient.get = function (url, config) {
-    if (url === '/api/inventario/clientes/' || url.includes('/api/inventario/clientes/?')) {
-        if (!promesaClientes) {
-            promesaClientes = originalGet.call(this, url, config).catch(err => {
-                promesaClientes = null 
-                return Promise.reject(err)
-            })
-        }
-        return promesaClientes
-    }
+  const esCatalogoPesado = 
+    url.startsWith('/api/inventario/clientes/') || 
+    url.startsWith('/api/inventario/proveedores/')
 
-    if (url === '/api/inventario/proveedores/' || url.includes('/api/inventario/proveedores/?')) {
-        if (!promesaProveedores) {
-            promesaProveedores = originalGet.call(this, url, config).catch(err => {
-                promesaProveedores = null
-                return Promise.reject(err)
-            })
-        }
-        return promesaProveedores
+  if (esCatalogoPesado) {
+    const key = url 
+    if (!cachePromesasGet.has(key)) {
+      const promesa = originalGet.call(this, url, config).catch(err => {
+        cachePromesasGet.delete(key) 
+        return Promise.reject(err)
+      })
+      cachePromesasGet.set(key, promesa)
     }
-    return originalGet.call(this, url, config)
+    return cachePromesasGet.get(key)
+  }
+
+  return originalGet.call(this, url, config)
+}
+
+const invalidarCachePorUrl = (url = '') => {
+  for (let key of cachePromesasGet.keys()) {
+    if (url.includes('/api/inventario/clientes/') && key.includes('/api/inventario/clientes/')) {
+      cachePromesasGet.delete(key)
+    }
+    if (url.includes('/api/inventario/proveedores/') && key.includes('/api/inventario/proveedores/')) {
+      cachePromesasGet.delete(key)
+    }
+  }
 }
 
 export const limpiarCacheCatalogos = () => {
-    promesaClientes = null
-    promesaProveedores = null
+  cachePromesasGet.clear()
 }
 
 let isRefreshing = false
@@ -111,9 +117,15 @@ export const ejecutarRefreshSilencioso = async () => {
 
   return promesaRefreshEnCurso
 }
-
+//TODO Toque cosas aqui en caso de error 
 apiClient.interceptors.response.use(
   (response) => {
+    const method = response.config?.method?.toUpperCase()
+    const url = response.config?.url || ''
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+      invalidarCachePorUrl(url)
+    }
+
     return response
   },
   async (error) => {
@@ -137,9 +149,7 @@ apiClient.interceptors.response.use(
         }).then(token => {
           originalRequest.headers['Authorization'] = `Bearer ${token}`
           return apiClient(originalRequest)
-        }).catch(err => {
-          return Promise.reject(err)
-        })
+        }).catch(err => Promise.reject(err))
       }
 
       isRefreshing = true

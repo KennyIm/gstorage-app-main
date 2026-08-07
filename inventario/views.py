@@ -154,15 +154,21 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
     def get_queryset(self):
         user = self.request.user
         empresa = get_empresa_from_user(self.request)
+        es_colaborador_subquery = PermisoColaboracion.objects.filter(
+        despacho_id=OuterRef('id_despacho_id'),
+        usuario_invitado=user,
+        activo=True
+        )
         qs = Mercancia.activos.filter(empresa=empresa).select_related(
-            'id_cliente',
-            'id_ubicacion_actual',
-            'id_destino',
-            'id_despacho__id_ruta', 
-            'id_proveedor'
-            ).prefetch_related(
-                'id_despacho__colaboradores_invitados'
-            )
+        'id_cliente',
+        'id_ubicacion_actual',
+        'id_destino',
+        'id_despacho__id_ruta', 
+        'id_proveedor',
+        'control_entrega'
+        ).annotate(
+            es_colaborador=Exists(es_colaborador_subquery)
+        )
         despacho_id = self.request.query_params.get('despacho') or self.request.query_params.get('id_despacho')
         estado = self.request.query_params.get('estado')
         estado_in = self.request.query_params.get('estado_in')
@@ -178,13 +184,10 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
             sucursal_empleado = user.perfil.sucursal
             condicion_propia = Q(sucursal=sucursal_empleado)
             if despacho_id and despacho_id != 'null':
-                condicion_invitado = Q(
-                    id_despacho__colaboradores_invitados__usuario_invitado=user,
-                    id_despacho__colaboradores_invitados__activo=True
-                )
+                condicion_invitado = Q(es_colaborador=True)
                 qs = qs.filter(condicion_propia | condicion_invitado).distinct()
             else:
-                qs = qs.filter(condicion_propia)    
+                qs = qs.filter(condicion_propia) 
         if despacho_id:
             if despacho_id == 'null':
                 qs = qs.filter(id_despacho__isnull=True)
@@ -586,8 +589,15 @@ class DespachoListCreateAPI(generics.ListCreateAPIView):
             usuario_invitado=user,
             activo=True
         )
-
-        qs = Despacho.objects.filter(empresa=empresa, activo=True).annotate(
+        qs = Despacho.objects.filter(empresa=empresa, activo=True).select_related(
+            'id_conductor',
+            'id_camion',
+            'id_rampla',
+            'id_ruta',
+            'sucursal',
+            'empresa',
+            'id_usuario_creacion'
+        ).annotate(
             es_colaborador=Exists(es_colaborador_subquery)
         )
 
@@ -716,7 +726,7 @@ class ClienteListCreateAPI(generics.ListCreateAPIView):
 
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
-        qs = Cliente.objects.filter(empresa=empresa, activo=True)
+        qs = Cliente.objects.filter(empresa=empresa, activo=True).select_related('empresa')
         
         rut_query = self.request.query_params.get('rut') or self.request.query_params.get('rut_cliente')
         if rut_query:
@@ -910,7 +920,8 @@ class RutaListCreateAPI(generics.ListCreateAPIView):
     def get_queryset(self):
         #empresa = get_empresa_from_user(self.request)
         #return Ruta.objects.filter(empresa=empresa)
-        return filtrar_por_sucursal_y_empresa(Ruta.objects.all(), self.request)
+        qs = Ruta.objects.select_related('sucursal', 'empresa').all()
+        return filtrar_por_sucursal_y_empresa(qs, self.request)
     
     def perform_create(self, serializer):
         empresa = get_empresa_from_user(self.request)
@@ -1742,7 +1753,13 @@ class CotizacionListCreateAPI(generics.ListCreateAPIView):
 
     def get_queryset(self):
         empresa = get_empresa_from_user(self.request)
-        queryset = Cotizacion.objects.filter(empresa=empresa, activo=True)
+        queryset = Cotizacion.objects.filter(
+            empresa=empresa, 
+            activo=True
+        ).select_related(
+            'id_usuario_creacion',
+            'empresa'
+        )
         search = self.request.query_params.get('search')
         if search:
             queryset = queryset.filter(
@@ -1943,308 +1960,3 @@ class InvitarColaboradorCotizacionAPI(generics.CreateAPIView):
         return Response({
             "mensaje": f"Se otorgó permiso exitosamente a {usuario_invitado.username} para la cotización #{cotizacion.id_cotizacion}."
         }, status=status.HTTP_201_CREATED)
-#DJANGO METODO SIN REACT (FUNCIONAL)
-
-
-# @login_required
-# def panel_inventario(request):
-#     """
-#     Vista principal de la app inventario, muestra un resumen.
-#     """
-#     total_en_bodega = Mercancia.objects.filter(estado='En Bodega').count()
-#     despachos_programados = Despacho.objects.filter(estado_despacho='Programado').count()
-#     ubicaciones_libres = Ubicacion.objects.filter(estado_ocupado=False).count()
-#     total_clientes = Cliente.objects.count()
-
-#     context = {
-#         'total_en_bodega': total_en_bodega,
-#         'despachos_programados': despachos_programados,
-#         'ubicaciones_libres': ubicaciones_libres,
-#         'total_clientes': total_clientes,
-#     }
-#     return render(request, 'inventario/panel.html', context)
-#     
-# # --- CRUD Completo para Mercancia ---
-
-# class MercanciaListView(LoginRequiredMixin, ListView):
-#     model = Mercancia
-#     template_name = 'inventario/mercancia_list.html'
-#     context_object_name = 'mercancias'
-#     queryset = Mercancia.objects.select_related('id_cliente', 'id_ubicacion_actual', 'id_destino').order_by('-fecha_ingreso')
-
-# class MercanciaDetailView(LoginRequiredMixin, DetailView):
-#     model = Mercancia
-#     template_name = 'inventario/mercancia_detail.html'
-#     context_object_name = 'mercancia'
-
-# class MercanciaCreateView(LoginRequiredMixin, CreateView):
-#     model = Mercancia
-#     template_name = 'inventario/mercancia_form.html'
-#     fields = [
-#         'id_cliente', 'descripcion_carga', 'cantidad_bultos', 
-#         'kg', 'm3', 'id_ubicacion_actual', 'id_destino'
-#     ]
-#     success_url = reverse_lazy('mercancia-list')
-
-#     def form_valid(self, form):
-#         form.instance.id_usuario_creacion = self.request.user
-#         return super().form_valid(form)
-
-#     def form_invalid(self, form):
-#         print("="*20, "FORMULARIO INVÁLIDO", "="*20)
-#         print(form.errors.as_json())
-#         print("="*50)
-#         return super().form_invalid(form)
-
-# class MercanciaUpdateView(LoginRequiredMixin, UpdateView):
-#     model = Mercancia
-#     template_name = 'inventario/mercancia_form.html'
-#     fields = [
-#         'id_cliente', 'descripcion_carga', 'cantidad_bultos', 
-#         'kg', 'm3', 'id_ubicacion_actual', 'id_destino', 
-#         'estado', 'id_despacho'
-#     ]
-    
-#     def form_valid(self, form):
-#         form.instance.id_usuario_ultima_modificacion = self.request.user
-#         return super().form_valid(form)
-    
-#     def get_success_url(self):
-#         return reverse_lazy('mercancia-detail', kwargs={'pk': self.object.pk})
-
-# class MercanciaDeleteView(LoginRequiredMixin, DeleteView):
-#     model = Mercancia
-#     template_name = 'inventario/mercancia_confirm_delete.html'
-#     success_url = reverse_lazy('mercancia-list')
-
-
-# # --- CRUD para Clientes ---
-
-# class ClienteListView(LoginRequiredMixin, ListView):
-#     model = Cliente
-#     template_name = 'inventario/cliente_list.html'
-#     context_object_name = 'clientes'
-
-# class ClienteCreateView(LoginRequiredMixin, CreateView):
-#     model = Cliente
-#     template_name = 'inventario/cliente_form.html'
-#     fields = ['nombre_cliente', 'rut_cliente', 'telefono_contacto', 'email_contacto']
-#     success_url = reverse_lazy('cliente-list')
-
-# class ClienteUpdateView(LoginRequiredMixin, UpdateView):
-#     model = Cliente
-#     template_name = 'inventario/cliente_form.html'
-#     fields = ['nombre_cliente', 'rut_cliente', 'telefono_contacto', 'email_contacto']
-#     success_url = reverse_lazy('cliente-list')
-
-# class ClienteDeleteView(LoginRequiredMixin, DeleteView):
-#     model = Cliente
-#     template_name = 'inventario/cliente_confirm_delete.html'
-#     success_url = reverse_lazy('cliente-list')
-
-
-# # --- CRUD para Despachos ---
-
-# class DespachoForm(forms.ModelForm):
-#     class Meta:
-#         model = Despacho
-#         fields = [
-#             'fecha_programada', 'fecha_salida_real', 'id_camion', 
-#             'id_conductor', 'id_ruta', 'estado_despacho'
-#         ]
-        
-#         widgets = {
-#             'fecha_programada': forms.DateInput(
-#                 attrs={'type': 'date', 'class': 'form-control'}
-#             ),
-#             'fecha_salida_real': forms.DateTimeInput(
-#                 attrs={'type': 'datetime-local', 'class': 'form-control'}
-#             ),
-#             'id_camion': forms.Select(attrs={'class': 'form-select'}),
-#             'id_conductor': forms.Select(attrs={'class': 'form-select'}),
-#             'id_ruta': forms.Select(attrs={'class': 'form-select'}),
-#             'estado_despacho': forms.Select(attrs={'class': 'form-select'}),
-#         }
-
-# class DespachoListView(LoginRequiredMixin, ListView):
-#     model = Despacho
-#     template_name = 'inventario/despacho_list.html'
-#     context_object_name = 'despachos'
-#     queryset = Despacho.objects.select_related('id_camion', 'id_conductor', 'id_ruta').order_by('-fecha_programada')
-
-# class DespachoDetailView(LoginRequiredMixin, DetailView):
-#     model = Despacho
-#     template_name = 'inventario/despacho_detail.html'
-#     context_object_name = 'despacho'
-    
-#     def get_context_data(self, **kwargs):
-#         context = super().get_context_data(**kwargs)
-#         context['mercancias_asignadas'] = Mercancia.objects.filter(id_despacho=self.object)
-#         return context
-
-# class DespachoCreateView(LoginRequiredMixin, CreateView):
-#     model = Despacho
-#     form_class = DespachoForm  
-#     template_name = 'inventario/despacho_form.html'
-
-#     success_url = reverse_lazy('despacho-list')
-
-#     def get_form(self, form_class=None):
-#         form = super().get_form(form_class)
-#         form.fields.pop('fecha_salida_real', None)
-#         return form
-
-#     def form_valid(self, form):
-#         form.instance.id_usuario_creacion = self.request.user
-#         return super().form_valid(form)
-
-# class DespachoUpdateView(LoginRequiredMixin, UpdateView):
-#     model = Despacho
-#     form_class = DespachoForm 
-#     template_name = 'inventario/despacho_form.html'
-
-    
-#     def form_valid(self, form):
-#         form.instance.id_usuario_ultima_modificacion = self.request.user
-#         return super().form_valid(form)
-
-#     def get_success_url(self):
-#         return reverse_lazy('despacho-detail', kwargs={'pk': self.object.pk})
-
-# class DespachoDeleteView(LoginRequiredMixin, DeleteView):
-#     model = Despacho
-#     template_name = 'inventario/despacho_confirm_delete.html'
-#     success_url = reverse_lazy('despacho-list')
-
-
-# # --- CRUD para Conductores ---
-
-# class ConductorListView(LoginRequiredMixin, ListView):
-#     model = Conductor
-#     template_name = 'inventario/conductor_list.html'
-#     context_object_name = 'conductores'
-
-# class ConductorCreateView(LoginRequiredMixin, CreateView):
-#     model = Conductor
-#     template_name = 'inventario/conductor_form.html'
-#     fields = ['nombre_completo', 'rut_conductor', 'numero_licencia', 'telefono']
-#     success_url = reverse_lazy('conductor-list')
-
-# class ConductorUpdateView(LoginRequiredMixin, UpdateView):
-#     model = Conductor
-#     template_name = 'inventario/conductor_form.html'
-#     fields = ['nombre_completo', 'rut_conductor', 'numero_licencia', 'telefono']
-#     success_url = reverse_lazy('conductor-list')
-
-# class ConductorDeleteView(LoginRequiredMixin, DeleteView):
-#     model = Conductor
-#     template_name = 'inventario/conductor_confirm_delete.html'
-#     success_url = reverse_lazy('conductor-list')
-
-
-# # --- CRUD para Camiones ---
-
-# class CamionListView(LoginRequiredMixin, ListView):
-#     model = Camion
-#     template_name = 'inventario/camion_list.html'
-#     context_object_name = 'camiones'
-
-# class CamionCreateView(LoginRequiredMixin, CreateView):
-#     model = Camion
-#     template_name = 'inventario/camion_form.html'
-#     fields = ['patente', 'marca', 'modelo', 'capacidad_max_kg', 'capacidad_max_m3']
-#     success_url = reverse_lazy('camion-list')
-
-# class CamionUpdateView(LoginRequiredMixin, UpdateView):
-#     model = Camion
-#     template_name = 'inventario/camion_form.html'
-#     fields = ['patente', 'marca', 'modelo', 'capacidad_max_kg', 'capacidad_max_m3']
-#     success_url = reverse_lazy('camion-list')
-
-# class CamionDeleteView(LoginRequiredMixin, DeleteView):
-#     model = Camion
-#     template_name = 'inventario/camion_confirm_delete.html'
-#     success_url = reverse_lazy('camion-list')
-
-
-# # --- CRUD para Rutas ---
-
-# class RutaListView(LoginRequiredMixin, ListView):
-#     model = Ruta
-#     template_name = 'inventario/ruta_list.html'
-#     context_object_name = 'rutas'
-
-# class RutaCreateView(LoginRequiredMixin, CreateView):
-#     model = Ruta
-#     template_name = 'inventario/ruta_form.html'
-#     fields = ['nombre_ruta', 'descripcion']
-#     success_url = reverse_lazy('ruta-list')
-
-# class RutaUpdateView(LoginRequiredMixin, UpdateView):
-#     model = Ruta
-#     template_name = 'inventario/ruta_form.html'
-#     fields = ['nombre_ruta', 'descripcion']
-#     success_url = reverse_lazy('ruta-list')
-
-# class RutaDeleteView(LoginRequiredMixin, DeleteView):
-#     model = Ruta
-#     template_name = 'inventario/ruta_confirm_delete.html'
-#     success_url = reverse_lazy('ruta-list')
-
-
-# # --- CRUD para Destinos ---
-
-# class DestinoListView(LoginRequiredMixin, ListView):
-#     model = Destino
-#     template_name = 'inventario/destino_list.html'
-#     context_object_name = 'destinos'
-
-# class DestinoCreateView(LoginRequiredMixin, CreateView):
-#     model = Destino
-#     template_name = 'inventario/destino_form.html'
-#     fields = ['nombre_ciudad', 'region']
-#     success_url = reverse_lazy('destino-list')
-
-# class DestinoUpdateView(LoginRequiredMixin, UpdateView):
-#     model = Destino
-#     template_name = 'inventario/destino_form.html'
-#     fields = ['nombre_ciudad', 'region']
-#     success_url = reverse_lazy('destino-list')
-
-# class DestinoDeleteView(LoginRequiredMixin, DeleteView):
-#     model = Destino
-#     template_name = 'inventario/destino_confirm_delete.html'
-#     success_url = reverse_lazy('destino-list')
-
-
-# # --- CRUD para Ubicaciones ---
-
-# class UbicacionListView(LoginRequiredMixin, ListView):
-#     model = Ubicacion
-#     template_name = 'inventario/ubicacion_list.html'
-#     context_object_name = 'ubicaciones'
-
-# class UbicacionCreateView(LoginRequiredMixin, CreateView):
-#     model = Ubicacion
-#     template_name = 'inventario/ubicacion_form.html'
-#     fields = [
-#         'codigo_ubicacion', 'pasillo', 'estanteria', 'nivel', 
-#         'pos_x', 'pos_y', 'pos_z', 
-#         'capacidad_max_kg', 'capacidad_max_m3', 'estado_ocupado'
-#     ]
-#     success_url = reverse_lazy('ubicacion-list')
-
-# class UbicacionUpdateView(LoginRequiredMixin, UpdateView):
-#     model = Ubicacion
-#     template_name = 'inventario/ubicacion_form.html'
-#     fields = [
-#         'codigo_ubicacion', 'pasillo', 'estanteria', 'nivel', 
-#         'pos_x', 'pos_y', 'pos_z', 
-#         'capacidad_max_kg', 'capacidad_max_m3', 'estado_ocupado'
-#     ]
-#     success_url = reverse_lazy('ubicacion-list')
-
-# class UbicacionDeleteView(LoginRequiredMixin, DeleteView):
-#     model = Ubicacion
-#     template_name = 'inventario/ubicacion_confirm_delete.html'
-#     success_url = reverse_lazy('ubicacion-list')

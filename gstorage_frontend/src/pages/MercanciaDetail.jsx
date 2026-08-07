@@ -230,7 +230,7 @@ export default function MercanciaDetail() {
                     <span className="block text-sm font-bold text-gray-600 truncate px-1">
                       {mercancia.factura || "Sin Asignar"}
                     </span>
-                    <span className="text-xs text-amber-600 font-medium">Factura</span>
+                    <span className="text-xs text-amber-600 font-medium">{mercancia.tipo_documento_mercancia}</span>
                   </div>
                   <div className="p-4 border border-cyan-100 rounded-lg text-center hover:border-cyan-200 transition bg-cyan-50">
                     <Warehouse className="w-5 h-5 text-cyan-500 mx-auto mb-2" />

@@ -35,20 +35,28 @@ export const AuthProvider = ({ children }) => {
     setAuthTokens(tokensData)
 
     const userResponse = await apiClient.get('/api/usuarios/me/')
-    setUser(userResponse.data)
+    const userData = userResponse.data
+    setUser(userData)
 
     canalAutenticacion.postMessage({
       tipo: 'LOGIN_EXITOSO',
       access: tokensData.access,
-      user: userResponse.data
+      user: userData
     });
 
     const rutaPrevia = sessionStorage.getItem('gstorage_ruta_retorno');
+    
     if (rutaPrevia && rutaPrevia !== '/login') {
       sessionStorage.removeItem('gstorage_ruta_retorno');
       navigate(rutaPrevia);
     } else {
-      navigate('/');
+      const esChofer = userData?.es_chofer || userData?.perfil_movil || userData?.rol === 'chofer';
+
+      if (esChofer) {
+        navigate('/reparto/ruta');
+      } else {
+        navigate('/');
+      }
     }
   }
 
@@ -170,9 +178,14 @@ export const AuthProvider = ({ children }) => {
         setAuthTokens({ access })
         setUser(userData)
 
-        const rutaPrevia = sessionStorage.getItem('gstorage_ruta_retorno') || '/'
-        sessionStorage.removeItem('gstorage_ruta_retorno')
-        navigate(rutaPrevia)
+        const rutaPrevia = sessionStorage.getItem('gstorage_ruta_retorno')
+        if (rutaPrevia && rutaPrevia !== '/login') {
+          sessionStorage.removeItem('gstorage_ruta_retorno')
+          navigate(rutaPrevia)
+        } else {
+          const esChofer = userData?.es_chofer || userData?.perfil_movil || userData?.rol === 'chofer'
+          navigate(esChofer ? '/reparto/ruta' : '/')
+        }
       }
 
       if (tipo === 'LOGOUT_PROCESADO') {

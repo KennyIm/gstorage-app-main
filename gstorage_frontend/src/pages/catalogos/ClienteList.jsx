@@ -151,7 +151,7 @@ export default function ClientsCatalog() {
     e.preventDefault()
     if (!sinRut && !isValidRUT(formData.rut_cliente)) {
       setError('El RUT ingresado no es válido')
-      return;
+      return
     }
 
     showLoader()
@@ -164,37 +164,38 @@ export default function ClientsCatalog() {
       ciudad: normalizeCity(formData.ciudad),
       ciudad2: normalizeCity(formData.ciudad2),
       nombre_contacto: normalizeName(formData.nombre_contacto)
-    };
+    }
     setError(null)
 
     try {
+      let res;
       if (editingClient) {
-        await apiClient.put(`/api/inventario/clientes/${editingClient.id_cliente}/`, cleanData)
-        showToast('Registro actualizado con éxito', 'success')
+        res = await apiClient.put(`/api/inventario/clientes/${editingClient.id_cliente}/`, cleanData);
+        showToast('Registro actualizado con éxito', 'success');
+
+        setClients(prev => prev.map(c => c.id_cliente === editingClient.id_cliente ? res.data : c));
       } else {
-        await apiClient.post('/api/inventario/clientes/', cleanData)
-        showToast('Registro creado con éxito', 'success')
+        res = await apiClient.post('/api/inventario/clientes/', cleanData);
+        showToast('Registro creado con éxito', 'success');
+
+        setClients(prev => [res.data, ...prev]);
       }
-
-      limpiarCacheCatalogos()
-
-      handleCloseModal()
-      fetchClients() 
+      handleCloseModal();
     } catch (err) {
-      console.error(err)
-      const errorData = err.response?.data
-      const esRutDuplicado = errorData?.rut_cliente || errorData?.rut_hash || errorData?.non_field_errors
+      console.error(err);
+      const errorData = err.response?.data;
+      const esRutDuplicado = errorData?.rut_cliente || errorData?.rut_hash || errorData?.non_field_errors;
 
       showToast(
         esRutDuplicado
-          ? 'El RUT ingresado ya existe del sistema.'
+          ? 'El RUT ingresado ya existe en el sistema.'
           : 'Error al guardar el cliente.',
         'error'
-      )
+      );
     } finally {
-      hideLoader()
+      hideLoader();
     }
-  }
+  };
 
   // --- LÓGICA DE ESTADO ---
   const handleToggleStatus = async (client) => {

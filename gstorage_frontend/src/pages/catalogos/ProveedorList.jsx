@@ -137,14 +137,13 @@ export default function Proveedores() {
     }
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
+        e.preventDefault()
         if (!sinRut && !isValidRUT(formData.rut)) {
             setError('El RUT ingresado no es válido.')
             return
         }
         showLoader()
         setSubmitting(true)
-
         const cleanData = {
             ...formData,
             rut: sinRut ? "" : formData.rut,
@@ -153,17 +152,17 @@ export default function Proveedores() {
             correo: normalizeEmail(formData.correo),
             telefono: formData.telefono,
         }
-
         try {
+            let res
             if (editingProveedor) {
-                await apiClient.put(`/api/inventario/proveedores/${editingProveedor.id}/`, cleanData);
-                showToast('Registro actualizado con éxito', 'success');
+                res = await apiClient.put(`/api/inventario/proveedores/${editingProveedor.id}/`, cleanData)
+                showToast('Registro actualizado con éxito', 'success')
+                setProveedores(prev => prev.map(p => p.id === editingProveedor.id ? res.data : p))
             } else {
-                await apiClient.post('/api/inventario/proveedores/', cleanData);
-                showToast('Registro creado con éxito', 'success');
+                res = await apiClient.post('/api/inventario/proveedores/', cleanData)
+                showToast('Registro creado con éxito', 'success')
+                setProveedores(prev => [res.data, ...prev])
             }
-            limpiarCacheCatalogos() 
-            await fetchProveedores()
             handleCloseModal()
         } catch (err) {
             console.error(err)
@@ -410,7 +409,7 @@ export default function Proveedores() {
                                                     <input
                                                         type="checkbox"
                                                         checked={sinRut}
-                                                        disabled={!!editingProveedor} 
+                                                        disabled={!!editingProveedor}
                                                         onChange={(e) => {
                                                             setSinRut(e.target.checked);
                                                             if (e.target.checked) {
@@ -435,8 +434,8 @@ export default function Proveedores() {
                                                     maxLength={12}
                                                     disabled={sinRut || !!editingProveedor}
                                                     className={`w-full pl-10 pr-4 py-2 border rounded-lg outline-none transition text-sm ${sinRut || !!editingProveedor
-                                                            ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed select-none'
-                                                            : 'bg-gray-50 border-gray-300 text-gray-900 focus:bg-white focus:ring-2 focus:ring-indigo-500'
+                                                        ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed select-none'
+                                                        : 'bg-gray-50 border-gray-300 text-gray-900 focus:bg-white focus:ring-2 focus:ring-indigo-500'
                                                         }`}
                                                     placeholder={sinRut ? "No requiere identificación" : "12.345.678-9"}
                                                     required={!sinRut}

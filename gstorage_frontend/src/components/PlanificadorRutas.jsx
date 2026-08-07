@@ -182,7 +182,7 @@ export default function PlanificadorRutas() {
         `${despacho?.fecha_salida_real ? new Date(despacho.fecha_salida_real).toLocaleDateString() : 'N/A'}`,
         "", ""
       ],
-      ["N°", "Cliente", "Proveedor", "Kilos", "Destino", "Factura", "Bultos", "Cód. Interno"]
+      ["N°", "Cliente", "Proveedor", "Kilos", "Destino", "Documento", "Bultos", "Cód. Interno"]
     ]
 
     listaRuta.forEach((item, index) => {
@@ -192,7 +192,7 @@ export default function PlanificadorRutas() {
         getNombreProveedor(item.id_proveedor),
         Number(item.kg) || 0,
         getNombreDestino(item.id_destino),
-        item.factura || "S/F",
+        item.tipo_documento_mercancia + ": " + item.factura || "S/F",
         item.cantidad_bultos + " " + item.tipo || 0,
         item.codigo_interno || "N/A"
       ])
