@@ -169,7 +169,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'usuarios.authentication.ExpressJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -215,10 +215,13 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_USE_SSL = False
-
-
 EMAIL_HOST_USER = os.environ.get('EMAIL_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_PASS')
-
-
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+WHATSAPP_GATEWAY_CONFIG = {
+    'URL': os.getenv('WHATSAPP_GATEWAY_URL', 'http://localhost:8080').rstrip('/'),
+    'API_KEY': os.getenv('WHATSAPP_GATEWAY_APIKEY', 'gstorage_secret_key_2026'),
+    'INSTANCE': os.getenv('WHATSAPP_INSTANCE_NAME', 'gstorage_express'),
+    'TIMEOUT': 5,
+}

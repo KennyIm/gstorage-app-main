@@ -3,47 +3,63 @@ from django.dispatch import receiver
 from .models import Despacho, Mercancia, Ubicacion, Estanteria
 from decimal import Decimal
 
+ESTADOS_AUDITADOS = ['Entregado', 'En Observacion']
+
+@receiver(pre_save, sender=Mercancia)
+def sincronizar_mercancia_en_transito(sender, instance, **kwargs):
+    if instance.id_despacho:
+        estado_camion = instance.id_despacho.estado_despacho
+
+        if estado_camion == 'Programado':
+            if instance.estado not in ESTADOS_AUDITADOS:
+                instance.estado = 'Asignado'
+
+        elif estado_camion in ['En Carga', 'En Tránsito']:
+            if instance.estado not in ESTADOS_AUDITADOS:
+                instance.estado = 'En Tránsito'
+    else:
+        if instance.estado in ['Asignado', 'En Tránsito']:
+            instance.estado = 'En Bodega'
+
+@receiver(post_save, sender=Mercancia)
+def verificar_cierre_despacho_por_entregas(sender, instance, **kwargs):
+    despacho = instance.id_despacho
+    if not despacho or despacho.estado_despacho == 'Finalizado':
+        return
+
+    if instance.estado in ESTADOS_AUDITADOS:
+        cargas_pendientes = Mercancia.objects.filter(
+            id_despacho=despacho,
+            activo=True
+        ).exclude(estado__in=ESTADOS_AUDITADOS).exists()
+
+        if not cargas_pendientes:
+            despacho.estado_despacho = 'Finalizado'
+            despacho.save()
+
+
 @receiver(post_save, sender=Despacho)
-def actualizar_estado_mercancias(sender, instance, created, **kwargs):
-    
+def gestionar_recursos_despacho(sender, instance, created, **kwargs):
     despacho = instance
-    mercancias_asociadas = Mercancia.objects.filter(id_despacho=despacho)
-    
-    nuevo_estado_mercancia = ''
-    accion_ubicacion = None 
+    mercancias = Mercancia.objects.filter(id_despacho=despacho, activo=True)
 
-    if despacho.estado_despacho == 'Programado':
-        nuevo_estado_mercancia = 'Asignado'
-        accion_ubicacion = 'ocupar'
-    elif despacho.estado_despacho in ['En Carga', 'En Tránsito']:
-        nuevo_estado_mercancia = 'En Tránsito'
-        accion_ubicacion = 'liberar' 
+    if despacho.estado_despacho in ['En Carga', 'En Tránsito']:
+        mercancias.exclude(estado__in=ESTADOS_AUDITADOS).update(estado='En Tránsito')
+
+        for mercancia in mercancias.select_related('id_ubicacion_actual'):
+            if mercancia.id_ubicacion_actual:
+                ubicacion = mercancia.id_ubicacion_actual
+                ubicacion.estado_ocupado = False
+                ubicacion.save()
+                Mercancia.objects.filter(pk=mercancia.pk).update(id_ubicacion_actual=None)
     elif despacho.estado_despacho == 'Finalizado':
-        nuevo_estado_mercancia = 'Entregado'
-        accion_ubicacion = 'liberar' 
+        if despacho.id_camion and despacho.id_camion.estado_camion != 'DISPONIBLE':
+            despacho.id_camion.estado_camion = 'DISPONIBLE'
+            despacho.id_camion.save()
 
-    if nuevo_estado_mercancia:
-        mercancias_asociadas.update(estado=nuevo_estado_mercancia)
-        
-        if accion_ubicacion:
-            nuevo_estado_ocupado = True if accion_ubicacion == 'ocupar' else False
-            
-            for mercancia in mercancias_asociadas.select_related('id_ubicacion_actual'):
-                if mercancia.id_ubicacion_actual:
-                    try:
-                        ubicacion = mercancia.id_ubicacion_actual
-                        
-                        if accion_ubicacion == 'ocupar' and ubicacion.estado_ocupado:
-                            print(f"¡CONFLICTO! Ubicación {ubicacion.codigo_ubicacion} ya está ocupada. Mercancía {mercancia.id_mercancia} necesita reubicación.")
-                            continue 
-                        
-                        ubicacion.estado_ocupado = nuevo_estado_ocupado
-                        ubicacion.save()
-
-                        mercancia.id_ubicacion_actual = None
-                        mercancia.save()
-                    except Exception as e:
-                        print(f"Error al {accion_ubicacion} ubicación {ubicacion.codigo_ubicacion}: {e}")
+        if hasattr(despacho, 'id_rampla') and despacho.id_rampla and despacho.id_rampla.estado_rampla != 'Disponible':
+            despacho.id_rampla.estado_rampla = 'Disponible'
+            despacho.id_rampla.save()
 
 @receiver(post_save, sender=Estanteria)
 def generar_ubicaciones_automaticas(sender, instance, created, **kwargs):
@@ -81,29 +97,10 @@ def generar_ubicaciones_automaticas(sender, instance, created, **kwargs):
     
         if ubicaciones_a_crear:
             Ubicacion.objects.bulk_create(ubicaciones_a_crear)
-            print(f"✅ Se generaron {len(ubicaciones_a_crear)} ubicaciones para {instance.codigo_estanteria}")
-
-
-@receiver(pre_save, sender=Mercancia)
-def actualizar_estado_por_despacho(sender, instance, **kwargs):
-    if instance.id_despacho:
-        estado_del_camion = instance.id_despacho.estado_despacho 
-        if estado_del_camion == 'Programado':
-            instance.estado = 'Asignado'
-        elif estado_del_camion == 'En Tránsito':
-            instance.estado = 'En Tránsito'
-        elif estado_del_camion == 'Entregado':
-            instance.estado = 'Entregado'
-            
-    else:
-        if instance.estado in ['Asignado', 'En Tránsito', 'Entregado']: 
-            instance.estado = 'En Bodega'     
+            print(f"✅ Se generaron {len(ubicaciones_a_crear)} ubicaciones para {instance.codigo_estanteria}")  
 
 @receiver(pre_save, sender=Mercancia)
 def calcular_precio_mercancia(sender, instance, **kwargs):
-    """
-    Calcula el precio SOLO si no se ha ingresado uno manualmente.
-    """
     if instance.id_cliente and not instance.precio_total:
         peso = Decimal(str(instance.kg or 0.00))
         volumen = Decimal(str(instance.m3 or 0.00))

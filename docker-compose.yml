@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: evolution-postgres
+    restart: unless-stopped
+    mem_limit: 100m
+    environment:
+      - POSTGRES_USER=evolution
+      - POSTGRES_PASSWORD=evolution_secret_pass_prod_2026
+      - POSTGRES_DB=evolution_db
+    volumes:
+      - evolution_pgdata:/var/lib/postgresql/data
+    networks:
+      - gstorage_net
+
+  redis:
+    image: redis:alpine
+    container_name: evolution-redis
+    restart: unless-stopped
+    mem_limit: 50m
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - evolution_redisdata:/data
+    networks:
+      - gstorage_net
+
+  evolution-api:
+    image: evoapicloud/evolution-api:latest
+    container_name: evolution-api
+    restart: unless-stopped
+    mem_limit: 350m
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - SERVER_URL=http://evolution-api:8080
+      - AUTHENTICATION_API_KEY=e8f9a2b4c6d8e0f21a3b5c7d9e1f3a5b7c9d1e3f5a7b9c1d
+      - DATABASE_ENABLED=true
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://evolution:evolution_secret_pass_prod_2026@postgres:5432/evolution_db?schema=public
+      - DATABASE_SAVE_DATA_INSTANCE=true
+      - DATABASE_SAVE_DATA_NEW_MESSAGE=false
+      - DATABASE_SAVE_MESSAGE_UPDATE=false
+      - DATABASE_SAVE_DATA_CONTACTS=false
+      - DATABASE_SAVE_DATA_CHATS=false
+      - CACHE_REDIS_ENABLED=true
+      - CACHE_REDIS_URI=redis://redis:6379/1
+      - CACHE_REDIS_PREFIX_KEY=evolution
+    volumes:
+      - evolution_instances:/evolution/instances
+    networks:
+      - gstorage_net
+
+volumes:
+  evolution_pgdata:
+  evolution_redisdata:
+  evolution_instances:
+
+networks:
+  gstorage_net:
+    name: gstorage_net
+    driver: bridge

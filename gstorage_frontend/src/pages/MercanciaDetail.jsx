@@ -1,76 +1,70 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import apiClient from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import apiClient from '../services/api'
+import { useAuth } from '../context/AuthContext'
 import {
   ArrowLeft, Edit, Trash2, Package, MapPin, User,
   Calendar, Activity, Truck, Scale, Box, FileText,
   Loader2, Info, DollarSign, Warehouse,
-  PackageCheck,
-  Sparkle
-} from 'lucide-react';
-import { useUI } from '../context/UIContext';
+  PackageCheck, Sparkle, AlertTriangle
+} from 'lucide-react'
+import { useUI } from '../context/UIContext'
 
 export default function MercanciaDetail() {
-  document.title = "Detalles de Mercancia - GStorage";
-  const [mercancia, setMercancia] = useState(null);
-
-  const [clientes, setClientes] = useState([]);
-  const [proveedores, setProveedores] = useState([]);
-  const [destinos, setDestinos] = useState([]);
-  const [ubicaciones, setUbicaciones] = useState([]);
-  const [sucursales, setSucursales] = useState([]);
-
-  const [loading, setLoading] = useState(true);
-
-  const { showToast } = useUI();
-
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const { user, logoutUser } = useAuth();
+  document.title = "Detalles de Mercancia - GStorage"
+  const [mercancia, setMercancia] = useState(null)
+  const [controlEntrega, setControlEntrega] = useState(null)
+  const [clientes, setClientes] = useState([])
+  const [proveedores, setProveedores] = useState([])
+  const [destinos, setDestinos] = useState([])
+  const [ubicaciones, setUbicaciones] = useState([])
+  const [sucursales, setSucursales] = useState([])
+  const [loading, setLoading] = useState(true)
+  const { showToast } = useUI()
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const { user, logoutUser } = useAuth()
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
+      setLoading(true)
       try {
-        const mercanciaRes = await apiClient.get(`/api/inventario/mercancias/${id}/`);
-        setMercancia(mercanciaRes.data);
-
-        const [clientesRes, destinosRes, ubicacionesRes, sucursalesRes, provRes] = await Promise.all([
+        const [mercanciaRes, controlRes, clientesRes, destinosRes, ubicacionesRes, sucursalesRes, provRes] = await Promise.all([
+          apiClient.get(`/api/inventario/mercancias/${id}/`),
+          apiClient.get(`/api/seguimiento/control-entrega/${id}/`),
           apiClient.get('/api/inventario/clientes/'),
           apiClient.get('/api/inventario/destinos/'),
           apiClient.get('/api/inventario/ubicaciones/'),
           apiClient.get('/api/usuarios/sucursales/'),
           apiClient.get('/api/inventario/proveedores/')
-        ]);
-
-        setClientes(clientesRes.data);
-        setDestinos(destinosRes.data);
-        setUbicaciones(ubicacionesRes.data);
-        setSucursales(sucursalesRes.data);
+        ])
+        setMercancia(mercanciaRes.data)
+        setControlEntrega(controlRes.data)
+        setClientes(clientesRes.data)
+        setDestinos(destinosRes.data)
+        setUbicaciones(ubicacionesRes.data)
+        setSucursales(sucursalesRes.data)
         setProveedores(provRes.data)
 
       } catch (err) {
         if (err.response && err.response.status === 401) {
-          showToast('Credenciales de autenticación no válidas, por favor ingrese de nuevo.', 'error');
-          logoutUser();
+          showToast('Credenciales de autenticación no válidas, por favor ingrese de nuevo.', 'error')
+          logoutUser()
         } else {
-          console.error("Error al cargar datos:", err);
-          showToast('No se pudo cargar la información necesaria.', 'error');
+          console.error("Error al cargar datos:", err)
+          showToast('No se pudo cargar la información necesaria.', 'error')
         }
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
-
-    fetchData();
-  }, [id, logoutUser, showToast]);
-
+    }
+    fetchData()
+  }, [id, logoutUser, showToast])
   const getNombreCliente = (id) => {
     if (!id) return 'No asignado';
     const cliente = clientes.find(c => c.id_cliente === id);
-    return cliente ? cliente.nombre_cliente : `ID: ${id} (No encontrado)`;
-  };
+    return cliente ? cliente.nombre_cliente : `ID: ${id} (No encontrado)`
+  }
 
   const getNombreDestino = (id) => {
     if (!id) return 'No asignado';
@@ -78,17 +72,11 @@ export default function MercanciaDetail() {
     return destino ? destino.nombre_ciudad : `ID: ${id}`;
   };
 
-  const getCodigoUbicacion = (id) => {
-    if (!id) return 'Sin ubicación';
-    const ubicacion = ubicaciones.find(u => u.id_ubicacion === id);
-    return ubicacion ? ubicacion.codigo_ubicacion : `ID: ${id}`;
-  };
-
   const getNombreSucursal = (id) => {
     if (!id) return 'Sin sucursal';
     const sucursal = sucursales.find(s => String(s.id) === String(id));
-    return sucursal ? sucursal.nombre : `Suc ${id}`
-  }
+    return sucursal ? sucursal.nombre : `Suc ${id}`;
+  };
 
   const handleDelete = async () => {
     if (window.confirm(`¿Estás seguro de que deseas eliminar el Lote #${mercancia?.id_mercancia}?`)) {
@@ -103,8 +91,6 @@ export default function MercanciaDetail() {
     }
   };
 
-
-  // --- RENDERIZADO DEL SPINNER LOCAL ---
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500">
@@ -115,6 +101,9 @@ export default function MercanciaDetail() {
   }
 
   if (!mercancia) return <div className="p-8 text-center text-gray-500">No se encontró la mercancía.</div>;
+
+  const esEnObservacion = mercancia.estado === 'En Observacion' || mercancia.estado === 'En Observación';
+  const tieneObservaciones = Boolean(controlEntrega?.observaciones || mercancia.observacion || mercancia.motivo_baja);
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 font-sans">
@@ -127,13 +116,12 @@ export default function MercanciaDetail() {
                 Estás viendo una mercancía de otra sucursal
               </h3>
               <p className="text-amber-700 text-xs mt-1">
-                Esta carga pertenece a <strong>{getNombreSucursal(mercancia.sucursal_id)}</strong> (Tu sucursal actual es {getNombreSucursal(user.perfil.sucursal_id)}). Todo cambió o eliminación de información quedara registrado y almacenado.
+                Esta carga pertenece a <strong>{getNombreSucursal(mercancia.sucursal_id)}</strong> (Tu sucursal actual es {getNombreSucursal(user.perfil.sucursal_id)}). Todo cambio o eliminación de información quedará registrado y almacenado.
               </p>
             </div>
           </div>
         )}
 
-        {/* Header de Navegación */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Link to="/mercancias" className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 transition shadow-sm">
@@ -142,9 +130,13 @@ export default function MercanciaDetail() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-gray-900">Lote #{mercancia.id_mercancia || mercancia.id || id}</h1>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${mercancia.estado === 'ALMACENADO' ? 'bg-green-50 text-green-700 border-green-200' :
-                  mercancia.estado === 'DESPACHADO' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                    'bg-gray-100 text-gray-600 border-gray-200'
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${esEnObservacion
+                  ? 'bg-amber-100 text-amber-800 border-amber-200'
+                  : mercancia.estado === 'ALMACENADO' || mercancia.estado === 'Recibido'
+                    ? 'bg-green-50 text-green-700 border-green-200'
+                    : mercancia.estado === 'DESPACHADO' || mercancia.estado === 'Entregado'
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-gray-100 text-gray-600 border-gray-200'
                   }`}>
                   {mercancia.estado}
                 </span>
@@ -169,9 +161,7 @@ export default function MercanciaDetail() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
           <div className="lg:col-span-2 space-y-6">
-
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2">
@@ -179,7 +169,6 @@ export default function MercanciaDetail() {
                 </h3>
               </div>
               <div className="p-6">
-
                 <div className="flex items-start gap-4 mb-6 p-4 bg-indigo-50/50 rounded-lg border border-indigo-100">
                   <div className="p-2 bg-white rounded-full shadow-sm text-indigo-600">
                     <User className="w-5 h-5" />
@@ -219,8 +208,8 @@ export default function MercanciaDetail() {
                     <User className="w-5 h-5 text-blue-500 mx-auto mb-2" />
                     <span className="block text-sm font-bold text-gray-600 truncate px-1">
                       {(() => {
-                        const provObj = proveedores.find(p => Number(p.id) === Number(mercancia.id_proveedor))
-                        return provObj ? provObj.nombre_proveedor : "Sin Asignar"
+                        const provObj = proveedores.find(p => Number(p.id) === Number(mercancia.id_proveedor));
+                        return provObj ? provObj.nombre_proveedor : "Sin Asignar";
                       })()}
                     </span>
                     <span className="text-xs text-blue-600 font-medium">Proveedor</span>
@@ -256,9 +245,38 @@ export default function MercanciaDetail() {
                     {mercancia.descripcion_carga || "Sin descripción registrada."}
                   </p>
                 </div>
+
+                {esEnObservacion && (
+                  <div className="mt-4 animate-fade-down">
+                    <h4 className="text-sm font-semibold text-amber-900 mb-2 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-600" /> Observaciones de Entrega / Incidencia
+                    </h4>
+                    <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-lg text-amber-900 text-sm space-y-1.5 shadow-xs">
+                      {controlEntrega?.estado_entrega && (
+                        <div className="text-xs text-amber-800 font-bold uppercase tracking-wide">
+                          Motivo: {controlEntrega.estado_entrega === 'No_Domicilio'
+                            ? 'No se encontraba en domicilio / Cerrado'
+                            : controlEntrega.estado_entrega === 'Rechazado'
+                              ? 'Carga rechazada por el cliente'
+                              : controlEntrega.estado_entrega}
+                        </div>
+                      )}
+                      <p className="italic text-gray-700 m-0">
+                        "{controlEntrega?.observaciones || mercancia.observacion || mercancia.motivo_baja || 'Carga marcada en observación sin detalle adicional.'}"
+                      </p>
+                      {controlEntrega?.fecha_entrega && (
+                        <div className="text-[11px] text-amber-700 pt-1 border-t border-amber-200/60 flex items-center gap-1">
+                          <span>Reportado el: {new Date(controlEntrega.fecha_entrega).toLocaleString('es-CL', {
+                            day: '2-digit', month: '2-digit', year: 'numeric',
+                            hour: '2-digit', minute: '2-digit'
+                          })}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2 bg-gray-50/50">
                 <Info className="w-4 h-4 text-gray-400" />
@@ -272,8 +290,6 @@ export default function MercanciaDetail() {
 
                 return (
                   <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-
-                    {/* Sección Creado Por */}
                     <div>
                       <span className="block text-xs text-gray-500 mb-1">Creado por</span>
                       <div className="flex items-center gap-2">
@@ -284,7 +300,6 @@ export default function MercanciaDetail() {
                       </div>
                     </div>
 
-                    {/* Sección Última Modificación */}
                     <div>
                       <span className="block text-xs text-gray-500 mb-1">Última Modificación</span>
                       <div className="flex items-center gap-2">
@@ -313,7 +328,6 @@ export default function MercanciaDetail() {
                 </h3>
               </div>
               <div className="p-6 space-y-6">
-
                 <div className="relative pl-4 border-l-2 border-indigo-200">
                   <span className="block text-xs font-medium text-gray-500 uppercase mb-1">N° de Orden</span>
                   <div className="flex items-center gap-2 text-gray-900 font-medium">
@@ -341,7 +355,6 @@ export default function MercanciaDetail() {
                     <span className="text-gray-400 italic text-sm">Pendiente de asignar</span>
                   )}
                 </div>
-
               </div>
               <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 text-center">
                 <button onClick={() => navigate('/historial')} className="text-indigo-600 text-sm font-medium hover:text-indigo-700 transition">
@@ -350,7 +363,6 @@ export default function MercanciaDetail() {
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>

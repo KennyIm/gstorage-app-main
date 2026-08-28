@@ -1,4 +1,3 @@
-from django.shortcuts import render
 import hashlib
 import os
 import json
@@ -38,7 +37,8 @@ from inventario.serializers import desencriptar_valor
 from .models import (
     Mercancia, Cliente, Despacho, Conductor, 
     Camion, Ruta, Destino, Ubicacion, HistorialMovimientos, Estanteria,
-    AreaRestringida, Proveedor, Rampla, Cotizacion, PermisoColaboracion, PermisoCotizacion
+    AreaRestringida, Proveedor, Rampla, Cotizacion, PermisoColaboracion, PermisoCotizacion,
+    RecepcionPatio
 )
 
 from .serializers import (
@@ -52,21 +52,32 @@ from .serializers import (
     RamplaSerializer,
     CotizacionSerializer,
     InvitacionColaboradorSerializer,
-    InvitacionCotizacionSerializer
+    InvitacionCotizacionSerializer,
+    MercanciaPatioSerializer, 
+    ProcesarTransferPayloadSerializer,
+    DespachoSelectorSerializer
 )
 
 from usuarios.permissions import IsAdminEmpresa, IsJefeDeBodega, IsOperario, AllowRoles
+from usuarios.models import Empresa
 
 from django.contrib.auth.models import User
 from rest_framework.decorators import api_view, permission_classes
 
 def get_empresa_from_user(request):
-    if not request.user.is_authenticated or not hasattr(request.user, 'perfil'):
-        raise ValidationError("Usuario no autenticado o sin perfil.")
-    empresa = request.user.perfil.empresa
-    if not empresa:
-        raise ValidationError("El usuario no está asociado a ninguna empresa.")
-    return empresa
+    user = getattr(request, 'user', None)
+    if not user or not user.is_authenticated:
+        raise ValidationError("Usuario no autenticado.")
+    if hasattr(user, 'operativo') and getattr(user.operativo, 'empresa', None):
+        return user.operativo.empresa
+    if hasattr(user, 'empresa') and user.empresa:
+        return user.empresa
+    if hasattr(user, 'perfil') and getattr(user.perfil, 'empresa', None):
+        return user.perfil.empresa
+    empresa_default = Empresa.objects.first()
+    if empresa_default:
+        return empresa_default
+    raise ValidationError("El usuario no está asociado a ninguna empresa.")
 
 def filtrar_por_sucursal_y_empresa(queryset, request):
     user = request.user
@@ -145,80 +156,100 @@ def sugerencias_direcciones(request, id_cliente):
             direcciones.append(dir_hist_clean)
 
     return Response(direcciones)
+
+JURISDICCION_SUCURSALES = {
+    'Antofagasta': ['Antofagasta', 'Mejillones', 'Tocopilla', 'Calama', 'Sierra Gorda'],
+    'Iquique': ['Iquique', 'Alto Hospicio', 'Pozo Almonte', 'Arica', 'Pica'],
+    'Copiapo': ['Copiapo', 'Copiapó', 'Caldera', 'Vallenar', 'Chañaral'],
+    'Santiago': ['Santiago', 'San Antonio', 'Valparaíso', 'Rancagua']
+}
 # --- Vistas de API para Mercancia ---
 
 class MercanciaListCreateAPI(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = MercanciasPagination
-    
     def get_queryset(self):
         user = self.request.user
         empresa = get_empresa_from_user(self.request)
         es_colaborador_subquery = PermisoColaboracion.objects.filter(
-        despacho_id=OuterRef('id_despacho_id'),
-        usuario_invitado=user,
-        activo=True
+            despacho_id=OuterRef('id_despacho_id'),
+            usuario_invitado=user,
+            activo=True
         )
         qs = Mercancia.activos.filter(empresa=empresa).select_related(
-        'id_cliente',
-        'id_ubicacion_actual',
-        'id_destino',
-        'id_despacho__id_ruta', 
-        'id_proveedor',
-        'control_entrega'
+            'id_cliente',
+            'id_ubicacion_actual',
+            'id_destino',
+            'id_despacho__id_ruta', 
+            'id_proveedor',
+            'control_entrega',
+            'sucursal'
         ).annotate(
             es_colaborador=Exists(es_colaborador_subquery)
         )
+        ver_compartidos = self.request.query_params.get('ver_compartidos') in ['true', 'True', '1']
         despacho_id = self.request.query_params.get('despacho') or self.request.query_params.get('id_despacho')
-        estado = self.request.query_params.get('estado')
-        estado_in = self.request.query_params.get('estado_in')
-        search_general = self.request.query_params.get('search')
-        cliente = self.request.query_params.get('cliente')
-        codigo_interno = self.request.query_params.get('codigo_interno')
-        destino = self.request.query_params.get('destino')
-        factura = self.request.query_params.get('factura')
-        proveedor = self.request.query_params.get('proveedor')
-        fecha_desde = self.request.query_params.get('fechaDesde')
-        fecha_hasta = self.request.query_params.get('fechaHasta')
-        if user.perfil.rol != 'DUENO':
-            sucursal_empleado = user.perfil.sucursal
-            condicion_propia = Q(sucursal=sucursal_empleado)
-            if despacho_id and despacho_id != 'null':
-                condicion_invitado = Q(es_colaborador=True)
-                qs = qs.filter(condicion_propia | condicion_invitado).distinct()
+        if getattr(user, 'perfil', None) and user.perfil.rol != 'DUENO':
+            sucursal_usuario = user.perfil.sucursal
+            nombre_sucursal = getattr(sucursal_usuario, 'ciudad', getattr(sucursal_usuario, 'nombre', ''))
+            ciudades_zona = JURISDICCION_SUCURSALES.get(nombre_sucursal, [nombre_sucursal])
+            q_destino_mi_zona = Q()
+            for ciudad in ciudades_zona:
+                q_destino_mi_zona |= Q(id_destino__nombre_ciudad__icontains=ciudad)
+
+            condicion_propia = Q(sucursal=sucursal_usuario)
+            condicion_compartido = Q(es_colaborador=True) & q_destino_mi_zona
+
+            if ver_compartidos:
+                qs = qs.filter(condicion_compartido)
+            elif despacho_id and despacho_id != 'null':
+                qs = qs.filter(condicion_propia | condicion_compartido)
             else:
-                qs = qs.filter(condicion_propia) 
+                qs = qs.filter(condicion_propia)
+        else:
+            if ver_compartidos:
+                qs = qs.filter(es_colaborador=True)
         if despacho_id:
             if despacho_id == 'null':
                 qs = qs.filter(id_despacho__isnull=True)
             else:
                 qs = qs.filter(id_despacho=despacho_id)
+        estado = self.request.query_params.get('estado')
         if estado and estado != 'TODOS':
             qs = qs.filter(estado=estado)
+        estado_in = self.request.query_params.get('estado_in')
         if estado_in:
-            estados = estado_in.split(',')
-            qs = qs.filter(estado__in=estados)
+            qs = qs.filter(estado__in=estado_in.split(','))
+        search_general = self.request.query_params.get('search')
         if search_general:
             qs = qs.filter(Q(codigo_interno__icontains=search_general) | Q(factura__icontains=search_general))
+        cliente = self.request.query_params.get('cliente')
         if cliente:
             qs = qs.filter(id_cliente__nombre_cliente__icontains=cliente)
+        codigo_interno = self.request.query_params.get('codigo_interno')
         if codigo_interno:
             qs = qs.filter(codigo_interno__icontains=codigo_interno)
+        destino = self.request.query_params.get('destino')
         if destino:
             qs = qs.filter(id_destino__nombre_ciudad__icontains=destino)
+        factura = self.request.query_params.get('factura')
         if factura:
             qs = qs.filter(factura__icontains=factura)
+        proveedor = self.request.query_params.get('proveedor')
         if proveedor:
             qs = qs.filter(id_proveedor__nombre_proveedor__icontains=proveedor)
+        fecha_desde = self.request.query_params.get('fechaDesde')
         if fecha_desde:
             qs = qs.filter(fecha_ingreso__gte=fecha_desde)
+        fecha_hasta = self.request.query_params.get('fechaHasta')
         if fecha_hasta:
             try:
                 hasta_dt = datetime.strptime(fecha_hasta, '%Y-%m-%d') + timedelta(days=1)
                 qs = qs.filter(fecha_ingreso__lt=hasta_dt)
             except ValueError:
                 qs = qs.filter(fecha_ingreso__lte=fecha_hasta)
-        return qs.order_by('-fecha_ingreso')
+
+        return qs.distinct().order_by('-fecha_ingreso')
     
 
     def get_serializer_class(self):
@@ -236,7 +267,6 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
         nuevo_kg = nuevos_datos.get('kg')
         nuevo_m3 = nuevos_datos.get('m3')
 
-        # --- VALIDACIONES DE CREACIÓN ---
         if ubicacion_seleccionada:
 
             if ubicacion_seleccionada.empresa != empresa:
@@ -576,12 +606,12 @@ class MercanciaBulkUpdateOrdenAPIView(APIView):
 
 class DespachoListCreateAPI(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def get_queryset(self):
         user = self.request.user
         empresa = get_empresa_from_user(self.request)
         perfil = user.perfil
-        
+
         actualizar_estados_automaticos(empresa)
 
         es_colaborador_subquery = PermisoColaboracion.objects.filter(
@@ -616,28 +646,45 @@ class DespachoListCreateAPI(generics.ListCreateAPIView):
         else:
             condicion_propio = Q(sucursal=perfil.sucursal)
             return qs.filter(condicion_propio | condicion_invitado).distinct().order_by('-fecha_programada')
-    
+
     def get_serializer_class(self):
         if self.request.method == 'GET':
             return DespachoListSerializer
         return DespachoWriteSerializer
-    
+
     def perform_create(self, serializer):
         empresa = get_empresa_from_user(self.request)
         user = self.request.user
         sucursal_empleado = user.perfil.sucursal if hasattr(user, 'perfil') else None
-        
         instance = serializer.save(
-            id_usuario_creacion=user, 
+            id_usuario_creacion=user,
             empresa=empresa,
-            sucursal=sucursal_empleado, 
+            sucursal=sucursal_empleado,
             activo=True
         )
+        usuarios_destino = User.objects.filter( ### *°*°*°*CAMBIAR EN CASO DE QUERER SOLO UN ROL ESPECIFICO*°*°*°* ###
+            perfil__empresa=empresa,
+            is_active=True
+        ).exclude(pk=user.pk)
+        if sucursal_empleado:
+            usuarios_destino = usuarios_destino.exclude(perfil__sucursal=sucursal_empleado)
+        permisos_a_crear = [
+            PermisoColaboracion(
+                despacho=instance,
+                usuario_invitado=u,
+                activo=True
+            )
+            for u in usuarios_destino
+        ]
+
+        if permisos_a_crear:
+            PermisoColaboracion.objects.bulk_create(permisos_a_crear, ignore_conflicts=True)
+
         registrar_auditoria(
             empresa=empresa,
             usuario=user,
             modelo="Despacho",
-            sucursal=self.request.user.perfil.sucursal,
+            sucursal=user.perfil.sucursal if hasattr(user, 'perfil') else None,
             accion="Creación",
             descripcion=f"Despacho programado para {instance.fecha_programada}",
             instancia=instance
@@ -1504,7 +1551,8 @@ class GenerarHojaRutaExcelAPI(generics.RetrieveAPIView):
     lookup_field = 'id_despacho' 
 
     def get_queryset(self):
-        return filtrar_por_sucursal_y_empresa(Despacho.objects.filter(activo=True), self.request)
+        empresa = get_empresa_from_user(self.request)
+        return Despacho.objects.filter(empresa=empresa, activo=True)
 
     def retrieve(self, request, *args, **kwargs):
         despacho = self.get_object()
@@ -1960,3 +2008,144 @@ class InvitarColaboradorCotizacionAPI(generics.CreateAPIView):
         return Response({
             "mensaje": f"Se otorgó permiso exitosamente a {usuario_invitado.username} para la cotización #{cotizacion.id_cotizacion}."
         }, status=status.HTTP_201_CREATED)
+
+
+class ListarDespachosRecepcionView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = DespachoSelectorSerializer
+
+    def get_queryset(self):
+        empresa = get_empresa_from_user(self.request)
+        
+        queryset = Despacho.objects.filter(
+            empresa=empresa,
+            activo=True
+        ).exclude(
+            estado_despacho__in=['Finalizado', 'Eliminado']
+        )
+
+        # queryset = queryset.filter(estado_despacho='En Tránsito')
+
+        return queryset.select_related('id_ruta', 'id_camion').order_by('-fecha_programada', '-id_despacho')
+
+class ObtenerMercanciasPatioView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = MercanciaPatioSerializer
+
+    def get_despacho(self):
+        empresa = get_empresa_from_user(self.request)
+        id_despacho = self.kwargs['id_despacho']
+        return get_object_or_404(Despacho, pk=id_despacho, empresa=empresa, activo=True)
+
+    def get_queryset(self):
+        despacho = self.get_despacho()
+        return Mercancia.objects.filter(
+            id_despacho=despacho, 
+            activo=True
+        ).exclude(estado='Entregado')
+
+    def list(self, request, *args, **kwargs):
+        despacho = self.get_despacho()
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+
+        destino_str = str(despacho.destino) if hasattr(despacho, 'destino') and despacho.destino else "Sin Destino"
+
+        nombre_ruta_str = "Sin Ruta"
+        if hasattr(despacho, 'id_ruta') and despacho.id_ruta:
+            nombre_ruta_str = getattr(despacho.id_ruta, 'codigo_ruta', None) or getattr(despacho.id_ruta, 'nombre_ruta', str(despacho.id_ruta))
+
+        return Response({
+            "despacho": {
+                "id_despacho": despacho.id_despacho,
+                "nombre_ruta": nombre_ruta_str,
+                "destino": destino_str,
+                "estado_despacho": despacho.estado_despacho
+            },
+            "total_items": queryset.count(),
+            "mercancias": serializer.data
+        }, status=status.HTTP_200_OK)
+
+class ProcesarTransferPatioView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = ProcesarTransferPayloadSerializer
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        empresa = get_empresa_from_user(request)
+        id_despacho = self.kwargs['id_despacho']
+        despacho = get_object_or_404(Despacho, pk=id_despacho, empresa=empresa, activo=True)
+        items = serializer.validated_data['items']
+
+        user_auth_db = request.user if hasattr(request.user, 'perfil') else None
+
+        mercancias_entregadas = 0
+        mercancias_con_incidencia = 0
+
+        for item in items:
+            mercancia = get_object_or_404(
+                Mercancia, 
+                pk=item['id_mercancia'], 
+                id_despacho=despacho,
+                empresa=empresa,
+                activo=True
+            )
+
+            es_conforme = item.get('conforme', True)
+            observacion_texto = item.get('observacion', '').strip()
+
+            RecepcionPatio.objects.create(
+                despacho=despacho,
+                mercancia=mercancia,
+                bultos_declarados=mercancia.cantidad_bultos,
+                kg_declarados=mercancia.kg or 0,
+                m3_declarados=mercancia.m3 or 0,
+                tipo_declarado=mercancia.tipo or '',
+                bultos_recibidos=item.get('bultos_recibidos', mercancia.cantidad_bultos if es_conforme else 0),
+                kg_recibidos=item.get('kg_recibidos', (mercancia.kg or 0) if es_conforme else 0),
+                m3_recibidos=item.get('m3_recibidos', (mercancia.m3 or 0) if es_conforme else 0),
+                tipo_recibido=item.get('tipo_recibido', mercancia.tipo),
+                conforme=es_conforme,
+                observacion=observacion_texto if observacion_texto else ('Recepción conforme en destino' if es_conforme else 'Mercancía no venía en el transporte'),
+                usuario_patio=user_auth_db
+            )
+
+            if user_auth_db:
+                mercancia.id_usuario_ultima_modificacion = user_auth_db
+
+            if es_conforme:
+                mercancia.cantidad_bultos = item['bultos_recibidos']
+                mercancia.kg = item['kg_recibidos']
+                mercancia.m3 = item['m3_recibidos']
+                if item.get('tipo_recibido'):
+                    mercancia.tipo = item['tipo_recibido']
+
+                mercancia.estado = 'Entregado'
+                mercancias_entregadas += 1
+            else:
+                mercancia.estado = 'En Observacion'
+                mercancia.motivo_baja = f"[Recepción Patio Despacho #{despacho.id_despacho}]: {observacion_texto or 'Mercancía no venía en el camión'}"
+                mercancias_con_incidencia += 1
+
+            mercancia.save()
+
+        pendientes = Mercancia.objects.filter(
+            id_despacho=despacho,
+            activo=True
+        ).exclude(
+                estado__in=['Entregado', 'Recibido', 'En Observacion']
+        ).exists()
+        if not pendientes:
+            despacho.estado_despacho = 'Finalizado'
+            despacho.save(update_fields=['estado_despacho'])
+
+        return Response({
+            "status": "success",
+            "message": f"Recepción procesada: {mercancias_entregadas} bultos entregados, {mercancias_con_incidencia} en observación.",
+            "despacho_finalizado": not pendientes,
+            "total_entregados": mercancias_entregadas,
+            "total_incidencias": mercancias_con_incidencia
+        }, status=status.HTTP_200_OK)

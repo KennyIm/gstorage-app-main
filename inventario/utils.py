@@ -15,62 +15,38 @@ def actualizar_estados_automaticos(empresa):
     despachos_activos = Despacho.activos.filter(
         empresa=empresa,
         fecha_salida_real__isnull=False
-    ).exclude(estado_despacho='Finalizado')
+    ).exclude(estado_despacho__in=['Finalizado', 'Eliminado'])
 
     count_actualizados = 0
+    tiempo_carga = timedelta(hours=2)
 
     for d in despachos_activos:
         cambio_realizado = False
         tiempo_transcurrido = now - d.fecha_salida_real
-        
-        tiempo_carga = timedelta(hours=4) 
-        tiempo_total_para_fin = timedelta(days=1, hours=4) 
 
-
-        if tiempo_transcurrido >= tiempo_total_para_fin:
-            if d.estado_despacho != 'Finalizado':
-                d.estado_despacho = 'Finalizado'
-                
-                if d.id_camion:
-                    d.id_camion.estado_camion = 'DISPONIBLE'
-                    d.id_camion.save()
-                
-                # Liberar Rampla 
-                if d.id_rampla:
-                    d.id_rampla.estado_rampla = 'DISPONIBLE'
-                    d.id_rampla.save()
-                
-                cambio_realizado = True
-
-        # 2. EN TRÁNSITO 
-        elif tiempo_transcurrido >= tiempo_carga:
+        if tiempo_transcurrido >= tiempo_carga:
             if d.estado_despacho != 'En Tránsito':
                 d.estado_despacho = 'En Tránsito'
                 
-                # Ocupar Camión
-                if d.id_camion:
-                    d.id_camion.estado_camion = 'EN_USO' 
+                if d.id_camion and d.id_camion.estado_camion != 'EN_USO':
+                    d.id_camion.estado_camion = 'EN_USO'
                     d.id_camion.save()
                 
-                # Ocupar Rampla 
-                if d.id_rampla:
+                if hasattr(d, 'id_rampla') and d.id_rampla and d.id_rampla.estado_rampla != 'EN_USO':
                     d.id_rampla.estado_rampla = 'EN_USO'
                     d.id_rampla.save()
                     
                 cambio_realizado = True
 
-        # 3. EN CARGA
         elif tiempo_transcurrido >= timedelta(seconds=0):
             if d.estado_despacho != 'En Carga':
                 d.estado_despacho = 'En Carga'
                 
-                # Ocupar Camión
-                if d.id_camion:
-                    d.id_camion.estado_camion = 'EN_USO' 
+                if d.id_camion and d.id_camion.estado_camion != 'EN_USO':
+                    d.id_camion.estado_camion = 'EN_USO'
                     d.id_camion.save()
                 
-                # Ocupar Rampla 
-                if d.id_rampla:
+                if hasattr(d, 'id_rampla') and d.id_rampla and d.id_rampla.estado_rampla != 'EN_USO':
                     d.id_rampla.estado_rampla = 'EN_USO'
                     d.id_rampla.save()
                 

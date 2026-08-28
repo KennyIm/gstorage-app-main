@@ -5,6 +5,7 @@ from . import views
 router = DefaultRouter()
 router.register(r'empresas', views.EmpresaViewSet, basename='empresa')
 router.register(r'users', views.UserViewSet, basename='user')
+router.register(r'personal-operativo', views.PersonalOperativoViewSet, basename='personal-operativo')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -22,4 +23,7 @@ urlpatterns = [
     path('2fa/obtener-qr/', views.ObtenerQR2FAView.as_view(), name='obtener_qr_2fa'),
     path('2fa/confirmar/', views.ConfirmarActivacion2FAView.as_view(), name='confirmar_2fa'),
     path('2fa/desactivar/', views.Desactivar2FAView.as_view(), name='desactivar_2fa'),
+
+    path('auth/express/solicitar-otp/', views.SolicitarOTPExpressView.as_view(), name='express-solicitar-otp'),
+    path('auth/express/verificar-otp/', views.VerificarOTPExpressView.as_view(), name='express-verificar-otp'),
 ]

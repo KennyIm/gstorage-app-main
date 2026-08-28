@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import apiClient from '../services/api'
 import Select from 'react-select'
 import {
   Search, Filter, Package, Plus, Eye, Trash2, Truck, Check, X, FileText,
-  ChevronLeft, ChevronRight, ArrowLeft
+  ChevronLeft, ChevronRight, ArrowLeft, Share2
 } from 'lucide-react'
 import MermaModal from '../components/MermaModal'
 import { useUI } from '../context/UIContext'
-import { useMemo } from 'react'
 
 export default function MercanciaList() {
   document.title = "Listado de Mercancias - GStorage"
@@ -37,7 +36,8 @@ export default function MercanciaList() {
     destino: '',
     despacho: '',
     factura: '',
-    proveedor: ''
+    proveedor: '',
+    verCompartidos: false // 👈 Estado de filtro para compartidos
   })
   const [selectedIds, setSelectedIds] = useState([])
   const [bulkDispatchId, setBulkDispatchId] = useState('')
@@ -80,7 +80,6 @@ export default function MercanciaList() {
     cargarCatalogosEstaticos();
   }, [])
 
-
   const fetchData = useCallback(async () => {
     if (typeof showLoader === 'function') showLoader()
 
@@ -104,6 +103,8 @@ export default function MercanciaList() {
       if (filtros.fechaHasta) mercanciasParams.append('fechaHasta', filtros.fechaHasta)
       if (filtros.proveedor) mercanciasParams.append('proveedor', filtros.proveedor)
 
+      mercanciasParams.append('ver_compartidos', filtros.verCompartidos ? 'true' : 'false')
+
       const mercRes = await apiClient.get(`/api/inventario/mercancias/?${mercanciasParams.toString()}`)
       setMercancias(mercRes.data.results || mercRes.data)
       setTotalItems(mercRes.data.count || 0)
@@ -116,7 +117,6 @@ export default function MercanciaList() {
     }
   }, [currentPage, searchTerm, statusFilter, filtros])
 
-
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       fetchData();
@@ -125,13 +125,13 @@ export default function MercanciaList() {
     return () => clearTimeout(delayDebounceFn);
   }, [fetchData]);
 
-
   useEffect(() => {
     setCurrentPage(1);
   }, [
     searchTerm, statusFilter, filtros.cliente, filtros.estado,
     filtros.codigoInterno, filtros.destino, filtros.factura,
-    filtros.proveedor, filtros.despacho, filtros.fechaDesde, filtros.fechaHasta
+    filtros.proveedor, filtros.despacho, filtros.fechaDesde, filtros.fechaHasta,
+    filtros.verCompartidos
   ])
 
   const handleBulkAssign = async () => {
@@ -154,11 +154,23 @@ export default function MercanciaList() {
   }
 
   const limpiarFiltros = () => {
-    setFiltros({ cliente: '', estado: 'TODOS', fechaDesde: '', fechaHasta: '', codigoInterno: '', destino: '', despacho: '', factura: '', proveedor: '' })
+    setFiltros({
+      cliente: '',
+      estado: 'TODOS',
+      fechaDesde: '',
+      fechaHasta: '',
+      codigoInterno: '',
+      destino: '',
+      despacho: '',
+      factura: '',
+      proveedor: '',
+      verCompartidos: false
+    })
     setSearchTerm('')
     setStatusFilter('TODOS')
     setCurrentPage(1)
   }
+
   const uniqueClientes = [...new Set(mercancias.map(m => m.cliente_nombre).filter(Boolean))]
   const uniqueDestinos = [...new Set(mercancias.map(m => m.destino_nombre).filter(Boolean))]
 
@@ -171,6 +183,7 @@ export default function MercanciaList() {
       }
     })
   }, [clientes])
+
   const opcionesDespachos = [
     { value: 'null', label: 'Sin Despacho Asignado' },
     ...despachos.map(d => ({
@@ -181,9 +194,11 @@ export default function MercanciaList() {
 
   const opcionSeleccionadaDespach = opcionesDespachos.find(op => String(op.value) === String(filtros.despacho)) || null
   const opcionSeleccionada = opcionesClientes.find(op => op.value === filtros.cliente) || null
+
   const filteredItems = useMemo(() => {
     return mercancias.filter(item => {
       if (!filtros.proveedor) return true;
+
       const provAsociado = proveedores.find(p =>
         String(p.id || p.id_proveedor) === String(item.id_proveedor || item.proveedor)
       );
@@ -191,7 +206,6 @@ export default function MercanciaList() {
       if (!provAsociado) return false;
 
       const termino = filtros.proveedor.toLowerCase();
-
       const nombreMatches = String(provAsociado.nombre_proveedor || '').toLowerCase().includes(termino);
       const rutMatches = String(provAsociado.rut_desencriptado || provAsociado.rut || provAsociado.rut_hash || '').toLowerCase().includes(termino);
 
@@ -202,6 +216,7 @@ export default function MercanciaList() {
   const paginatedItems = filteredItems
   const startIndex = (currentPage - 1) * 100
   const totalPages = Math.ceil(totalItems / 100)
+
   const toggleSelect = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id])
   }
@@ -218,6 +233,31 @@ export default function MercanciaList() {
         return [...prev, ...nuevosIds];
       })
     }
+  }
+
+  const ESTILOS_ESTADO = {
+    'En Bodega': 'bg-blue-100 text-blue-700',
+    'En Observacion': 'bg-amber-100 text-amber-700',
+    'En Observación': 'bg-amber-100 text-amber-700',
+    'Merma': 'bg-red-100 text-red-700',
+    'Entregado': 'bg-emerald-100 text-emerald-700',
+    'En Tránsito': 'bg-purple-100 text-purple-700',
+    'En Transito': 'bg-purple-100 text-purple-700',
+    'Asignado': 'bg-sky-100 text-sky-700',
+    'Recibido': 'bg-green-100 text-indigo-700'
+  }
+
+  const getLetraOrigen = (desp) => {
+    if (!desp) return ''
+
+    const suc = sucursales.find(s => s.id === desp.sucursal_id || s.id === desp.sucursal)
+    const lugar = (suc?.ciudad || suc?.nombre || desp.origen || '').toLowerCase()
+
+    if (lugar.includes('santiago')) return 'S'
+    if (lugar.includes('iquique')) return 'I'
+    if (lugar.includes('antofagasta')) return 'A'
+
+    return lugar ? lugar.charAt(0).toUpperCase() : ''
   }
 
   return (
@@ -305,13 +345,32 @@ export default function MercanciaList() {
               <h3 className="font-bold text-gray-700 flex items-center gap-2">
                 <Filter className="w-5 h-5 text-red-800" /> Filtros de Búsqueda
               </h3>
-              <button
-                onClick={limpiarFiltros}
-                className="text-sm text-gray-500 hover:text-red-700 flex items-center gap-1 font-medium transition"
-              >
-                <X className="w-4 h-4" /> Limpiar Filtros
-              </button>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 cursor-pointer bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-100 hover:bg-purple-100 transition">
+                  <input
+                    type="checkbox"
+                    name="verCompartidos"
+                    checked={filtros.verCompartidos}
+                    onChange={(e) => {
+                      setFiltros(prev => ({ ...prev, verCompartidos: e.target.checked }));
+                      setCurrentPage(1);
+                    }}
+                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
+                  />
+                  <span className="text-xs font-semibold text-purple-700 flex items-center gap-1">
+                    <Share2 className="w-3.5 h-3.5" /> Ver Solo Compartidas
+                  </span>
+                </label>
+
+                <button
+                  onClick={limpiarFiltros}
+                  className="text-sm text-gray-500 hover:text-red-700 flex items-center gap-1 font-medium transition"
+                >
+                  <X className="w-4 h-4" /> Limpiar Filtros
+                </button>
+              </div>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Factura</label>
@@ -327,7 +386,7 @@ export default function MercanciaList() {
                   />
                 </div>
               </div>
-              {/* Código Interno */}
+
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Código Interno</label>
                 <div className="relative">
@@ -335,14 +394,14 @@ export default function MercanciaList() {
                   <input
                     type="text"
                     name="codigoInterno"
-                    placeholder=""
+                    placeholder="Buscar código..."
                     value={filtros.codigoInterno}
                     onChange={handleFiltroChange}
                     className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm"
                   />
                 </div>
               </div>
-              {/* Proveedor */}
+
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Proveedor</label>
                 <div className="relative">
@@ -350,14 +409,14 @@ export default function MercanciaList() {
                   <input
                     type="text"
                     name="proveedor"
-                    placeholder="RUT o Nombre de Proveedor..."
+                    placeholder="RUT o Nombre..."
                     value={filtros.proveedor}
                     onChange={handleFiltroChange}
                     className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-red-800 outline-none transition text-sm"
                   />
                 </div>
               </div>
-              {/* Cliente */}
+
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cliente</label>
                 <Select
@@ -398,7 +457,7 @@ export default function MercanciaList() {
                   }}
                 />
               </div>
-              {/* Estado */}
+
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Estado</label>
                 <select
@@ -411,10 +470,12 @@ export default function MercanciaList() {
                   <option value="En Bodega">En Bodega</option>
                   <option value="Asignado">Asignado</option>
                   <option value="Transito">En Tránsito</option>
+                  <option value="En Observacion">En Observación</option>
                   <option value="Entregado">Entregado</option>
+                  <option value="Recibido">Recibido</option>
                 </select>
               </div>
-              {/* Destino */}
+
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Destino</label>
                 <select
@@ -429,7 +490,7 @@ export default function MercanciaList() {
                   ))}
                 </select>
               </div>
-              {/* Despacho */}
+
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Ruta</label>
                 <Select
@@ -477,7 +538,7 @@ export default function MercanciaList() {
                   }}
                 />
               </div>
-              {/* Fechas */}
+
               <div className="lg:col-span-2">
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Rango de Ingreso</label>
                 <div className="flex items-center gap-2">
@@ -499,13 +560,14 @@ export default function MercanciaList() {
                 </div>
               </div>
             </div>
-          </div>)}
+          </div>
+        )}
 
+        {/* Tabla */}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                {/* CHECKBOX PARA SELECCIONAR TODO */}
                 <th className="py-4 px-4 text-left">
                   <input
                     type="checkbox"
@@ -529,10 +591,10 @@ export default function MercanciaList() {
                 const sucursalObj = sucursales.find(s => s.id === item.sucursal_id);
                 const iniciales = sucursalObj ? sucursalObj.ciudad.substring(0, 3).toUpperCase() : '---';
                 const isSelected = selectedIds.includes(item.id_mercancia);
-
+                const despObj = despachos.find(d => String(d.id_despacho || d.id) === String(item.id_despacho));
+                const esCompartido = Boolean(item.es_colaborador || despObj?.es_colaborador);
                 return (
                   <tr key={item.id_mercancia} className={`transition group ${isSelected ? 'bg-red-50' : 'hover:bg-gray-50'}`}>
-                    {/* CHECKBOX INDIVIDUAL */}
                     <td className="py-4 px-4">
                       <input
                         type="checkbox"
@@ -547,13 +609,11 @@ export default function MercanciaList() {
                     <td className="py-4 px-4">
                       <div className="flex flex-col">
                         <p className="font-semibold text-gray-900">{item.cliente_nombre}</p>
-                        {/* Descripción y Factura */}
                         <div className="flex items-center gap-3 mt-1">
                           <span className="text-xs text-gray-500 line-clamp-1 max-w-[200px]" title={item.descripcion_carga}>
                             {item.descripcion_carga || 'Sin descripción'}
                           </span>
 
-                          {/* Factura */}
                           {item.factura && (
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
                               <FileText className="w-3 h-3" /> {item.factura}
@@ -564,6 +624,7 @@ export default function MercanciaList() {
                     </td>
 
                     <td className="py-4 px-4 font-bold text-green-700">{iniciales}</td>
+
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex flex-col">
                         <span className="text-xs font-bold text-blue-700 px-2 py-1">
@@ -585,42 +646,52 @@ export default function MercanciaList() {
                     <td className="py-4 px-4">
                       <span className="text-sm font-bold text-emerald-700">${parseFloat(item.precio_total || 0).toLocaleString('es-CL')}</span>
                     </td>
-
                     <td className="py-4 px-4 text-center">
                       {item.id_despacho ? (
                         <span
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-100 text-xs font-bold"
-                          title={`ID de Despacho en Base de Datos: ${item.id_despacho}`}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold ${esCompartido
+                              ? 'bg-purple-50 text-purple-700 border-purple-200 shadow-sm'
+                              : 'bg-blue-50 text-blue-700 border-blue-100'
+                            }`}
+                          title={`ID de Despacho: ${item.id_despacho}`}
                         >
                           {(() => {
-                            const despObj = despachos.find(d => String(d.id_despacho || d.id) === String(item.id_despacho));
-
+                            let textoRuta = `Viaje #${item.id_despacho}`
                             if (despObj?.id_ruta) {
                               const rutaCorta = String(despObj.id_ruta).split('-')[0].trim();
-
-                              return rutaCorta.toLowerCase().includes('ruta') ? rutaCorta : `Ruta ${rutaCorta}`;
+                              textoRuta = rutaCorta.toLowerCase().includes('ruta') ? rutaCorta : `${rutaCorta}`
                             }
-
-                            return `Viaje #${item.id_despacho}`;
+                            if (esCompartido) {
+                              const letra = getLetraOrigen(despObj)
+                              return (
+                                <span className="flex items-center gap-1">
+                                  {letra && (
+                                    <span className="text-yellow-500 rounded text-[15px] font-black">
+                                      {letra}
+                                    </span>
+                                  )}
+                                  {textoRuta}
+                                </span>
+                              )
+                            }
+                            return textoRuta;
                           })()}
                         </span>
                       ) : (
                         <span className="text-gray-400 text-xs italic">Sin asignar</span>
                       )}
                     </td>
-
                     <td className="py-4 px-4">
-                      <span className={`inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-full text-xs font-bold min-w-[100px] ${item.estado === 'En Bodega' ? 'bg-blue-100 text-blue-700' :
-                        item.estado === 'Merma' ? 'bg-red-100 text-red-700' :
-                          'bg-green-100 text-green-700'
-                        }`}>
+                      <span className={`inline-flex items-center justify-center whitespace-nowrap px-3 py-1 rounded-full text-xs font-bold min-w-[100px] ${ESTILOS_ESTADO[item.estado] || 'bg-slate-100 text-slate-700'}`}>
                         {item.estado}
                       </span>
                     </td>
 
                     <td className="py-4 px-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Link to={`/mercancias/${item.id_mercancia}`} className="p-2 text-gray-400 hover:text-red-800 transition"><Eye size={18} /></Link>
+                        <Link to={`/mercancias/${item.id_mercancia}`} className="p-2 text-gray-400 hover:text-red-800 transition">
+                          <Eye size={18} />
+                        </Link>
                       </div>
                     </td>
                   </tr>
@@ -634,8 +705,12 @@ export default function MercanciaList() {
         <div className="mt-6 flex justify-between items-center border-t pt-6">
           <p className="text-sm text-gray-600">Mostrando {startIndex + 1} de {filteredItems.length}</p>
           <div className="flex gap-2">
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 border rounded-lg disabled:opacity-50"><ChevronLeft size={20} /></button>
-            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 border rounded-lg disabled:opacity-50"><ChevronRight size={20} /></button>
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 border rounded-lg disabled:opacity-50">
+              <ChevronLeft size={20} />
+            </button>
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 border rounded-lg disabled:opacity-50">
+              <ChevronRight size={20} />
+            </button>
           </div>
         </div>
       </div>

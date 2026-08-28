@@ -1,12 +1,13 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Empresa, Perfil, Sucursal
+from .models import Empresa, Perfil, Sucursal, PersonalOperativo
 from inventario.models import Estanteria
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
 from django.core import signing
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+import hashlib
 
 class EmpresaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -191,3 +192,92 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class Verify2FASerializer(serializers.Serializer):
     pre_auth_id = serializers.CharField(required=True)
     code = serializers.CharField(max_length=6, min_length=6, required=True)
+
+
+class PersonalOperativoSerializer(serializers.ModelSerializer):
+    rut = serializers.CharField(write_only=True, required=False)
+    telefono = serializers.CharField(write_only=True, required=False)
+    
+    rut_enmascarado = serializers.SerializerMethodField(read_only=True)
+    telefono_enmascarado = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = PersonalOperativo
+        fields = [
+            'id', 
+            'nombre', 
+            'rol', 
+            'activo', 
+            'rut', 
+            'telefono', 
+            'rut_enmascarado', 
+            'telefono_enmascarado'
+        ]
+
+    def validate(self, attrs):
+        rut_plano = attrs.get('rut')
+        telefono_plano = attrs.get('telefono')
+        instance = self.instance
+        if rut_plano:
+            rut_limpio = rut_plano.replace('.', '').replace('-', '').strip().upper()
+            rut_hash = hashlib.sha256(rut_limpio.encode('utf-8')).hexdigest()
+
+            qs_rut = PersonalOperativo.objects.filter(rut_hash=rut_hash)
+            if instance:
+                qs_rut = qs_rut.exclude(pk=instance.pk)
+
+            if qs_rut.exists():
+                raise serializers.ValidationError({
+                    "rut": "Ya existe un trabajador operativo registrado con este RUT."
+                })
+        if telefono_plano:
+            tel_limpio = telefono_plano.replace(' ', '').replace('-', '').strip()
+
+            qs_operativos = PersonalOperativo.objects.filter(activo=True)
+            if instance:
+                qs_operativos = qs_operativos.exclude(pk=instance.pk)
+
+            for op in qs_operativos:
+                op_tel = getattr(op, 'telefono', None)
+                if op_tel and op_tel.replace(' ', '').replace('-', '').strip() == tel_limpio:
+                    raise serializers.ValidationError({
+                        "telefono": "Este número de teléfono ya se encuentra registrado y activo."
+                    })
+
+        return attrs
+
+    def get_rut_enmascarado(self, obj):
+        rut = getattr(obj, 'rut', '')
+        return f"***{rut[-4:]}" if rut and len(rut) >= 4 else "****"
+
+    def get_telefono_enmascarado(self, obj):
+        tel = getattr(obj, 'telefono', '')
+        return f"***{tel[-4:]}" if tel and len(tel) >= 4 else "****"
+
+    def create(self, validated_data):
+        rut_plano = validated_data.pop('rut', None)
+        telefono_plano = validated_data.pop('telefono', None)
+
+        operativo = PersonalOperativo(**validated_data)
+        if rut_plano:
+            operativo.set_rut(rut_plano)
+        if telefono_plano:
+            operativo.set_telefono(telefono_plano)
+
+        operativo.save()
+        return operativo
+
+    def update(self, instance, validated_data):
+        rut_plano = validated_data.pop('rut', None)
+        telefono_plano = validated_data.pop('telefono', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if rut_plano:
+            instance.set_rut(rut_plano)
+        if telefono_plano:
+            instance.set_telefono(telefono_plano)
+
+        instance.save()
+        return instance

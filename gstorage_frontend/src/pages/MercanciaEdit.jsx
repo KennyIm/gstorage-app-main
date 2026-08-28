@@ -615,7 +615,9 @@ export default function MercanciaEdit() {
                       <option value="En Bodega">En Bodega</option>
                       <option value="Asignado">Asignado a Despacho</option>
                       <option value="En Tránsito">En Tránsito</option>
+                      <option value="En Observacion">En Observación</option>
                       <option value="Entregado">Entregado</option>
+                      <option value="Recibido">Recibido</option>
                     </select>
                   </div>
                 </div>

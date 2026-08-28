@@ -386,7 +386,9 @@ class Mercancia(models.Model):
         ('En Bodega', 'En Bodega'),
         ('Asignado', 'Asignado a Despacho'),
         ('En Tránsito', 'En Tránsito'),
+        ('En Observacion', 'En Observación'),
         ('Entregado', 'Entregado'),
+        ('Recibido', 'Recibido'),
         ('Eliminado', 'Eliminado'),
         ('Merma', 'Merma'),
     ]
@@ -678,4 +680,34 @@ class PermisoCotizacion(models.Model):
 
     def __str__(self):
         return f"Permiso para {self.usuario_invitado.username} en Cotización #{self.cotizacion.id_cotizacion}"
+
+
+class RecepcionPatio(models.Model):
+    id_recepcion = models.AutoField(primary_key=True)
+    despacho = models.ForeignKey(Despacho, on_delete=models.CASCADE, related_name="recepciones_patio")
+    mercancia = models.ForeignKey(Mercancia, on_delete=models.CASCADE, related_name="historial_recepciones")
+    
+    bultos_declarados = models.IntegerField(verbose_name="Bultos Declarados")
+    kg_declarados = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Kg Declarados")
+    m3_declarados = models.DecimalField(max_digits=10, decimal_places=3, verbose_name="m³ Declarados")
+    tipo_declarado = models.CharField(max_length=50, null=True, blank=True, verbose_name="Tipo Declarado")
+
+    bultos_recibidos = models.IntegerField(verbose_name="Bultos Recibidos")
+    kg_recibidos = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Kg Recibidos")
+    m3_recibidos = models.DecimalField(max_digits=10, decimal_places=3, verbose_name="m³ Recibidos")
+    tipo_recibido = models.CharField(max_length=50, null=True, blank=True, verbose_name="Tipo Recibido")
+    
+    conforme = models.BooleanField(default=True, verbose_name="¿Recepción Conforme?")
+    observacion = models.TextField(null=True, blank=True, verbose_name="Observaciones / Novedades")
+    
+    usuario_patio = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name="Operador de Patio")
+    fecha_recepcion = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Recepción de Patio"
+        verbose_name_plural = "Recepciones de Patio"
+
+    def __str__(self):
+        estado_str = "Conforme" if self.conforme else "CON DESCUADRE"
+        return f"Recepción Mercancía #{self.mercancia_id} - Despacho #{self.despacho_id} ({estado_str})"
     

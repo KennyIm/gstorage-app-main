@@ -7,7 +7,7 @@ from datetime import timedelta
 from .models import (
     Mercancia, Cliente, Despacho, Conductor, 
     Camion, Ruta, Destino, Ubicacion, Estanteria, ReporteGenerado, HistorialMovimientos,
-    AreaRestringida, Proveedor, Rampla, Cotizacion
+    AreaRestringida, Proveedor, Rampla, Cotizacion, RecepcionPatio
 )
 
 from seguiminto.serializers import ControlEntregaSerializer
@@ -582,3 +582,50 @@ class InvitacionCotizacionSerializer(serializers.Serializer):
     usuario_invitado_id = serializers.IntegerField(
         help_text="ID del usuario al que se le dará acceso a la cotización"
     )
+
+class MercanciaPatioSerializer(serializers.ModelSerializer):
+    nombre_cliente = serializers.CharField(source='id_cliente.nombre_cliente', read_only=True)
+    nombre_proveedor = serializers.CharField(source='id_proveedor.nombre_proveedor', read_only=True, default='')
+    nombre_destino = serializers.CharField(source='id_destino.nombre_ciudad', read_only=True)
+
+
+    class Meta:
+        model = Mercancia
+        fields = [
+            'id_mercancia',
+            'codigo_interno',
+            'nombre_cliente',
+            'nombre_proveedor',
+            'descripcion_carga',
+            'cantidad_bultos',
+            'nombre_destino',
+            'kg',
+            'm3',
+            'tipo',
+            'estado',
+        ]
+
+class ValidacionItemPatioSerializer(serializers.Serializer):
+    id_mercancia = serializers.IntegerField()
+    bultos_recibidos = serializers.IntegerField(min_value=0)
+    kg_recibidos = serializers.DecimalField(max_digits=10, decimal_places=2)
+    m3_recibidos = serializers.DecimalField(max_digits=10, decimal_places=3)
+    tipo_recibido = serializers.CharField(max_length=50, allow_blank=True, required=False)
+    conforme = serializers.BooleanField()
+    observacion = serializers.CharField(allow_blank=True, required=False)
+
+class ProcesarTransferPayloadSerializer(serializers.Serializer):
+    items = ValidacionItemPatioSerializer(many=True)
+
+class DespachoSelectorSerializer(serializers.ModelSerializer):
+    estado = serializers.CharField(source='estado_despacho', read_only=True)
+    nombre_ruta = serializers.CharField(source='id_ruta.codigo_ruta', read_only=True)
+
+    class Meta:
+        model = Despacho
+        fields = ['id_despacho', 'estado', 'destino','nombre_ruta']
+
+    def get_destino_nombre(self, obj):
+        if hasattr(obj, 'id_destino') and obj.id_destino:
+            return str(obj.id_destino)
+        return "Sin Destino"

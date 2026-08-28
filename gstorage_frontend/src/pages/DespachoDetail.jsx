@@ -2,14 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Listbox, ListboxButton, ListboxOption, ListboxOptions, Transition,
-  Menu, MenuButton, MenuItem, MenuItems,
+  Menu, MenuButton, MenuItem, MenuItems
 } from '@headlessui/react';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   ArrowLeft, Edit, Trash2, Truck, MapPin, User, Calendar,
   Clock, Package, CheckCircle, AlertCircle, Loader2, Map, Printer,
-  Share2, X, ChevronsUpDown, Check, Download, ChevronDown
+  Share2, X, ChevronsUpDown, Check, Download, ChevronDown,
+  Sparkle
 } from 'lucide-react';
 
 export default function DespachoDetail() {
@@ -43,11 +44,23 @@ export default function DespachoDetail() {
   const isReadOnly =
     user?.perfil?.rol !== 'DUENO' &&
     String(despacho?.sucursal_id) !== String(user?.perfil?.sucursal_id) &&
-    !esColaboradorInvitado;
+    !esColaboradorInvitado
 
   const puedeCompartir =
     user?.perfil?.rol === 'DUENO' ||
-    String(despacho?.sucursal_id) === String(user?.perfil?.sucursal_id);
+    String(despacho?.sucursal_id) === String(user?.perfil?.sucursal_id)
+
+  const sucursalDespachoId = despacho?.sucursal_id || despacho?.sucursal?.id || despacho?.sucursal
+  const sucursalUsuarioId = user?.perfil?.sucursal_id || user?.perfil?.sucursal?.id || user?.perfil?.sucursal
+
+  const esDueno = user?.perfil?.rol === 'DUENO'
+  const esMismaSucursal = Boolean(
+    sucursalDespachoId &&
+    sucursalUsuarioId &&
+    String(sucursalDespachoId) === String(sucursalUsuarioId)
+  )
+
+  const puedeEditar = esDueno || esMismaSucursal
 
   useEffect(() => {
     const fetchData = async () => {
@@ -181,7 +194,8 @@ export default function DespachoDetail() {
       case 'Programado': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
-  };
+  }
+
 
   const handleDescargarExcel = async (idDespacho) => {
     try {
@@ -259,7 +273,6 @@ export default function DespachoDetail() {
 
           <div className="flex items-center gap-2 sm:gap-3">
 
-            {/* BOTONES PRINCIPALES */}
             {puedeCompartir && (
               <button
                 onClick={() => setModalInvitacionOpen(true)}
@@ -270,7 +283,7 @@ export default function DespachoDetail() {
               </button>
             )}
 
-            {!isReadOnly && (
+            {!isReadOnly && puedeEditar && (
               <Link
                 to={`/despachos/${id}/editar`}
                 className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition shadow-sm text-sm"
@@ -280,7 +293,6 @@ export default function DespachoDetail() {
               </Link>
             )}
 
-            {/* MENÚ DESPLEGABLE*/}
             <Menu as="div" className="relative inline-block text-left">
               <MenuButton className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition shadow-sm text-sm">
                 Acciones
@@ -323,6 +335,18 @@ export default function DespachoDetail() {
                         </button>
                       )}
                     </MenuItem>
+                    <MenuItem>
+                      {({ focus }) => (
+                        <Link
+                          to={`/despachos/${id}/seguimiento`}
+                          className={`flex w-full no-underline items-center gap-2 rounded-md px-2 py-2 text-sm ${focus ? 'bg-violet-50 text-violet-700' : 'text-violet-700'
+                            }`}
+                        >
+                          <Sparkle className="w-4 h-4 text-violet-600"/>
+                          Seguimiento
+                        </Link>
+                      )}
+                    </MenuItem>
                   </div>
 
                   {/* Eliminar */}
@@ -351,10 +375,8 @@ export default function DespachoDetail() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-          {/* COLUMNA IZQUIERDA: INFORMACIÓN PRINCIPAL */}
           <div className="lg:col-span-2 space-y-6">
 
-            {/* Tarjeta de Ruta y Tiempos */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2 bg-gray-50/50">
                 <Map className="w-4 h-4 text-indigo-600" />
@@ -365,7 +387,7 @@ export default function DespachoDetail() {
                   <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Ruta Asignada</label>
                   <div className="flex items-center gap-2 text-gray-900 font-medium">
                     <MapPin className="w-4 h-4 text-indigo-500" />
-                    {getNombreRuta(despacho.id_ruta)}
+                    {despacho?.nombre_ruta || despacho?.codigo_ruta || getCodigoRuta(despacho?.id_ruta)}
                   </div>
                 </div>
 
@@ -466,7 +488,6 @@ export default function DespachoDetail() {
             )}
           </div>
 
-          {/* COLUMNA DERECHA: MERCANCÍAS */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden h-full flex flex-col">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
@@ -484,10 +505,9 @@ export default function DespachoDetail() {
                     {mercancias.map(m => (
                       <div key={m.id_mercancia} className="group relative bg-white border border-gray-200 rounded-lg p-3 hover:border-indigo-300 hover:shadow-sm transition-all">
 
-                        {/* ENCABEZADO DE LA TARJETA */}
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex flex-col">
-                            <span className="text-xs font-black text-indigo-600">Lote #{m.id_mercancia}</span>
+                            <span className="text-xs font-black text-indigo-600">Código #{m.codigo_interno}</span>
                             <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">
                               Factura: {m.factura || 'S/N'}
                             </span>
@@ -510,7 +530,6 @@ export default function DespachoDetail() {
                           "{m.descripcion_carga || 'Sin descripción'}"
                         </p>
 
-                        {/* PIE DE LA TARJETA: Bultos */}
                         <div className="mt-2 flex items-center justify-between text-xs font-semibold text-gray-600 pt-2 border-t border-gray-100">
                           <div className="flex items-center gap-1.5">
                             <Package className="w-3.5 h-3.5 text-indigo-400" />
@@ -543,10 +562,9 @@ export default function DespachoDetail() {
         </div>
       </div>
       {modalInvitacionOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-
-            <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50 rounded-t-xl">
               <h3 className="font-bold text-gray-800 flex items-center gap-2">
                 <Share2 className="w-5 h-5 text-blue-600" />
                 Colaboración Transversal
@@ -574,21 +592,20 @@ export default function DespachoDetail() {
 
                 <Listbox value={usuarioSeleccionado} onChange={setUsuarioSeleccionado}>
                   <div className="relative mt-1">
-                    <ListboxButton className="relative w-full cursor-pointer rounded-lg bg-white py-2.5 pl-3 pr-10 text-left border border-gray-300 focus:outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/50 sm:text-sm shadow-sm transition">
+                    <ListboxButton className="relative w-full cursor-pointer rounded-lg bg-white py-2 pl-3 pr-9 text-left border border-gray-300 focus:outline-none focus-visible:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/40 text-xs shadow-sm transition">
                       {usuarioSeleccionado ? (
-                        <span className="flex items-center gap-3">
-                          {/* Avatar Círculo */}
-                          <div className="w-6 h-6 shrink-0 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700">
+                        <span className="flex items-center gap-2">
+                          <div className="w-5 h-5 shrink-0 rounded-full bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-700">
                             {getIniciales(usuarioSeleccionado.username)}
                           </div>
                           <span className="block truncate font-medium text-gray-700">
                             {usuarioSeleccionado.username}
-                            {usuarioSeleccionado.first_name ? ` (${usuarioSeleccionado.first_name} ${usuarioSeleccionado.last_name})` : ''}
+                            {usuarioSeleccionado.first_name ? ` (${usuarioSeleccionado.first_name} ${usuarioSeleccionado.last_name || ''})` : ''}
                           </span>
                         </span>
                       ) : (
                         <span className="block truncate text-gray-400">
-                          {usuarios.length === 0 ? "No hay usuarios elegibles" : "Cargando usuarios..."}
+                          {usuarios.length === 0 ? "No hay usuarios elegibles" : "Seleccionar usuario..."}
                         </span>
                       )}
 
@@ -602,32 +619,39 @@ export default function DespachoDetail() {
                       leaveFrom="opacity-100"
                       leaveTo="opacity-0"
                     >
-                      <ListboxOptions className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg bg-white py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm">
+                      <ListboxOptions className="absolute bottom-full mb-1 z-50 max-h-44 w-full overflow-y-auto overscroll-contain rounded-lg bg-white py-1 text-xs shadow-2xl ring-1 ring-black/10 focus:outline-none divide-y divide-gray-50">
                         {usuarios.map((usuario) => (
                           <ListboxOption
                             key={usuario.id}
                             className={({ focus }) =>
-                              `relative cursor-pointer select-none py-2 pl-10 pr-4 transition-colors ${focus ? 'bg-blue-50 text-blue-900' : 'text-gray-700'
+                              `relative cursor-pointer select-none py-1.5 pl-8 pr-3 transition-colors ${focus ? 'bg-blue-50 text-blue-900' : 'text-gray-700'
                               }`
                             }
                             value={usuario}
                           >
                             {({ selected }) => (
                               <>
-                                <div className="flex items-center gap-3">
-                                  <div className="w-6 h-6 shrink-0 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-xs font-bold text-gray-500">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-5 h-5 shrink-0 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-500">
                                     {getIniciales(usuario.username)}
                                   </div>
-                                  <span className={`block truncate ${selected ? 'font-bold' : 'font-normal'}`}>
-                                    {usuario.username}
-                                  </span>
+                                  <div className="flex flex-col min-w-0">
+                                    <span className={`truncate ${selected ? 'font-bold text-blue-900' : 'font-medium'}`}>
+                                      {usuario.username}
+                                    </span>
+                                    {usuario.first_name && (
+                                      <span className="text-[10px] text-gray-400 truncate -mt-0.5">
+                                        {usuario.first_name} {usuario.last_name}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
 
-                                {selected ? (
-                                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-blue-600">
-                                    <Check className="h-4 w-4" aria-hidden="true" />
+                                {selected && (
+                                  <span className="absolute inset-y-0 left-0 flex items-center pl-2 text-blue-600">
+                                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
                                   </span>
-                                ) : null}
+                                )}
                               </>
                             )}
                           </ListboxOption>
@@ -637,6 +661,7 @@ export default function DespachoDetail() {
                   </div>
                 </Listbox>
               </div>
+
               {mensajeInvitacion.texto && (
                 <div className={`p-3 rounded-lg text-sm mb-4 ${mensajeInvitacion.tipo === 'success' ? 'bg-green-50 text-green-800 border border-green-200' :
                   mensajeInvitacion.tipo === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
@@ -656,7 +681,7 @@ export default function DespachoDetail() {
                 </button>
                 <button
                   type="submit"
-                  disabled={mensajeInvitacion.tipo === 'loading'}
+                  disabled={mensajeInvitacion.tipo === 'loading' || !usuarioSeleccionado}
                   className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
                 >
                   {mensajeInvitacion.tipo === 'loading' ? 'Enviando...' : 'Otorgar Acceso'}

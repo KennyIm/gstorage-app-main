@@ -1,55 +1,64 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
-import apiClient from '../services/api';
-import Select from 'react-select';
-import { useUI } from '../context/UIContext';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect } from 'react'
+import { useNavigate, useParams, Link } from 'react-router-dom'
+import apiClient from '../services/api'
+import Select from 'react-select'
+import { useUI } from '../context/UIContext'
+import { useAuth } from '../context/AuthContext'
 import {
   Save, ArrowLeft, Calendar, Clock, Truck, User, Map,
-  Activity, Loader2, AlertCircle, CheckCircle, PencilRuler
-} from 'lucide-react';
+  Activity, Loader2, AlertCircle, CheckCircle, PencilRuler, ShieldAlert
+} from 'lucide-react'
 
 export default function DespachoEdit() {
-  document.title = "Editor de Despachos - GStorage";
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const { logoutUser } = useAuth();
-
-  const [formData, setFormData] = useState(null);
-  const [camiones, setCamiones] = useState([]);
-  const [conductores, setConductores] = useState([]);
-  const [rutas, setRutas] = useState([]);
-  const [ramplas, setRamplas] = useState([]);
-
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
-  const { showLoader, hideLoader, showToast } = useUI();
+  document.title = "Editor de Despachos - GStorage"
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const { user, logoutUser } = useAuth()
+  const [formData, setFormData] = useState(null)
+  const [camiones, setCamiones] = useState([])
+  const [conductores, setConductores] = useState([])
+  const [rutas, setRutas] = useState([])
+  const [ramplas, setRamplas] = useState([])
+  const [isReadOnly, setIsReadOnly] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState(null)
+  const { showLoader, hideLoader, showToast } = useUI()
 
   const formatDateForInput = (isoString) => {
-    if (!isoString) return '';
-    const date = new Date(isoString);
-    const offset = date.getTimezoneOffset() * 60000;
-    const localISOTime = new Date(date.getTime() - offset).toISOString().slice(0, 16);
-    return localISOTime;
-  };
+    if (!isoString) return ''
+    const date = new Date(isoString)
+    const offset = date.getTimezoneOffset() * 60000
+    const localISOTime = new Date(date.getTime() - offset).toISOString().slice(0, 16)
+    return localISOTime
+  }
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
+      setLoading(true)
       try {
-        const [camionesRes, conductoresRes, rutasRes, ramplasRes] = await Promise.all([
+        const [camionesRes, conductoresRes, rutasRes, ramplasRes, despachoRes] = await Promise.all([
           apiClient.get('/api/inventario/camiones/'),
           apiClient.get('/api/inventario/conductores/'),
           apiClient.get('/api/inventario/rutas/'),
-          apiClient.get('/api/inventario/ramplas/')
-        ]);
+          apiClient.get('/api/inventario/ramplas/'),
+          apiClient.get(`/api/inventario/despachos/${id}/`)
+        ])
+        setCamiones(camionesRes.data)
+        setConductores(conductoresRes.data)
+        setRutas(rutasRes.data)
+        setRamplas(ramplasRes.data)
 
-        setCamiones(camionesRes.data);
-        setConductores(conductoresRes.data);
-        setRutas(rutasRes.data);
-        setRamplas(ramplasRes.data);
-        const despachoRes = await apiClient.get(`/api/inventario/despachos/${id}/`);
+        const sucursalDespacho = despachoRes.data.sucursal_id || despachoRes.data.sucursal?.id || despachoRes.data.sucursal
+        const sucursalUsuario = user?.perfil?.sucursal_id || user?.perfil?.sucursal?.id || user?.perfil?.sucursal
+        const esDueno = user?.perfil?.rol === 'DUENO'
+        const esMismaSucursal = Boolean(
+          sucursalDespacho && 
+          sucursalUsuario && 
+          String(sucursalDespacho) === String(sucursalUsuario)
+        )
+        const soloLectura = !esDueno && !esMismaSucursal
+        setIsReadOnly(soloLectura)
 
         setFormData({
           fecha_programada: despachoRes.data.fecha_programada,
@@ -61,34 +70,38 @@ export default function DespachoEdit() {
           origen: despachoRes.data.origen,
           destino: despachoRes.data.destino,
           estado_despacho: despachoRes.data.estado_despacho
-        });
+        })
 
-        setLoading(false);
       } catch (err) {
         if (err.response && err.response.status === 401) {
-          logoutUser();
+          logoutUser()
         } else {
-          console.error("Error al buscar la información:", err);
-          showToast("No se pudo cargar la información necesaria.", 'error');
+          console.error("Error al buscar la información:", err)
+          showToast("No se pudo cargar la información necesaria.", 'error')
         }
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
-    fetchData();
-  }, [id]);
+    }
+    fetchData()
+  }, [id, user])
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prevData => ({ ...prevData, [name]: value }));
-  };
+    if (isReadOnly) return
+    const { name, value } = e.target
+    setFormData(prevData => ({ ...prevData, [name]: value }))
+  }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-    setSubmitting(true);
-    showLoader();
-    setLoading(true);
+    e.preventDefault()
+    if (isReadOnly) {
+      showToast("No tienes permisos para modificar este despacho.", "error")
+      return
+    }
+    setError(null)
+    setSubmitting(true)
+    showLoader()
+    setLoading(true)
 
     const dataToSubmit = {
       ...formData,
@@ -97,31 +110,31 @@ export default function DespachoEdit() {
       id_rampla: formData.id_rampla ? parseInt(formData.id_rampla) : null,
       id_ruta: formData.id_ruta ? parseInt(formData.id_ruta) : null,
       fecha_salida_real: formData.fecha_salida_real || null
-    };
-
+    }
     try {
-      await apiClient.put(`/api/inventario/despachos/${id}/`, dataToSubmit);
-      hideLoader();
-      setSubmitting(false);
-      navigate(`/despachos/${id}`);
+      await apiClient.put(`/api/inventario/despachos/${id}/`, dataToSubmit)
+      hideLoader()
+      setSubmitting(false)
+      showToast("Despacho actualizado exitosamente.", "success")
+      navigate(`/despachos/${id}`)
     } catch (err) {
       if (err.response?.data) {
-        const serverErrors = err.response.data;
+        const serverErrors = err.response.data
         if (serverErrors.id_camion) {
-          setError(serverErrors.id_camion[0]);
+          setError(serverErrors.id_camion[0])
         } else {
-          const firstError = Object.values(serverErrors)[0];
-          setError(Array.isArray(firstError) ? firstError[0] : "Error en los datos enviados.");
+          const firstError = Object.values(serverErrors)[0]
+          setError(Array.isArray(firstError) ? firstError[0] : "Error en los datos enviados.")
         }
       } else {
-        showToast('Error al crear el despacho. Intente nuevamente.', 'error');
+        showToast('Error al actualizar el despacho. Intente nuevamente.', 'error')
       }
     } finally {
-      hideLoader();
-      setSubmitting(false);
-      setLoading(false);
+      hideLoader()
+      setSubmitting(false)
+      setLoading(false)
     }
-  };
+  }
 
   const UBICACIONES = [
     'Santiago',
@@ -131,9 +144,7 @@ export default function DespachoEdit() {
     'Copiapo',
     'Tocopilla',
     'Mejillones'
-  ];
-
-  // --- RENDERIZADO ---
+  ]
 
   if (loading) {
     return (
@@ -152,17 +163,26 @@ export default function DespachoEdit() {
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-4xl mx-auto">
 
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Despacho #{id}</h1>
           </div>
           <Link to={`/despachos/${id}`} className="hidden sm:flex items-center gap-2 text-gray-500 hover:text-gray-700 transition">
-            <ArrowLeft className="w-4 h-4" /> Cancelar
+            <ArrowLeft className="w-4 h-4" /> Volver al Detalle
           </Link>
         </div>
 
-        {/* Formulario */}
+        {isReadOnly && (
+          <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded-r-xl shadow-sm flex items-center gap-3">
+            <div>
+              <p className="text-sm font-bold text-amber-900">Modo de Solo Lectura</p>
+              <p className="text-xs text-amber-700">
+                Estás visualizando un despacho de otra sucursal. No dispones de privilegios para modificar su planificación ni sus recursos.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
 
           {error && (
@@ -176,8 +196,6 @@ export default function DespachoEdit() {
           )}
 
           <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-8">
-
-            {/* SECCIÓN 1: PLANIFICACIÓN */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
                 <Calendar className="w-5 h-5 text-indigo-600" />
@@ -193,7 +211,8 @@ export default function DespachoEdit() {
                       type="date"
                       id="fecha_programada"
                       name="fecha_programada"
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                      disabled={isReadOnly}
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                       value={formData.fecha_programada}
                       onChange={handleChange}
                       required
@@ -208,7 +227,8 @@ export default function DespachoEdit() {
                     <input
                       type="datetime-local"
                       name="fecha_salida_real"
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                      disabled={isReadOnly}
+                      className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed"
                       value={formData.fecha_salida_real}
                       onChange={handleChange}
                     />
@@ -218,7 +238,6 @@ export default function DespachoEdit() {
               </div>
             </div>
 
-            {/* SECCIÓN 2: RUTA Y ESTADO */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2 border-b border-gray-100 pb-2">
                 <Map className="w-5 h-5 text-indigo-600" />
@@ -226,52 +245,44 @@ export default function DespachoEdit() {
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* --- CAMPO RUTA ASIGNADA --- */}
                 <div className="relative z-[40]">
                   <label htmlFor="id_ruta" className="block text-sm font-medium text-gray-700 mb-1">Ruta Asignada</label>
-                  <div className="relative">
-                    <div className="">
-                      <Select
-                        inputId="id_ruta"
-                        placeholder="Seleccionar ruta..."
-                        options={rutas.map(r => ({ value: r.id_ruta, label: r.nombre_ruta }))}
-                        value={rutas.find(r => r.id_ruta === formData.id_ruta) ? {
-                          value: formData.id_ruta,
-                          label: rutas.find(r => r.id_ruta === formData.id_ruta).nombre_ruta
-                        } : null}
-                        onChange={(opcion) => handleChange({ target: { name: 'id_ruta', value: opcion ? opcion.value : '' } })}
-                        isClearable
-                        required
-                      />
-                    </div>
-                  </div>
+                  <Select
+                    inputId="id_ruta"
+                    isDisabled={isReadOnly}
+                    placeholder="Seleccionar ruta..."
+                    options={rutas.map(r => ({ value: r.id_ruta, label: r.nombre_ruta }))}
+                    value={rutas.find(r => r.id_ruta === formData.id_ruta) ? {
+                      value: formData.id_ruta,
+                      label: rutas.find(r => r.id_ruta === formData.id_ruta).nombre_ruta
+                    } : null}
+                    onChange={(opcion) => handleChange({ target: { name: 'id_ruta', value: opcion ? opcion.value : '' } })}
+                    isClearable
+                    required
+                  />
                 </div>
 
-                {/* --- CAMPO ESTADO DEL VIAJE --- */}
                 <div className="relative z-40">
                   <label htmlFor="estado_despacho" className="block text-sm font-medium text-gray-700 mb-1">Estado del Viaje</label>
-                  <div className="relative">
-                    <div className="">
-                      <Select
-                        inputId="estado_despacho"
-                        options={[
-                          { value: 'Programado', label: 'Programado' },
-                          { value: 'En Carga', label: 'En Carga' },
-                          { value: 'En Tránsito', label: 'En Tránsito' },
-                          { value: 'Finalizado', label: 'Finalizado' }
-                        ]}
-                        value={formData.estado_despacho ? { value: formData.estado_despacho, label: formData.estado_despacho } : null}
-                        onChange={(opcion) => handleChange({ target: { name: 'estado_despacho', value: opcion ? opcion.value : '' } })}
-                      />
-                    </div>
-                  </div>
+                  <Select
+                    inputId="estado_despacho"
+                    isDisabled={isReadOnly}
+                    options={[
+                      { value: 'Programado', label: 'Programado' },
+                      { value: 'En Carga', label: 'En Carga' },
+                      { value: 'En Tránsito', label: 'En Tránsito' },
+                      { value: 'Finalizado', label: 'Finalizado' }
+                    ]}
+                    value={formData.estado_despacho ? { value: formData.estado_despacho, label: formData.estado_despacho } : null}
+                    onChange={(opcion) => handleChange({ target: { name: 'estado_despacho', value: opcion ? opcion.value : '' } })}
+                  />
                 </div>
 
-                {/* --- CAMPO CIUDAD DE ORIGEN --- */}
                 <div className="relative z-30">
                   <label htmlFor="origen" className="block text-sm font-semibold text-slate-700 mb-1">Ciudad de Origen</label>
                   <Select
                     inputId="origen"
+                    isDisabled={isReadOnly}
                     placeholder="Seleccione el origen..."
                     options={UBICACIONES.map(ciudad => ({ value: ciudad, label: ciudad }))}
                     value={formData.origen ? { value: formData.origen, label: formData.origen } : null}
@@ -281,11 +292,11 @@ export default function DespachoEdit() {
                   />
                 </div>
 
-                {/* --- CAMPO CIUDAD DE DESTINO --- */}
                 <div className="relative z-30">
                   <label htmlFor="destino" className="block text-sm font-semibold text-slate-700 mb-1">Ciudad de Destino</label>
                   <Select
                     inputId="destino"
+                    isDisabled={isReadOnly}
                     placeholder="Seleccione el destino..."
                     options={UBICACIONES.map(ciudad => ({ value: ciudad, label: ciudad }))}
                     value={formData.destino ? { value: formData.destino, label: formData.destino } : null}
@@ -297,7 +308,6 @@ export default function DespachoEdit() {
               </div>
             </div>
 
-            {/* SECCIÓN 3: RECURSOS */}
             <div className="bg-indigo-50 p-6 rounded-lg border border-indigo-100">
               <h3 className="text-lg font-semibold text-indigo-800 mb-4 flex items-center gap-2 border-b border-indigo-200 pb-2">
                 <Truck className="w-5 h-5" />
@@ -305,91 +315,79 @@ export default function DespachoEdit() {
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* --- CAMPO CAMIÓN --- */}
                 <div className="relative z-[20]">
                   <label htmlFor="id_camion" className="block text-sm font-medium text-gray-700 mb-1">Camión</label>
-                  <div className="relative">
-                    <div className="">
-                      <Select
-                        inputId="id_camion"
-                        placeholder="Seleccionar camión..."
-                        noOptionsMessage={() => "No se encontró el camión"}
-                        options={camiones.map(c => ({
-                          value: c.id_camion,
-                          label: `${c.patente} (${c.marca})`
-                        }))}
-                        value={camiones.find(c => c.id_camion === formData.id_camion) ? {
-                          value: formData.id_camion,
-                          label: (() => {
-                            const c = camiones.find(cam => cam.id_camion === formData.id_camion);
-                            return `${c.patente} (${c.marca})`;
-                          })()
-                        } : null}
-                        onChange={(opcion) => handleChange({
-                          target: { name: 'id_camion', value: opcion ? opcion.value : '' }
-                        })}
-                        isClearable
-                        required
-                      />
-                    </div>
-                  </div>
+                  <Select
+                    inputId="id_camion"
+                    isDisabled={isReadOnly}
+                    placeholder="Seleccionar camión..."
+                    noOptionsMessage={() => "No se encontró el camión"}
+                    options={camiones.map(c => ({
+                      value: c.id_camion,
+                      label: `${c.patente} (${c.marca})`
+                    }))}
+                    value={camiones.find(c => c.id_camion === formData.id_camion) ? {
+                      value: formData.id_camion,
+                      label: (() => {
+                        const c = camiones.find(cam => cam.id_camion === formData.id_camion);
+                        return `${c.patente} (${c.marca})`;
+                      })()
+                    } : null}
+                    onChange={(opcion) => handleChange({
+                      target: { name: 'id_camion', value: opcion ? opcion.value : '' }
+                    })}
+                    isClearable
+                    required
+                  />
                 </div>
 
-                {/* --- CAMPO RAMPLA --- */}
                 <div className="relative z-[20]">
                   <label htmlFor="id_rampla" className="block text-sm font-medium text-gray-700 mb-1">Rampla</label>
-                  <div className="relative">
-                    <div className="">
-                      <Select
-                        inputId="id_rampla"
-                        placeholder="Seleccionar rampla..."
-                        noOptionsMessage={() => "No se encontró la rampla"}
-                        options={ramplas.map(r => ({
-                          value: r.id_rampla,
-                          label: `${r.patente} (${r.modelo})`
-                        }))}
-                        value={ramplas.find(r => r.id_rampla === formData.id_rampla) ? {
-                          value: formData.id_rampla,
-                          label: (() => {
-                            const r = ramplas.find(ram => ram.id_rampla === formData.id_rampla);
-                            return `${r.patente} (${r.modelo})`;
-                          })()
-                        } : null}
-                        onChange={(opcion) => handleChange({
-                          target: { name: 'id_rampla', value: opcion ? opcion.value : '' }
-                        })}
-                        isClearable
-                        required
-                      />
-                    </div>
-                  </div>
+                  <Select
+                    inputId="id_rampla"
+                    isDisabled={isReadOnly}
+                    placeholder="Seleccionar rampla..."
+                    noOptionsMessage={() => "No se encontró la rampla"}
+                    options={ramplas.map(r => ({
+                      value: r.id_rampla,
+                      label: `${r.patente} (${r.modelo})`
+                    }))}
+                    value={ramplas.find(r => r.id_rampla === formData.id_rampla) ? {
+                      value: formData.id_rampla,
+                      label: (() => {
+                        const r = ramplas.find(ram => ram.id_rampla === formData.id_rampla);
+                        return `${r.patente} (${r.modelo})`;
+                      })()
+                    } : null}
+                    onChange={(opcion) => handleChange({
+                      target: { name: 'id_rampla', value: opcion ? opcion.value : '' }
+                    })}
+                    isClearable
+                    required
+                  />
                 </div>
 
-                {/* --- CAMPO CONDUCTOR --- */}
-                <div className="relative z-[10]">
+                <div className="relative z-[10] md:col-span-2">
                   <label htmlFor="id_conductor" className="block text-sm font-medium text-gray-700 mb-1">Conductor</label>
-                  <div className="relative">
-                    <div className="">
-                      <Select
-                        inputId="id_conductor"
-                        placeholder="Seleccionar conductor..."
-                        noOptionsMessage={() => "No se encontró el conductor"}
-                        options={conductores.map(c => ({
-                          value: c.id_conductor,
-                          label: c.nombre_completo
-                        }))}
-                        value={conductores.find(c => c.id_conductor === formData.id_conductor) ? {
-                          value: formData.id_conductor,
-                          label: conductores.find(c => c.id_conductor === formData.id_conductor).nombre_completo
-                        } : null}
-                        onChange={(opcion) => handleChange({
-                          target: { name: 'id_conductor', value: opcion ? opcion.value : '' }
-                        })}
-                        isClearable
-                        required
-                      />
-                    </div>
-                  </div>
+                  <Select
+                    inputId="id_conductor"
+                    isDisabled={isReadOnly}
+                    placeholder="Seleccionar conductor..."
+                    noOptionsMessage={() => "No se encontró el conductor"}
+                    options={conductores.map(c => ({
+                      value: c.id_conductor,
+                      label: c.nombre_completo
+                    }))}
+                    value={conductores.find(c => c.id_conductor === formData.id_conductor) ? {
+                      value: formData.id_conductor,
+                      label: conductores.find(c => c.id_conductor === formData.id_conductor).nombre_completo
+                    } : null}
+                    onChange={(opcion) => handleChange({
+                      target: { name: 'id_conductor', value: opcion ? opcion.value : '' }
+                    })}
+                    isClearable
+                    required
+                  />
                 </div>
               </div>
             </div>
@@ -398,26 +396,28 @@ export default function DespachoEdit() {
             <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-100">
               <Link
                 to={`/despachos/${id}`}
-                className="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition focus:ring-2 focus:ring-gray-200"
+                className="px-6 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition focus:ring-2 focus:ring-gray-200 text-sm"
               >
-                Cancelar
+                {isReadOnly ? "Volver" : "Cancelar"}
               </Link>
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className={`flex items-center gap-2 px-8 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-200 transition shadow-md ${submitting ? 'opacity-75 cursor-not-allowed' : ''}`}
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Guardando...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" /> Actualizar Despacho
-                  </>
-                )}
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className={`flex items-center gap-2 px-8 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-200 transition shadow-md text-sm ${submitting ? 'opacity-75 cursor-not-allowed' : ''}`}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" /> Actualizar Despacho
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
           </form>

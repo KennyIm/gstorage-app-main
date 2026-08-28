@@ -7,7 +7,7 @@ def _get_rol_from_user(request):
     return None
 
 class IsAdminEmpresa(permissions.BasePermission):
-    message = "Debe ser Dueño o Secretaria para realizar esta acción."
+    message = "Debe ser Dueño para realizar esta acción."
 
     def has_permission(self, request, view):
         rol = _get_rol_from_user(request)
@@ -39,3 +39,10 @@ def AllowRoles(*roles_permitidos):
             return True
 
     return DynamicRolePermission
+
+class DenyExpressSession(permissions.BasePermission):
+    message = "Las sesiones express no tienen acceso a la plataforma administrativa."
+
+    def has_permission(self, request, view):
+        is_express = getattr(request.auth, 'get', lambda k, d=None: None)('is_express_session') is True
+        return not is_express

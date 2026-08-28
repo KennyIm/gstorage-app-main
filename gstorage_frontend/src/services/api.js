@@ -33,6 +33,7 @@ apiClient.interceptors.request.use(
     if (
       config.url === '/api/token/' ||
       config.url === '/api/token/refresh/' ||
+      config.url.includes('/auth/express/') ||
       config.url.includes('/password-reset/')
     ) {
       return config
@@ -46,18 +47,26 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-apiClient.get = function (url, config) {
-  const esCatalogoPesado = 
-    url.startsWith('/api/inventario/clientes/') || 
+apiClient.get = function (url, config = {}) {
+  const esCatalogoPesado =
+    url.startsWith('/api/inventario/clientes/') ||
     url.startsWith('/api/inventario/proveedores/')
 
   if (esCatalogoPesado) {
-    const key = url 
+    const key = url
+
     if (!cachePromesasGet.has(key)) {
-      const promesa = originalGet.call(this, url, config).catch(err => {
-        cachePromesasGet.delete(key) 
-        return Promise.reject(err)
-      })
+      const configAjustada = {
+        ...config,
+        timeout: config.timeout || 25000,
+      }
+
+      const promesa = originalGet.call(this, url, configAjustada)
+        .catch((err) => {
+          cachePromesasGet.delete(key)
+          return Promise.reject(err)
+        })
+
       cachePromesasGet.set(key, promesa)
     }
     return cachePromesasGet.get(key)
@@ -100,7 +109,7 @@ export const ejecutarRefreshSilencioso = async () => {
     return promesaRefreshEnCurso
   }
 
-  promesaRefreshEnCurso = axios.post('/api/token/refresh/', {}, { withCredentials: true })
+  promesaRefreshEnCurso = axios.post(`${API_BASE_URL}/api/token/refresh/`, {}, { withCredentials: true })
     .then(rs => {
       const { access } = rs.data
       setTokenEnMemoria(access)
@@ -125,23 +134,33 @@ apiClient.interceptors.response.use(
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
       invalidarCachePorUrl(url)
     }
-
     return response
   },
   async (error) => {
     const originalRequest = error.config
+    if (error.response && error.response.status === 404) {
+      const esLectura = !originalRequest.method || originalRequest.method.toUpperCase() === 'GET'
+      const saltar404 = originalRequest?.skipGlobal404
 
+      if (esLectura && !saltar404 && window.location.pathname !== '/404') {
+        window.dispatchEvent(new CustomEvent('app:navigate', { detail: '/404' }))
+        return Promise.reject(error)
+      }
+    }
     if (error.response && error.response.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true
-
+      const rutasPublicas = ['/login', '/login-express', '/404']
+      const estaEnRutaPublica = rutasPublicas.some(r => window.location.pathname.startsWith(r))
       if (
-        originalRequest.url === '/api/token/' ||
-        originalRequest.url === '/api/token/refresh/' ||
-        originalRequest.url === '/api/logout/' ||
+        estaEnRutaPublica ||
+        originalRequest.url.includes('/token/') ||
+        originalRequest.url.includes('/token/refresh/') ||
+        originalRequest.url.includes('/logout/') ||
+        originalRequest.url.includes('/auth/express/') ||
         originalRequest.url.includes('/password-reset/')
       ) {
         return Promise.reject(error)
       }
+      originalRequest._retry = true
 
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -151,9 +170,7 @@ apiClient.interceptors.response.use(
           return apiClient(originalRequest)
         }).catch(err => Promise.reject(err))
       }
-
       isRefreshing = true
-
       try {
         const access = await ejecutarRefreshSilencioso()
         originalRequest.headers['Authorization'] = `Bearer ${access}`
@@ -161,10 +178,10 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest)
 
       } catch (_error) {
-        console.error("Token de refresco inválido o expirado de forma definitiva.")
         processQueue(_error, null)
         clearTokenEnMemoria()
-        if (window.location.pathname !== '/login') {
+        
+        if (!estaEnRutaPublica) {
           window.location.href = '/login'
         }
         return Promise.reject(_error)

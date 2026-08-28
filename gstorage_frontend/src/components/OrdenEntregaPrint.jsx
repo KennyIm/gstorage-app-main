@@ -443,7 +443,7 @@ export default function OrdenEntregaPlantilla() {
                                                 )}
                                                 <div className="flex items-center justify-end gap-2 text-xs font-semibold text-slate-700 mb-1">
                                                     <span className="text-slate-900 font-medium">Ruta N°</span>
-                                                    <span className="text-slate-900">{getCodigoRuta(despacho?.id_ruta)}</span>
+                                                    <span className="text-slate-900">{despacho?.nombre_ruta || despacho?.codigo_ruta || getCodigoRuta(despacho?.id_ruta)}</span>
                                                 </div>
                                                 <div className="flex items-center justify-end gap-2 text-xs font-semibold text-slate-700 mb-1">
                                                     <span className="text-slate-900 font-medium">N°</span>

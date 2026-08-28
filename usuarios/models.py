@@ -3,6 +3,8 @@ from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User
+import hashlib
+from cryptography.fernet import Fernet
 
     
 class Empresa(models.Model):
@@ -76,3 +78,70 @@ def save_user_profile(sender, instance, **kwargs):
         instance.perfil.save()
     except Perfil.DoesNotExist:
         Perfil.objects.create(user=instance)
+
+def cifrar_dato(dato_plano: str) -> str:
+    if not dato_plano:
+        return None
+    fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+    return fernet.encrypt(str(dato_plano).strip().encode('utf-8')).decode('utf-8')
+
+def descifrar_dato(dato_cifrado: str) -> str:
+    if not dato_cifrado:
+        return None
+    try:
+        fernet = Fernet(settings.FIELD_ENCRYPTION_KEY.encode())
+        return fernet.decrypt(dato_cifrado.encode('utf-8')).decode('utf-8')
+    except Exception:
+        return None
+
+def generar_rut_hash(rut_raw: str) -> str:
+    if not rut_raw:
+        return None
+    rut_limpio = str(rut_raw).replace('.', '').replace('-', '').strip().upper()
+    return hashlib.sha256(rut_limpio.encode('utf-8')).hexdigest()
+
+
+class PersonalOperativo(models.Model):
+    ROLES = [
+        ('PATIO', 'Bodeguero de Patio'),
+        ('CHOFER', 'Conductor de Reparto'),
+    ]
+
+
+    empresa = models.ForeignKey(
+        'Empresa', 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True, 
+        related_name="personal_operativo"
+    )
+    rut_cifrado = models.TextField(verbose_name="RUT Cifrado")
+    rut_hash = models.CharField(max_length=64, unique=True, db_index=True, verbose_name="Hash RUT")
+    telefono_cifrado = models.TextField(verbose_name="Teléfono Cifrado")
+    
+    nombre = models.CharField(max_length=100)
+    rol = models.CharField(max_length=10, choices=ROLES)
+    activo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "Personal Operativo"
+        verbose_name_plural = "Personal Operativo"
+    @property
+    def rut(self):
+        return descifrar_dato(self.rut_cifrado)
+
+    @property
+    def telefono(self):
+        return descifrar_dato(self.telefono_cifrado)
+
+    def set_rut(self, rut_plano):
+        if rut_plano:
+            self.rut_cifrado = cifrar_dato(rut_plano)
+            self.rut_hash = generar_rut_hash(rut_plano)
+
+    def set_telefono(self, telefono_plano):
+        if telefono_plano:
+            self.telefono_cifrado = cifrar_dato(telefono_plano)
+
+    def __str__(self):
+        return f"{self.nombre} ({self.get_rol_display()})"

@@ -15,11 +15,14 @@ urlpatterns = [
 
     # --- Endpoints de Despacho ---
     path('despachos/', views.DespachoListCreateAPI.as_view(), name='api-despacho-list-create'),
+    path('despachos/disponibles-patio/', views.ListarDespachosRecepcionView.as_view(), name='despachos-disponibles-patio'),
     path('despachos/<int:pk>/', views.DespachoDetailAPI.as_view(), name='api-despacho-detail'),
     path('despachos/<int:id_despacho>/excel/', views.GenerarHojaRutaExcelAPI.as_view(), name='generar-excel-ruta'),
     path('despachos/<int:id_despacho>/generar-ordenes/', views.GenerarOrdenesDespachoAPI.as_view(), name='generar-ordenes-despacho'),
     path('despachos/<int:id_despacho>/invitar/', views.InvitarColaboradorAPI.as_view(), name='despacho-invitar'),
     path('despachos/<int:pk>/guardar-secuencia/', views.GuardarSecuenciaView.as_view(), name='guardar-planificacion'),
+    path('despachos/<int:id_despacho>/mercancias-patio/', views.ObtenerMercanciasPatioView.as_view(), name='mercancias-patio'),
+    path('despachos/<int:id_despacho>/procesar-transfer/', views.ProcesarTransferPatioView.as_view(), name='procesar-transfer'),
     
     # --- Endpoints de Cliente ---
     path('clientes/', views.ClienteListCreateAPI.as_view(), name='api-cliente-list-create'),

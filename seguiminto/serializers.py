@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import ComprobanteEntrega, ControlEntrega
+from inventario.models import Mercancia
 
 class ComprobanteEntregaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -38,3 +39,38 @@ class ControlEntregaSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.foto_comprobante.url)
             return obj.foto_comprobante.url
         return None
+
+
+class MercanciaSeguimientoSerializer(serializers.ModelSerializer):
+    control_entrega = ControlEntregaSerializer(read_only=True)
+    cliente_nombre = serializers.SerializerMethodField()
+    destino_nombre = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Mercancia
+        fields = [
+            'id_mercancia',
+            'tipo_documento_mercancia',
+            'factura',
+            'numero_orden_entrega',
+            'codigo_interno',
+            'cliente_nombre',
+            'destino_nombre',
+            'direccion_entrega',
+            'cantidad_bultos',
+            'tipo',
+            'kg',
+            'm3',
+            'estado',
+            'control_entrega'
+        ]
+
+    def get_cliente_nombre(self, obj):
+        if hasattr(obj, 'id_cliente') and obj.id_cliente:
+            return obj.id_cliente.nombre_cliente
+        return getattr(obj, 'nombre_cliente', '') or 'Sin Cliente'
+
+    def get_destino_nombre(self, obj):
+        if hasattr(obj, 'id_destino') and obj.id_destino:
+            return obj.id_destino.nombre_ciudad
+        return getattr(obj, 'nombre_destino', '') or 'Sin Destino'

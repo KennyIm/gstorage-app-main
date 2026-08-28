@@ -1,9 +1,9 @@
 from django.shortcuts import render
 from rest_framework import generics, permissions, viewsets, status
 from django.contrib.auth.models import User
-from .models import Empresa, Perfil, Sucursal
+from .models import Empresa, Perfil, Sucursal, PersonalOperativo
 from inventario.views import get_empresa_from_user
-from .permissions import IsAdminEmpresa
+from .permissions import IsAdminEmpresa, DenyExpressSession, AllowRoles
 from rest_framework.response import Response
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
@@ -26,7 +26,13 @@ from cryptography.fernet import Fernet
 from django.core import signing
 from rest_framework.decorators import action
 import copy
+import random
+from django.core.cache import cache
+import hashlib
+from django.db import IntegrityError
+from rest_framework.exceptions import ValidationError
 
+from .services.whatsapp_service import enviar_otp_whatsapp, normalizar_telefono_chile
 
 from .serializers import (
     EmpresaSerializer, 
@@ -41,9 +47,14 @@ from .serializers import (
     AdminPasswordResetSerializer,
     CustomTokenObtainPairSerializer,
     Verify2FASerializer,
-    UserMeSerializer
-    
+    UserMeSerializer,
+    PersonalOperativoSerializer
 )
+
+def generar_rut_hash(rut_raw: str) -> str:
+    rut_limpio = rut_raw.replace('.', '').replace('-', '').strip().upper()
+    return hashlib.sha256(rut_limpio.encode('utf-8')).hexdigest()
+
 class EmpresaViewSet(viewsets.ModelViewSet):
     queryset = Empresa.objects.all()
     serializer_class = EmpresaSerializer
@@ -53,7 +64,7 @@ class EmpresaViewSet(viewsets.ModelViewSet):
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated, DenyExpressSession, AllowRoles('DUENO')]
     serializer_class = RegisterSerializer
 
     def perform_create(self, serializer):
@@ -72,9 +83,10 @@ class RegisterView(generics.CreateAPIView):
 
 class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
+
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            return [permissions.IsAuthenticated()]
+            return [permissions.IsAuthenticated(), AllowRoles('DUENO')()]
         return [permissions.IsAuthenticated(), IsAdminEmpresa()]
     
     def get_queryset(self):
@@ -85,13 +97,13 @@ class UserViewSet(viewsets.ModelViewSet):
         instance.is_active = False 
         instance.save()
         if hasattr(instance, 'perfil'):
-             instance.perfil.rol = None
-             instance.perfil.save()
+            instance.perfil.rol = None
+            instance.perfil.save()
 
 class PerfilUpdateView(generics.UpdateAPIView):
     queryset = Perfil.objects.all()
     serializer_class = PerfilWriteSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminEmpresa]
+    permission_classes = [permissions.IsAuthenticated, AllowRoles('DUENO')]
     lookup_field = 'user_id'
 
     def perform_update(self, serializer):
@@ -113,18 +125,17 @@ class PerfilUpdateView(generics.UpdateAPIView):
         )
 
 
-@action(detail=False, methods=['get'])
 class MeView(generics.RetrieveUpdateAPIView):
     queryset = User.objects.all()
     serializer_class = UserMeSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, DenyExpressSession]
 
     def get_object(self):
         return self.request.user
     
 class ChangePasswordView(generics.UpdateAPIView):
     serializer_class = ChangePasswordSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, DenyExpressSession]
 
     def get_object(self):
         return self.request.user
@@ -142,7 +153,7 @@ class ChangePasswordView(generics.UpdateAPIView):
 
 class PasswordResetRequestView(generics.GenericAPIView):
     serializer_class = PasswordResetRequestSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.AllowAny, DenyExpressSession]
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -181,7 +192,7 @@ class PasswordResetRequestView(generics.GenericAPIView):
 
 class PasswordResetConfirmView(generics.GenericAPIView):
     serializer_class = PasswordResetConfirmSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.AllowAny, DenyExpressSession]
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -191,7 +202,7 @@ class PasswordResetConfirmView(generics.GenericAPIView):
     
 class EmpresaConfigView(generics.RetrieveUpdateAPIView):
     serializer_class = EmpresaSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminEmpresa]
+    permission_classes = [permissions.IsAuthenticated, IsAdminEmpresa, AllowRoles('DUENO')]
 
     def get_object(self):
         return get_empresa_from_user(self.request)
@@ -214,7 +225,7 @@ class SucursalListAPI(generics.ListAPIView):
 class AdminResetPasswordView(generics.UpdateAPIView):
     queryset = User.objects.all()
     serializer_class = AdminPasswordResetSerializer
-    permission_classes = [permissions.IsAuthenticated] 
+    permission_classes = [permissions.IsAuthenticated, DenyExpressSession, AllowRoles('DUENO')] 
 
     def update(self, request, *args, **kwargs):
         user = self.get_object() 
@@ -331,7 +342,7 @@ class CustomLogoutView(APIView):
 
 
 class ObtenerQR2FAView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, DenyExpressSession]
 
     def get(self, request, *args, **kwargs):
         user = request.user
@@ -377,7 +388,7 @@ class ObtenerQR2FAView(APIView):
 
 
 class ConfirmarActivacion2FAView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, DenyExpressSession]
 
     def post(self, request, *args, **kwargs):
         user = request.user
@@ -404,7 +415,7 @@ class ConfirmarActivacion2FAView(APIView):
         return Response({"error": "Código de verificación inválido. Reintente."}, status=status.HTTP_400_BAD_REQUEST)
 
 class Desactivar2FAView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, DenyExpressSession]
 
     def post(self, request, *args, **kwargs):
         user = request.user
@@ -421,3 +432,127 @@ class Desactivar2FAView(APIView):
         perfil.save()
         
         return Response({"message": "Autenticación de Doble Factor desactivada correctamente."}, status=status.HTTP_200_OK)
+
+
+class SolicitarOTPExpressView(APIView):
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        rut_plano = request.data.get('rut', '').strip()
+        if not rut_plano:
+            return Response({"error": "El RUT es obligatorio."}, status=status.HTTP_400_BAD_REQUEST)
+
+        hash_busqueda = generar_rut_hash(rut_plano)
+        operativo = PersonalOperativo.objects.filter(rut_hash=hash_busqueda, activo=True).first()
+        
+        if not operativo:
+            return Response({
+                "error": "El RUT ingresado no está registrado en el personal activo."
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        telefono = operativo.telefono
+        if not telefono:
+            return Response({
+                "error": "El trabajador no tiene un número telefónico asignado."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        key_cooldown = f"otp_cooldown_{hash_busqueda}"
+        if cache.get(key_cooldown):
+            return Response({
+                "error": "Ya se ha enviado un código recientemente. Por favor espera 1 minuto."
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
+        key_intentos = f"otp_intentos_hora_{hash_busqueda}"
+        intentos = cache.get(key_intentos, 0)
+        if intentos >= 5:
+            return Response({
+                "error": "Has superado el límite de solicitudes por hora. Contacta a tu supervisor."
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
+        codigo_otp = str(random.randint(1000, 9999))
+        cache.set(f"otp_express_{hash_busqueda}", codigo_otp, timeout=300) 
+        
+        cache.set(key_cooldown, True, timeout=60)
+        cache.set(key_intentos, intentos + 1, timeout=3600)
+
+        mensaje_enviado = enviar_otp_whatsapp(
+            telefono_raw=telefono,
+            codigo_otp=codigo_otp,
+            nombre_operativo=operativo.nombre
+        )
+
+        if not mensaje_enviado:
+            return Response({
+                "error": "No fue posible despachar el mensaje por WhatsApp. Inténtalo más tarde."
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        telefono_limpio = normalizar_telefono_chile(telefono)
+        mascara_numero = f"...{telefono_limpio[-4:]}" if len(telefono_limpio) >= 4 else ""
+
+        return Response({
+            "message": f"Código enviado por WhatsApp al número terminado en {mascara_numero}"
+        }, status=status.HTTP_200_OK)
+
+
+class VerificarOTPExpressView(APIView):
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+    def post(self, request):
+        rut_plano = request.data.get('rut', '').strip()
+        code_ingresado = request.data.get('code', '').strip()
+        if not rut_plano or not code_ingresado:
+            return Response({"error": "RUT y código son requeridos."}, status=status.HTTP_400_BAD_REQUEST)
+        hash_busqueda = generar_rut_hash(rut_plano)
+        cache_key = f"otp_express_{hash_busqueda}"
+        codigo_guardado = cache.get(cache_key)
+        if not codigo_guardado or str(codigo_guardado) != str(code_ingresado):
+            return Response({"error": "Código incorrecto o ha expirado."}, status=status.HTTP_400_BAD_REQUEST)
+        operativo = PersonalOperativo.objects.filter(rut_hash=hash_busqueda, activo=True).first()
+        if not operativo:
+            return Response({"error": "Trabajador no encontrado o inactivo."}, status=status.HTTP_404_NOT_FOUND)
+        cache.delete(cache_key)
+
+        refresh = RefreshToken()
+        refresh['operativo_id'] = operativo.id
+        refresh['rol'] = operativo.rol
+        refresh['is_express_session'] = True
+
+        response = Response({
+            'access': str(refresh.access_token),
+            'nombre': operativo.nombre,
+            'rol': operativo.rol,
+            'is_express': True
+        }, status=status.HTTP_200_OK)
+
+        set_refresh_cookie(response, str(refresh))
+
+        return response
+
+class PersonalOperativoViewSet(viewsets.ModelViewSet):
+    queryset = PersonalOperativo.objects.all()
+    serializer_class = PersonalOperativoSerializer
+    permission_classes = [
+        permissions.IsAuthenticated, 
+        DenyExpressSession,
+        IsAdminEmpresa
+    ]
+
+    def get_queryset(self):
+        empresa = get_empresa_from_user(self.request)
+        return PersonalOperativo.objects.filter(empresa=empresa, activo=True)
+
+    def perform_create(self, serializer):
+        empresa_admin = get_empresa_from_user(self.request)
+        try:
+            serializer.save(empresa=empresa_admin)
+        except IntegrityError as e:
+            err_str = str(e).lower()
+            if 'rut' in err_str:
+                raise ValidationError({"rut": "Ya existe una persona registrada con este RUT en el sistema."})
+            elif 'telefono' in err_str or 'phone' in err_str:
+                raise ValidationError({"telefono": "El número de teléfono ya se encuentra en uso."})
+            raise ValidationError({"non_field_errors": "Error de unicidad: Los datos ingresados ya existen en el sistema."})
+
+    def perform_destroy(self, instance):
+        instance.activo = False
+        instance.save()
