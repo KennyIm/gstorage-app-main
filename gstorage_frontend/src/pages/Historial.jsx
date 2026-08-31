@@ -1,112 +1,110 @@
-import React, { useState, useEffect } from 'react';
-import { useUI } from '../context/UIContext';
-import { History, User, Edit, Trash2, Plus, Filter, Search, MapPin, Loader2, ChevronDown, ChevronUp, XCircle } from 'lucide-react';
-import apiClient from '../services/api';
+import React, { useState, useEffect } from 'react'
+import { useUI } from '../context/UIContext'
+import { History, User, Edit, Trash2, Plus, Filter, Search, MapPin, Loader2, ChevronDown, ChevronUp, XCircle } from 'lucide-react'
+import apiClient from '../services/api'
 
 export default function HistorialView() {
-  document.title = "Historial de cambios - GStorage";
-  
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [sucursales, setSucursales] = useState([]);
-  const [error, setError] = useState(null);
-  const [expandedItemId, setExpandedItemId] = useState(null);
-  const { showLoader, hideLoader, showToast } = useUI();
-  const [nextPageUrl, setNextPageUrl] = useState(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filterType, setFilterType] = useState('Todos');
-  const [fechaDesde, setFechaDesde] = useState('');
-  const [fechaHasta, setFechaHasta] = useState('');
+  document.title = "Historial de cambios - GStorage"
+
+  const [history, setHistory] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [sucursales, setSucursales] = useState([])
+  const [error, setError] = useState(null)
+  const [expandedItemId, setExpandedItemId] = useState(null)
+  const { showLoader, hideLoader, showToast } = useUI()
+  const [nextPageUrl, setNextPageUrl] = useState(null)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [filterType, setFilterType] = useState('Todos')
+  const [fechaDesde, setFechaDesde] = useState('')
+  const [fechaHasta, setFechaHasta] = useState('')
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 500);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 500)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
+      setLoading(true)
       try {
-        const params = new URLSearchParams();
-        if (debouncedSearch) params.append('search', debouncedSearch);
-        if (filterType !== 'Todos') params.append('accion', filterType);
-        if (fechaDesde) params.append('fecha_desde', fechaDesde);
-        if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+        const params = new URLSearchParams()
+        if (debouncedSearch) params.append('search', debouncedSearch)
+        if (filterType !== 'Todos') params.append('accion', filterType)
+        if (fechaDesde) params.append('fecha_desde', fechaDesde)
+        if (fechaHasta) params.append('fecha_hasta', fechaHasta)
 
         const [historyRes, sucursalesRes] = await Promise.all([
           apiClient.get(`/api/inventario/historial/?${params.toString()}`),
           apiClient.get('/api/usuarios/sucursales/')
-        ]);
+        ])
 
-        setHistory(historyRes.data.results || historyRes.data);
-        setNextPageUrl(historyRes.data.next || null);
-        setSucursales(sucursalesRes.data);
+        setHistory(historyRes.data.results || historyRes.data)
+        setNextPageUrl(historyRes.data.next || null)
+        setSucursales(sucursalesRes.data)
       } catch (err) {
         if (err.response && err.response.status === 401) {
-          showToast('Sesión caducada, ingresa nuevamente.', 'error');
+          showToast('Sesión caducada, ingresa nuevamente.', 'error')
         } else {
-          showToast('Error al filtrar el historial.', 'error');
+          showToast('Error al filtrar el historial.', 'error')
         }
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
-    fetchData();
-  }, [debouncedSearch, filterType, fechaDesde, fechaHasta]);
+    }
+    fetchData()
+  }, [debouncedSearch, filterType, fechaDesde, fechaHasta])
 
   const loadMore = async () => {
-    if (!nextPageUrl) return;
-    setLoadingMore(true);
+    if (!nextPageUrl) return
+    setLoadingMore(true)
     try {
-      const response = await apiClient.get(nextPageUrl);
-      setHistory(prevHistory => [...prevHistory, ...(response.data.results || [])]);
-      setNextPageUrl(response.data.next || null);
+      const urlSegura = nextPageUrl.replace(/^http:\/\//i, 'https://')
+      const response = await apiClient.get(urlSegura)
+      setHistory(prevHistory => [...prevHistory, ...(response.data.results || [])])
+      setNextPageUrl(response.data.next || null)
     } catch (err) {
-      console.error("Error al cargar más historial:", err);
+      console.error("Error al cargar más historial:", err)
     } finally {
-      setLoadingMore(false);
+      setLoadingMore(false)
     }
-  };
+  }
 
   const limpiarFiltros = () => {
-    setSearchTerm('');
-    setFilterType('Todos');
-    setFechaDesde('');
-    setFechaHasta('');
-    setExpandedItemId(null);
-  };
-
+    setSearchTerm('')
+    setFilterType('Todos')
+    setFechaDesde('')
+    setFechaHasta('')
+    setExpandedItemId(null)
+  }
   const getNombreSucursal = (id) => {
-    if (!id) return 'General / Sin Sucursal';
-    const sucursal = sucursales.find(s => String(s.id) === String(id));
-    return sucursal ? sucursal.nombre : `Suc. ${id}`;
-  };
-
+    if (!id) return 'General / Sin Sucursal'
+    const sucursal = sucursales.find(s => String(s.id) === String(id))
+    return sucursal ? sucursal.nombre : `Suc. ${id}`
+  }
   const getStyleForAction = (accion) => {
-    const act = accion?.toLowerCase() || '';
+    const act = accion?.toLowerCase() || ''
     if (act.includes('creación') || act.includes('creacion'))
-      return { icon: Plus, color: 'text-green-600', bg: 'bg-green-100', label: 'Creación' };
+      return { icon: Plus, color: 'text-green-600', bg: 'bg-green-100', label: 'Creación' }
     if (act.includes('edición') || act.includes('edicion') || act.includes('modificación'))
-      return { icon: Edit, color: 'text-blue-600', bg: 'bg-blue-100', label: 'Edición' };
+      return { icon: Edit, color: 'text-blue-600', bg: 'bg-blue-100', label: 'Edición' }
     if (act.includes('eliminación') || act.includes('eliminacion') || act.includes('borrado'))
-      return { icon: Trash2, color: 'text-red-600', bg: 'bg-red-100', label: 'Eliminación' };
-    return { icon: History, color: 'text-gray-600', bg: 'bg-gray-100', label: 'Movimiento' };
-  };
-
+      return { icon: Trash2, color: 'text-red-600', bg: 'bg-red-100', label: 'Eliminación' }
+    return { icon: History, color: 'text-gray-600', bg: 'bg-gray-100', label: 'Movimiento' }
+  }
   const renderDetalles = (item) => {
-    const detallesRaw = item.detalles || item.datos_json || item.cambios;
+    const detallesRaw = item.detalles || item.datos_json || item.cambios
 
     if (!detallesRaw) {
       return <p className="text-sm text-gray-500 italic mt-2">No hay datos técnicos registrados para este movimiento.</p>;
     }
 
-    let datos = detallesRaw;
+    let datos = detallesRaw
     if (typeof detallesRaw === 'string') {
       try { datos = JSON.parse(detallesRaw); } catch (e) { return <p className="text-sm text-gray-700 mt-2">{detallesRaw}</p>; }
     }
     if (datos.es_diff) {
-      const cambios = datos.cambios || {};
+      const cambios = datos.cambios || {}
       if (Object.keys(cambios).length === 0) {
         return <p className="text-sm text-gray-500 italic mt-2">Se registró la acción, pero no hubo cambios en los datos técnicos.</p>;
       }
