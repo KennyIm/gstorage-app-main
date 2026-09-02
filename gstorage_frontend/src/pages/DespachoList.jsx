@@ -4,6 +4,7 @@ import apiClient from '../services/api'
 import { useAuth } from '../context/AuthContext'
 import { useUI } from '../context/UIContext'
 import Select from 'react-select'
+import { useMemo } from 'react'
 import {
   Plus, Search, Eye, Edit, Truck, Map, User, Calendar,
   Clock, CheckCircle, AlertCircle, Loader2, ArrowRight,
@@ -171,7 +172,6 @@ export default function DespachoList() {
   const uniqueCamiones = [...new Set(despachos.map(d => String(d.id_camion)).filter(Boolean))]
   const uniqueConductores = [...new Set(despachos.map(d => String(d.id_conductor)).filter(Boolean))]
 
-  const opcionesRutas = uniqueRutas.map(ruta => ({ value: ruta, label: `Ruta ${ruta}` }))
   const opcionesCamiones = uniqueCamiones.map(camion => ({ value: camion, label: camion }))
 
   const opcionesConductores = uniqueConductores.map(cond => ({
@@ -179,7 +179,6 @@ export default function DespachoList() {
     label: cond
   }))
 
-  const opcionRutaSeleccionada = opcionesRutas.find(op => op.value === filtros.ruta) || null
   const opcionCamionSeleccionada = opcionesCamiones.find(op => op.value === filtros.camion) || null
   const opcionConductorSeleccionada = opcionesConductores.find(op => op.value === filtros.conductor) || null
 
@@ -233,51 +232,87 @@ export default function DespachoList() {
     })
   }
 
-  const filteredDespachos = despachos.filter(d => {
-    if (!d) return false
+  const opcionesRutas = useMemo(() => {
+    if (!despachos || despachos.length === 0) return []
 
-    const matchRuta = filtros.ruta === '' || String(d.id_ruta || '') === filtros.ruta
-    const matchCamion = filtros.camion === '' || String(d.id_camion || '') === filtros.camion
-    const matchConductor = filtros.conductor === '' || String(d.id_conductor || '') === filtros.conductor
-    const matchEstado = filtros.estado === 'TODOS' || d.estado_despacho === filtros.estado
-    const matchCompartido = !filtros.verCompartidos || Boolean(d.es_colaborador)
+    const rutasUnicas = {}
+    const esDueno = user?.perfil?.rol === 'DUENO'
 
-    let matchFechaProg = true
-    if (filtros.fechaProgDesde || filtros.fechaProgHasta) {
-      if (!d.fecha_programada) {
-        matchFechaProg = false
-      } else {
-        const itemDate = new Date(d.fecha_programada).getTime()
-        if (filtros.fechaProgDesde) {
-          const desde = new Date(`${filtros.fechaProgDesde}T00:00:00`).getTime()
-          if (itemDate < desde) matchFechaProg = false
-        }
-        if (filtros.fechaProgHasta) {
-          const hasta = new Date(`${filtros.fechaProgHasta}T23:59:59`).getTime()
-          if (itemDate > hasta) matchFechaProg = false
+    const despachosValidos = despachos.filter(d => {
+      if (!d) return false
+      if (esDueno) return !filtros.verCompartidos || Boolean(d.es_colaborador)
+      return filtros.verCompartidos ? Boolean(d.es_colaborador) : !d.es_colaborador
+    })
+
+    despachosValidos.forEach(d => {
+      const rutaKey = String(d.id_ruta || '')
+      if (rutaKey && !rutasUnicas[rutaKey]) {
+        rutasUnicas[rutaKey] = {
+          value: rutaKey,
+          label: d.nombre_ruta ? String(d.nombre_ruta) : `Ruta #${rutaKey}`
         }
       }
-    }
+    })
 
-    let matchFechaReal = true
-    if (filtros.fechaRealDesde || filtros.fechaRealHasta) {
-      if (!d.fecha_salida_real) {
-        matchFechaReal = false
-      } else {
-        const itemDate = new Date(d.fecha_salida_real).getTime()
-        if (filtros.fechaRealDesde) {
-          const desde = new Date(`${filtros.fechaRealDesde}T00:00:00`).getTime()
-          if (itemDate < desde) matchFechaReal = false
-        }
-        if (filtros.fechaRealHasta) {
-          const hasta = new Date(`${filtros.fechaRealHasta}T23:59:59`).getTime()
-          if (itemDate > hasta) matchFechaReal = false
+    return Object.values(rutasUnicas).sort((a, b) => a.label.localeCompare(b.label))
+  }, [despachos, filtros.verCompartidos, user])
+
+  const opcionRutaSeleccionada = useMemo(() => {
+    if (!filtros.ruta) return null
+    return opcionesRutas.find(op => String(op.value) === String(filtros.ruta)) || null
+  }, [opcionesRutas, filtros.ruta])
+
+  const filteredDespachos = useMemo(() => {
+    return despachos.filter(d => {
+      if (!d) return false
+
+      const matchRuta = filtros.ruta === '' || String(d.id_ruta || '') === filtros.ruta
+      const matchCamion = filtros.camion === '' || String(d.id_camion || '') === filtros.camion
+      const matchConductor = filtros.conductor === '' || String(d.id_conductor || '') === filtros.conductor
+      const matchEstado = filtros.estado === 'TODOS' || d.estado_despacho === filtros.estado
+
+      const esDueno = user?.perfil?.rol === 'DUENO'
+      const matchCompartido = esDueno
+        ? (!filtros.verCompartidos || Boolean(d.es_colaborador))
+        : (filtros.verCompartidos ? Boolean(d.es_colaborador) : !d.es_colaborador)
+
+      let matchFechaProg = true
+      if (filtros.fechaProgDesde || filtros.fechaProgHasta) {
+        if (!d.fecha_programada) {
+          matchFechaProg = false
+        } else {
+          const itemDate = new Date(d.fecha_programada).getTime()
+          if (filtros.fechaProgDesde) {
+            const desde = new Date(`${filtros.fechaProgDesde}T00:00:00`).getTime()
+            if (itemDate < desde) matchFechaProg = false
+          }
+          if (filtros.fechaProgHasta) {
+            const hasta = new Date(`${filtros.fechaProgHasta}T23:59:59`).getTime()
+            if (itemDate > hasta) matchFechaProg = false
+          }
         }
       }
-    }
 
-    return matchRuta && matchCamion && matchConductor && matchEstado && matchCompartido && matchFechaProg && matchFechaReal
-  })
+      let matchFechaReal = true
+      if (filtros.fechaRealDesde || filtros.fechaRealHasta) {
+        if (!d.fecha_salida_real) {
+          matchFechaReal = false
+        } else {
+          const itemDate = new Date(d.fecha_salida_real).getTime()
+          if (filtros.fechaRealDesde) {
+            const desde = new Date(`${filtros.fechaRealDesde}T00:00:00`).getTime()
+            if (itemDate < desde) matchFechaReal = false
+          }
+          if (filtros.fechaRealHasta) {
+            const hasta = new Date(`${filtros.fechaRealHasta}T23:59:59`).getTime()
+            if (itemDate > hasta) matchFechaReal = false
+          }
+        }
+      }
+
+      return matchRuta && matchCamion && matchConductor && matchEstado && matchCompartido && matchFechaProg && matchFechaReal
+    })
+  }, [despachos, filtros, user])
   const totalPages = Math.ceil(filteredDespachos.length / ITEMS_PER_PAGE)
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
   const paginatedDespachos = filteredDespachos.slice(startIndex, startIndex + ITEMS_PER_PAGE)
@@ -344,8 +379,12 @@ export default function DespachoList() {
                     name="verCompartidos"
                     checked={filtros.verCompartidos}
                     onChange={(e) => {
-                      setFiltros(prev => ({ ...prev, verCompartidos: e.target.checked }));
-                      setCurrentPage(1);
+                      setFiltros(prev => ({
+                        ...prev,
+                        verCompartidos: e.target.checked,
+                        ruta: ''
+                      }))
+                      setCurrentPage(1)
                     }}
                     className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 cursor-pointer"
                   />

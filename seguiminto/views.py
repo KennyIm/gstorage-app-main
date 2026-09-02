@@ -25,7 +25,7 @@ class DespachosMovilActivosAPIView(APIView):
         ).exclude(
             estado_despacho__in=['Eliminado', 'Cancelado']
         ).filter(
-            mercancia__estado__in=['Entregado', 'Recibido', 'En Observacion'],
+            mercancia__estado__in=['Entregado', 'En Observacion'],
             mercancia__activo=True
         ).distinct().order_by('-id_despacho')
 

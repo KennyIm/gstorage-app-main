@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import apiClient from '../services/api'
 import Select from 'react-select'
+import { useAuth } from '../context/AuthContext'
 import {
   Search, Filter, Package, Plus, Eye, Trash2, Truck, Check, X, FileText,
   ChevronLeft, ChevronRight, ArrowLeft, Share2
@@ -11,6 +12,7 @@ import { useUI } from '../context/UIContext'
 
 export default function MercanciaList() {
   document.title = "Listado de Mercancias - GStorage"
+  const { user } = useAuth()
   const [mercancias, setMercancias] = useState([])
   const { showLoader, hideLoader, showToast } = useUI()
   const [despachos, setDespachos] = useState([])
@@ -183,16 +185,49 @@ export default function MercanciaList() {
       }
     })
   }, [clientes])
+  const opcionesDespachosAsignacion = useMemo(() => {
+    if (!despachos || despachos.length === 0) return []
+    const userSucursalId = user?.perfil?.sucursal_id || user?.perfil?.sucursal?.id || user?.perfil?.sucursal
+    const esDueno = user?.perfil?.rol === 'DUENO'
+    return despachos
+      .filter(d => {
+        if (!d) return false
+        if (['Finalizado', 'Cancelado', 'Eliminado'].includes(d.estado_despacho)) return false
 
-  const opcionesDespachos = [
-    { value: 'null', label: 'Sin Despacho Asignado' },
-    ...despachos.map(d => ({
-      value: d.id_despacho || d.id,
-      label: `${d.ruta_nombre || d.id_ruta || 'Sin Ruta'} (Despacho #${d.id_despacho || d.id})`
+        if (!esDueno) {
+          if (d.es_colaborador) return false
+          if (userSucursalId && d.sucursal_id && String(d.sucursal_id) !== String(userSucursalId)) {
+            return false
+          }
+        }
+        return true
+      })
+      .map(d => ({
+        value: d.id_despacho,
+        label: `Despacho #${d.id_despacho} | Ruta: ${d.nombre_ruta || d.id_ruta || 'S/N'}`
+      }))
+  }, [despachos, user])
+  const opcionesDespachosFiltro = useMemo(() => {
+    const listaBase = [{ value: 'null', label: 'Sin Despacho Asignado' }]
+    if (!despachos || despachos.length === 0) return listaBase
+    const esDueno = user?.perfil?.rol === 'DUENO'
+    const despachosFiltrados = despachos.filter(d => {
+      if (!d) return false
+      if (esDueno) return !filtros.verCompartidos || Boolean(d.es_colaborador)
+      return filtros.verCompartidos ? Boolean(d.es_colaborador) : !d.es_colaborador
+    })
+    const opciones = despachosFiltrados.map(d => ({
+      value: String(d.id_despacho || d.id),
+      label: `${d.nombre_ruta || d.ruta_nombre || d.id_ruta || 'Sin Ruta'} (Despacho #${d.id_despacho || d.id})`
     }))
-  ]
 
-  const opcionSeleccionadaDespach = opcionesDespachos.find(op => String(op.value) === String(filtros.despacho)) || null
+    return [...listaBase, ...opciones]
+  }, [despachos, filtros.verCompartidos, user])
+
+  const opcionSeleccionadaDespach = useMemo(() => {
+    if (!filtros.despacho) return null
+    return opcionesDespachosFiltro.find(op => String(op.value) === String(filtros.despacho)) || null
+  }, [opcionesDespachosFiltro, filtros.despacho])
   const opcionSeleccionada = opcionesClientes.find(op => op.value === filtros.cliente) || null
 
   const filteredItems = useMemo(() => {
@@ -265,47 +300,48 @@ export default function MercanciaList() {
 
       {/* --- BARRA DE ACCIONES MASIVAS (FLOTANTE) --- */}
       {selectedIds.length > 0 && (
-        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10 duration-300">
-          <div className="bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex flex-wrap items-center gap-6 border border-slate-700">
-            <div className="flex items-center gap-2">
-              <div className="bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold">
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 max-w-[95vw] w-auto animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="bg-slate-900/95 backdrop-blur-md text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl shadow-2xl flex items-center gap-3 sm:gap-4 border border-slate-700/80">
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shadow-sm">
                 {selectedIds.length}
-              </div>
-              <span className="text-sm font-medium">Mercancías seleccionadas</span>
+              </span>
+              <span className="text-sm font-medium text-slate-200 whitespace-nowrap hidden sm:inline">
+                Seleccionadas
+              </span>
             </div>
-
-            <div className="h-8 w-px bg-slate-700 hidden sm:block"></div>
-
-            <div className="flex items-center gap-3">
+            <div className="h-6 w-px bg-slate-700 shrink-0"></div>
+            <div className="w-56 sm:w-72 md:w-80 text-sm">
               <Select
                 styles={customSelectStyles}
-                placeholder="Buscar despacho o ruta..."
-                noOptionsMessage={() => "No se encontraron resultados"}
+                placeholder="Despacho o ruta destino..."
+                noOptionsMessage={() => "No hay despachos disponibles"}
                 isClearable
-                options={despachos.map(d => ({
-                  value: d.id_despacho,
-                  label: `Despacho #${d.id_despacho} | Ruta: ${d.id_ruta || 'S/N'}`
-                }))}
-                value={bulkDispatchId ? {
-                  value: bulkDispatchId,
-                  label: `Despacho #${bulkDispatchId} | ${despachos.find(d => d.id_despacho === bulkDispatchId)?.id_ruta || 'S/N'}`
-                } : null}
+                isSearchable
+                options={opcionesDespachosAsignacion}
+                value={
+                  bulkDispatchId
+                    ? opcionesDespachosAsignacion.find(op => String(op.value) === String(bulkDispatchId)) || null
+                    : null
+                }
                 onChange={(opt) => setBulkDispatchId(opt ? opt.value : '')}
               />
-
-              <button
-                onClick={handleBulkAssign}
-                disabled={!bulkDispatchId}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${!bulkDispatchId ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white'
-                  }`}
-              >
-                <Check className="w-4 h-4" /> Ejecutar
-              </button>
             </div>
-
+            <button
+              onClick={handleBulkAssign}
+              disabled={!bulkDispatchId}
+              className={`h-9 px-4 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5 shrink-0 shadow-sm ${!bulkDispatchId
+                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                  : 'bg-red-600 hover:bg-red-700 text-white shadow-red-900/30 active:scale-95'
+                }`}
+            >
+              <Check className="w-4 h-4" />
+              <span>Asignar</span>
+            </button>
             <button
               onClick={() => setSelectedIds([])}
-              className="text-slate-400 hover:text-white text-xs font-medium"
+              className="text-slate-400 hover:text-white px-2.5 py-1.5 text-xs font-medium transition rounded-lg hover:bg-slate-800 shrink-0"
+              title="Cancelar selección"
             >
               Cancelar
             </button>
@@ -495,7 +531,7 @@ export default function MercanciaList() {
                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Ruta</label>
                 <Select
                   name="despacho"
-                  options={opcionesDespachos}
+                  options={opcionesDespachosFiltro}
                   value={opcionSeleccionadaDespach}
                   isClearable={true}
                   isSearchable={true}
@@ -650,8 +686,8 @@ export default function MercanciaList() {
                       {item.id_despacho ? (
                         <span
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold ${esCompartido
-                              ? 'bg-purple-50 text-purple-700 border-purple-200 shadow-sm'
-                              : 'bg-blue-50 text-blue-700 border-blue-100'
+                            ? 'bg-purple-50 text-purple-700 border-purple-200 shadow-sm'
+                            : 'bg-blue-50 text-blue-700 border-blue-100'
                             }`}
                           title={`ID de Despacho: ${item.id_despacho}`}
                         >

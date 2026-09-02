@@ -234,13 +234,22 @@ class Rampla(models.Model):
 class Ruta(models.Model):
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="rutas")
     sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE)
-    codigo_ruta = models.IntegerField(unique=True, null=True, blank=True, verbose_name="Código de Ruta")
+    codigo_ruta = models.CharField(max_length=50)
     id_ruta = models.AutoField(primary_key=True)
     nombre_ruta = models.CharField(max_length=100, unique=True, verbose_name="Nombre de Ruta")
     descripcion = models.TextField(null=True, blank=True, verbose_name="Descripción")
     activo = models.BooleanField(default=True)
     objects = models.Manager()
     activos = RutaManager()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['sucursal', 'codigo_ruta'],
+                condition=models.Q(activo=True),
+                name='unique_ruta_por_sucursal_activa'
+            )
+        ]
 
     def __str__(self):
         if self.codigo_ruta:

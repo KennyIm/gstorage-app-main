@@ -68,9 +68,15 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = frontend_urls_str.split(',')
+raw_urls = [u.strip() for u in frontend_urls_str.split(',') if u.strip()]
+formatted_frontend_urls = [
+    u if u.startswith(('http://', 'https://')) else f'https://{u}'
+    for u in raw_urls
+]
+
+CORS_ALLOWED_ORIGINS = formatted_frontend_urls
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = frontend_urls_str.split(',')
+CSRF_TRUSTED_ORIGINS = formatted_frontend_urls
 
 ROOT_URLCONF = 'GStorageAppW.urls'
 
@@ -193,6 +199,13 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True, #CAMBIAR
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
+
+#CACHES = {
+#    'default': {
+#        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+#        'LOCATION': 'django_cache_table',
+#    }
+#}
 
 # Obliga a usar HTTPS (solo cuando tenga SSL/TLS)
 #SECURE_SSL_REDIRECT = True 

@@ -620,13 +620,7 @@ class DespachoListCreateAPI(generics.ListCreateAPIView):
             activo=True
         )
         qs = Despacho.objects.filter(empresa=empresa, activo=True).select_related(
-            'id_conductor',
-            'id_camion',
-            'id_rampla',
-            'id_ruta',
-            'sucursal',
-            'empresa',
-            'id_usuario_creacion'
+            'id_conductor', 'id_camion', 'id_rampla', 'id_ruta', 'sucursal', 'empresa', 'id_usuario_creacion'
         ).annotate(
             es_colaborador=Exists(es_colaborador_subquery)
         )
@@ -639,13 +633,12 @@ class DespachoListCreateAPI(generics.ListCreateAPIView):
             return qs.order_by('-fecha_programada')
 
         condicion_invitado = Q(es_colaborador=True)
-
         if sucursal_id_solicitada and sucursal_id_solicitada != 'null':
-            condicion_sucursal = Q(sucursal_id=sucursal_id_solicitada)
-            return qs.filter(condicion_sucursal | condicion_invitado).distinct().order_by('-fecha_programada')
+            condicion_propio = Q(sucursal_id=sucursal_id_solicitada)
         else:
             condicion_propio = Q(sucursal=perfil.sucursal)
-            return qs.filter(condicion_propio | condicion_invitado).distinct().order_by('-fecha_programada')
+
+        return qs.filter(condicion_propio | condicion_invitado).distinct().order_by('-fecha_programada')
 
     def get_serializer_class(self):
         if self.request.method == 'GET':

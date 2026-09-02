@@ -408,7 +408,37 @@ class RutaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ruta
         fields = '__all__'
-        read_only_fields = ['empresa', 'sucursal']
+        read_only_fields = ['empresa', 'sucursal', 'activo']
+        extra_kwargs = {
+            'codigo_ruta': {'validators': []}
+        }
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        codigo_ruta = attrs.get('codigo_ruta')
+        
+        if not codigo_ruta and self.instance:
+            codigo_ruta = self.instance.codigo_ruta
+
+        if request and codigo_ruta:
+            user = request.user
+            empresa = getattr(user.perfil, 'empresa', None) if hasattr(user, 'perfil') else None
+            sucursal = getattr(user.perfil, 'sucursal', None) if hasattr(user, 'perfil') else None
+            qs = Ruta.objects.filter(
+                empresa=empresa,
+                sucursal=sucursal,
+                codigo_ruta__iexact=codigo_ruta.strip(),
+                activo=True
+            )
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+
+            if qs.exists():
+                raise serializers.ValidationError({
+                    "codigo_ruta": "Ya existe una ruta activa con este código en tu sucursal."
+                })
+
+        return attrs
 
 class DestinoSerializer(serializers.ModelSerializer):
     class Meta:
