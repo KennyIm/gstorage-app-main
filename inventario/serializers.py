@@ -659,3 +659,18 @@ class DespachoSelectorSerializer(serializers.ModelSerializer):
         if hasattr(obj, 'id_destino') and obj.id_destino:
             return str(obj.id_destino)
         return "Sin Destino"
+
+class RecepcionPatioSerializer(serializers.ModelSerializer):
+    nombre_responsable = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RecepcionPatio
+        fields = '__all__'
+
+    def get_nombre_responsable(self, obj):
+        if obj.operativo_patio:
+            return f"{obj.operativo_patio.nombre} (Operativo)"
+        if obj.usuario_patio:
+            nombre = f"{obj.usuario_patio.first_name} {obj.usuario_patio.last_name}".strip()
+            return nombre or obj.usuario_patio.username
+        return "Sistema / Desconocido"

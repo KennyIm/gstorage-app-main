@@ -709,7 +709,8 @@ class RecepcionPatio(models.Model):
     conforme = models.BooleanField(default=True, verbose_name="¿Recepción Conforme?")
     observacion = models.TextField(null=True, blank=True, verbose_name="Observaciones / Novedades")
     
-    usuario_patio = models.ForeignKey(User, on_delete=models.PROTECT, verbose_name="Operador de Patio")
+    usuario_patio = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.SET_NULL,null=True,blank=True,related_name='recepciones_patio')
+    operativo_patio = models.ForeignKey('usuarios.PersonalOperativo',on_delete=models.SET_NULL,null=True,blank=True,related_name='recepciones_patio')
     fecha_recepcion = models.DateTimeField(auto_now_add=True)
 
     class Meta:

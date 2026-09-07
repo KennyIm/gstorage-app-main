@@ -39,7 +39,7 @@ export default function MercanciaList() {
     despacho: '',
     factura: '',
     proveedor: '',
-    verCompartidos: false // 👈 Estado de filtro para compartidos
+    verCompartidos: false
   })
   const [selectedIds, setSelectedIds] = useState([])
   const [bulkDispatchId, setBulkDispatchId] = useState('')
@@ -505,7 +505,7 @@ export default function MercanciaList() {
                   <option value="TODOS">Todos los estados</option>
                   <option value="En Bodega">En Bodega</option>
                   <option value="Asignado">Asignado</option>
-                  <option value="Transito">En Tránsito</option>
+                  <option value="En Tránsito">En Tránsito</option>
                   <option value="En Observacion">En Observación</option>
                   <option value="Entregado">Entregado</option>
                   <option value="Recibido">Recibido</option>

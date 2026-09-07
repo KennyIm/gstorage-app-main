@@ -59,7 +59,7 @@ from .serializers import (
 )
 
 from usuarios.permissions import IsAdminEmpresa, IsJefeDeBodega, IsOperario, AllowRoles
-from usuarios.models import Empresa
+from usuarios.models import Empresa, PersonalOperativo
 
 from django.contrib.auth.models import User
 from rest_framework.decorators import api_view, permission_classes
@@ -2067,17 +2067,30 @@ class ProcesarTransferPatioView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         empresa = get_empresa_from_user(request)
         id_despacho = self.kwargs['id_despacho']
         despacho = get_object_or_404(Despacho, pk=id_despacho, empresa=empresa, activo=True)
         items = serializer.validated_data['items']
+        usuario_real = None
+        operativo_real = None
+        nombre_responsable = "Sistema"
 
-        user_auth_db = request.user if hasattr(request.user, 'perfil') else None
+        if isinstance(request.user, User):
+            usuario_real = request.user
+            nombre_responsable = usuario_real.get_full_name() or usuario_real.username
+        else:
+            operativo_id = (
+                getattr(request.user, 'id', None) 
+                or getattr(request.user, 'pk', None)
+                or (request.auth.get('operativo_id') if hasattr(request, 'auth') and request.auth else None)
+            )
+            if operativo_id:
+                operativo_real = PersonalOperativo.objects.filter(pk=operativo_id).first()
+                if operativo_real:
+                    nombre_responsable = operativo_real.nombre
 
         mercancias_entregadas = 0
         mercancias_con_incidencia = 0
-
         for item in items:
             mercancia = get_object_or_404(
                 Mercancia, 
@@ -2097,17 +2110,18 @@ class ProcesarTransferPatioView(generics.GenericAPIView):
                 kg_declarados=mercancia.kg or 0,
                 m3_declarados=mercancia.m3 or 0,
                 tipo_declarado=mercancia.tipo or '',
-                bultos_recibidos=item.get('bultos_recibidos', mercancia.cantidad_bultos if es_conforme else 0),
-                kg_recibidos=item.get('kg_recibidos', (mercancia.kg or 0) if es_conforme else 0),
-                m3_recibidos=item.get('m3_recibidos', (mercancia.m3 or 0) if es_conforme else 0),
-                tipo_recibido=item.get('tipo_recibido', mercancia.tipo),
+                bultos_recibidos=item.get('bultos_recibidos', 0),
+                kg_recibidos=item.get('kg_recibidos', 0),
+                m3_recibidos=item.get('m3_recibidos', 0),
+                tipo_recibido=item.get('tipo_recibido', ''),
                 conforme=es_conforme,
-                observacion=observacion_texto if observacion_texto else ('Recepción conforme en destino' if es_conforme else 'Mercancía no venía en el transporte'),
-                usuario_patio=user_auth_db
+                observacion=observacion_texto,
+                usuario_patio=usuario_real,
+                operativo_patio=operativo_real
             )
 
-            if user_auth_db:
-                mercancia.id_usuario_ultima_modificacion = user_auth_db
+            if usuario_real:
+                mercancia.id_usuario_ultima_modificacion = usuario_real
 
             if es_conforme:
                 mercancia.cantidad_bultos = item['bultos_recibidos']
@@ -2124,20 +2138,21 @@ class ProcesarTransferPatioView(generics.GenericAPIView):
                 mercancias_con_incidencia += 1
 
             mercancia.save()
-
         pendientes = Mercancia.objects.filter(
             id_despacho=despacho,
             activo=True
         ).exclude(
-                estado__in=['Entregado', 'Recibido', 'En Observacion']
+            estado__in=['Entregado', 'Recibido', 'En Observacion']
         ).exists()
+
         if not pendientes:
             despacho.estado_despacho = 'Finalizado'
             despacho.save(update_fields=['estado_despacho'])
 
         return Response({
             "status": "success",
-            "message": f"Recepción procesada: {mercancias_entregadas} bultos entregados, {mercancias_con_incidencia} en observación.",
+            "message": f"Recepción procesada por {nombre_responsable}: {mercancias_entregadas} entregadas, {mercancias_con_incidencia} en observación.",
+            "responsable": nombre_responsable,
             "despacho_finalizado": not pendientes,
             "total_entregados": mercancias_entregadas,
             "total_incidencias": mercancias_con_incidencia
