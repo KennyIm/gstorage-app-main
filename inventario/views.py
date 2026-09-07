@@ -216,7 +216,12 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
                 qs = qs.filter(id_despacho=despacho_id)
         estado = self.request.query_params.get('estado')
         if estado and estado != 'TODOS':
-            qs = qs.filter(estado=estado)
+            if estado in ['En Tránsito', 'En Transito']:
+                qs = qs.filter(estado__in=['En Transito', 'En Tránsito'])
+            elif estado in ['En Observación', 'En Observacion']:
+                qs = qs.filter(estado__in=['En Observacion', 'En Observación'])
+            else:
+                qs = qs.filter(estado=estado)
         estado_in = self.request.query_params.get('estado_in')
         if estado_in:
             qs = qs.filter(estado__in=estado_in.split(','))
