@@ -423,7 +423,6 @@ export default function DespachoMovil() {
                                             <input
                                                 type="file"
                                                 accept="image/*"
-                                                capture="environment"
                                                 onChange={(e) => handleSeleccionarFotoPOD(item, e)}
                                                 className="hidden"
                                             />
