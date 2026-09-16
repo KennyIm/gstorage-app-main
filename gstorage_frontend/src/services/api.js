@@ -180,9 +180,10 @@ apiClient.interceptors.response.use(
       } catch (_error) {
         processQueue(_error, null)
         clearTokenEnMemoria()
-        
+
         if (!estaEnRutaPublica) {
-          window.location.href = '/login'
+          const esExpress = localStorage.getItem('is_express_session') === 'true'
+          window.location.href = esExpress ? '/login-express' : '/login'
         }
         return Promise.reject(_error)
       } finally {

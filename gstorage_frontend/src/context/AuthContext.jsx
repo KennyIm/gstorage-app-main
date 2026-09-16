@@ -56,6 +56,7 @@ export const AuthProvider = ({ children }) => {
 
   const registrarInicioSesionExitoso = async (tokensData, expressData = null) => {
     sessionStorage.setItem('gstorage_has_session', 'true')
+    localStorage.setItem('gstorage_logged_in', 'true')
     setTokenEnMemoria(tokensData.access)
     setAuthTokens(tokensData)
 

@@ -244,14 +244,15 @@ class AdminResetPasswordView(generics.UpdateAPIView):
 
 
 def set_refresh_cookie(response, refresh_token_string):
+    es_produccion = not settings.DEBUG
     response.set_cookie(
         key='refresh_token',
         value=refresh_token_string,
-        httponly=True,                     # TODO
-        secure=False,                      # CAMBIAR A True EN PRODUCCIÓN CON HTTPS
-        samesite='Lax',                    # Protege contra ataques CSRF
+        httponly=True,
+        secure=es_produccion,
+        samesite='Lax',
         max_age=7 * 24 * 60 * 60,
-        path='/',                  
+        path='/',
     )
 
 class LoginThrottleView(TokenObtainPairView):
@@ -329,7 +330,7 @@ class CustomLogoutView(APIView):
     def post(self, request):
         refresh_token = request.COOKIES.get('refresh_token')
         response = Response({"detail": "Sesión cerrada correctamente."}, status=status.HTTP_200_OK)
-        response.delete_cookie('refresh_token', path='/api/')
+        response.delete_cookie('refresh_token', path='/')
         
         if refresh_token:
             try:

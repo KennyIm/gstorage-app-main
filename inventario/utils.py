@@ -8,6 +8,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.forms.models import model_to_dict
 import json
 import math
+import re
 from collections import defaultdict
 
 def actualizar_estados_automaticos(empresa):
@@ -83,7 +84,31 @@ def registrar_auditoria(empresa, usuario, modelo, accion, descripcion, mercancia
         
         #raise e
 
-def generar_numeros_orden_despacho(despacho):
+def es_oe_valida(codigo: str) -> bool:
+    if not codigo:
+        return False
+    texto = str(codigo).strip()
+    return bool(texto and texto not in ['Sin N/O', 'N/R', 'None', '-'])
+
+
+def extraer_indice_oe(codigo: str) -> int | None:
+    if not es_oe_valida(codigo):
+        return None
+    match = re.search(r'-(\d+)', str(codigo).strip())
+    if match:
+        try:
+            return int(match.group(1))
+        except ValueError:
+            pass
+    match_simple = re.match(r'^\D*(\d+)', str(codigo).strip())
+    if match_simple:
+        try:
+            return int(match_simple.group(1))
+        except ValueError:
+            pass
+            
+    return None
+def generar_numeros_orden_despacho(despacho, forzar_recalculo: bool = False):
     mercancias = Mercancia.activos.filter(id_despacho=despacho).order_by(
         'id_destino__nombre_ciudad', 
         'id_cliente__nombre_cliente'
@@ -91,6 +116,15 @@ def generar_numeros_orden_despacho(despacho):
 
     if not mercancias.exists():
         return
+
+    indices_usados = set()
+    for m in mercancias:
+        if es_oe_valida(m.numero_orden_entrega):
+            idx = extraer_indice_oe(m.numero_orden_entrega)
+            if idx is not None:
+                indices_usados.add(idx)
+
+    siguiente_indice_nuevo = (max(indices_usados) + 1) if indices_usados else 1
 
     grupos = {}
     try:
@@ -153,8 +187,8 @@ def generar_numeros_orden_despacho(despacho):
     if not numero_ruta:
         numero_ruta = getattr(despacho, 'numero_correlativo', despacho.id_despacho) or despacho.id_despacho
     
-    orden_index = 1
     mercancias_a_actualizar = []
+
     def procesar_lista(lista_cargas, es_proveedor, es_alternativa, index_actual, destino_nombre, prov_idx=0):
         if not lista_cargas:
             return
@@ -178,6 +212,9 @@ def generar_numeros_orden_despacho(despacho):
         total_paginas = math.ceil(total_items / 10.0)
 
         for idx, m in enumerate(lista_cargas):
+            if not forzar_recalculo and es_oe_valida(m.numero_orden_entrega):
+                continue
+
             pagina_actual = (idx // 10) + 1
             
             if total_paginas > 1:
@@ -192,17 +229,34 @@ def generar_numeros_orden_despacho(despacho):
         todas = data['normales'] + data['proveedor'] + data['normales_alt'] + data['proveedor_alt']
         if not todas:
             continue
-            
+        indice_grupo = None
+        if not forzar_recalculo:
+            for m in todas:
+                if es_oe_valida(m.numero_orden_entrega):
+                    idx_encontrado = extraer_indice_oe(m.numero_orden_entrega)
+                    if idx_encontrado is not None:
+                        indice_grupo = idx_encontrado
+                        break
+        if indice_grupo is None:
+            while siguiente_indice_nuevo in indices_usados:
+                siguiente_indice_nuevo += 1
+            indice_grupo = siguiente_indice_nuevo
+            indices_usados.add(indice_grupo)
+            siguiente_indice_nuevo += 1
+
         destino_str = getattr(todas[0].id_destino, 'nombre_ciudad', 'Iquique')
-        procesar_lista(data['normales'], False, False, orden_index, destino_str)
+        
+        procesar_lista(data['normales'], False, False, indice_grupo, destino_str)
+        
         prov_normales_grupos = defaultdict(list)
         for m in data['proveedor']:
             p_id = m.id_proveedor_id or 0
             prov_normales_grupos[p_id].append(m)
             
         for p_idx, p_id in enumerate(sorted(prov_normales_grupos.keys())):
-            procesar_lista(prov_normales_grupos[p_id], True, False, orden_index, destino_str, prov_idx=p_idx)
-        procesar_lista(data['normales_alt'], False, True, orden_index, destino_str)
+            procesar_lista(prov_normales_grupos[p_id], True, False, indice_grupo, destino_str, prov_idx=p_idx)
+            
+        procesar_lista(data['normales_alt'], False, True, indice_grupo, destino_str)
         
         prov_alt_grupos = defaultdict(list)
         for m in data['proveedor_alt']:
@@ -210,9 +264,7 @@ def generar_numeros_orden_despacho(despacho):
             prov_alt_grupos[p_id].append(m)
             
         for p_idx, p_id in enumerate(sorted(prov_alt_grupos.keys())):
-            procesar_lista(prov_alt_grupos[p_id], True, True, orden_index, destino_str, prov_idx=p_idx)
-        
-        orden_index += 1
+            procesar_lista(prov_alt_grupos[p_id], True, True, indice_grupo, destino_str, prov_idx=p_idx)
 
     if mercancias_a_actualizar:
         Mercancia.objects.bulk_update(mercancias_a_actualizar, ['numero_orden_entrega'])

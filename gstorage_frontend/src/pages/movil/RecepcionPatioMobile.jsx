@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axios from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
@@ -228,6 +228,13 @@ export default function RecepcionPatioMobile() {
       setSubmitting(false)
     }
   }
+  const mercanciasOrdenadas = useMemo(() => {
+    return [...mercanciasFiltradas].sort((a, b) => {
+      if (!a.revisado && b.revisado) return -1
+      if (a.revisado && !b.revisado) return 1
+      return 0
+    })
+  }, [mercanciasFiltradas])
   return (
     <div className="max-w-xl mx-auto p-4 font-sans">
       <div className="bg-slate-800 text-white p-4 rounded-xl mb-4 flex justify-between items-center shadow-md">
@@ -383,22 +390,22 @@ export default function RecepcionPatioMobile() {
             </div>
           </div>
           <div className="flex flex-col gap-3 mb-6">
-            {mercanciasFiltradas.length === 0 ? (
+            {mercanciasOrdenadas.length === 0 ? (
               <div className="text-center p-6 text-slate-400 bg-slate-50 rounded-xl">
                 No hay mercancías pendientes en este despacho.
               </div>
             ) : (
-              mercanciasFiltradas.map((m) => {
+              mercanciasOrdenadas.map((m) => {
                 const esRevisado = m.revisado;
                 const esConforme = m.conforme;
                 return (
                   <div
                     key={m.id_mercancia}
-                    className={`border rounded-xl p-3.5 shadow-sm transition-colors ${!esRevisado
-                      ? 'border-slate-200 bg-white'
-                      : esConforme
-                        ? 'border-green-300 bg-green-50/50'
-                        : 'border-amber-300 bg-amber-50/50'
+                    className={`border rounded-xl p-3.5 shadow-sm transition-all duration-200 ${!esRevisado
+                        ? 'border-slate-200 bg-white'
+                        : esConforme
+                          ? 'border-green-300 bg-green-50/50 opacity-80'
+                          : 'border-amber-300 bg-amber-50/50 opacity-90'
                       }`}
                   >
                     <div className="flex justify-between items-start mb-2">
@@ -409,8 +416,10 @@ export default function RecepcionPatioMobile() {
                         <h4 className="m-0 mt-1 text-base font-semibold text-slate-900">{m.nombre_cliente}</h4>
                       </div>
                       {esRevisado && (
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${esConforme ? 'text-green-800 bg-green-100' : 'text-amber-800 bg-amber-100'
-                          }`}>
+                        <span
+                          className={`text-xs font-bold px-2 py-1 rounded-full ${esConforme ? 'text-green-800 bg-green-100' : 'text-amber-800 bg-amber-100'
+                            }`}
+                        >
                           {esConforme ? '✓ CONFORME' : '⚠️ EN OBSERVACIÓN'}
                         </span>
                       )}

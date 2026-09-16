@@ -251,52 +251,53 @@ export default function OrdenEntregaPlantilla() {
     const generarPDF = useReactToPrint({
         contentRef: componenteRef,
         documentTitle: `Orden_Entrega_Ruta_${getCodigoRuta(id)}_${comunaImpresion}`,
+        copyStyles: true,
         pageStyle: `
-            @page { size: 210mm 277mm; margin: 0; }
-            @media print { 
-                html, body { 
-                    background-color: #ffffff !important;
-                    background: #ffffff !important;
-                    visibility: visible !important;
-                    -webkit-print-color-adjust: exact !important; 
-                    print-color-adjust: exact !important; 
-                }
-                div, table, tbody, tr, td {
-                    overflow: visible !important;
-                    overflow-y: visible !important;
-                    overflow-x: visible !important;
-                }
-                .hoja-pdf, .hoja-pdf * {
-                    visibility: visible !important;
-                    opacity: 1 !important;
-                }
-                .hoja-pdf h1, .hoja-pdf h2, .hoja-pdf p, .hoja-pdf span, .hoja-pdf td, .hoja-pdf th {
-                    color: #0f172a !important; 
-                    visibility: visible !important;
-                }
-                .text-blue-700 { color: #1d4ed8 !important; }
-                .text-amber-700 { color: #b45309 !important; }
-                .text-slate-400 { color: #94a3b8 !important; }
-                .hoja-pdf {
-                    width: 210mm !important;
-                    height: 275mm !important;
-                    background-color: #ffffff !important;
-                    background: #ffffff !important;
-                    margin: 0 !important;
-                    box-shadow: none !important;
-                    border: none !important;
-                    page-break-after: always !important;
-                    display: flex !important;
-                    flex-direction: column !important;
-                    box-sizing: border-box !important;
-                }
-                .saltopagina { display: none !important; }
-                .border-slate-100 { border-color: #f1f5f9 !important; }
-                .border-slate-200 { border-color: #e2e8f0 !important; }
-                .border-slate-300 { border-color: #cbd5e1 !important; }
-                .bg-slate-50 { background-color: #f8fafc !important; }
+        @page { size: 210mm 277mm; margin: 0; }
+        @media print { 
+            html, body { 
+                background-color: #ffffff !important;
+                background: #ffffff !important;
+                visibility: visible !important;
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important; 
             }
-        `
+            div, table, tbody, tr, td {
+                overflow: visible !important;
+                overflow-y: visible !important;
+                overflow-x: visible !important;
+            }
+            .hoja-pdf, .hoja-pdf * {
+                visibility: visible !important;
+                opacity: 1 !important;
+            }
+            .hoja-pdf h1, .hoja-pdf h2, .hoja-pdf p, .hoja-pdf span, .hoja-pdf td, .hoja-pdf th {
+                color: #0f172a !important; 
+                visibility: visible !important;
+            }
+            .text-blue-700 { color: #1d4ed8 !important; }
+            .text-amber-700 { color: #b45309 !important; }
+            .text-slate-400 { color: #94a3b8 !important; }
+            .hoja-pdf {
+                width: 210mm !important;
+                height: 275mm !important;
+                background-color: #ffffff !important;
+                background: #ffffff !important;
+                margin: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+                page-break-after: always !important;
+                display: flex !important;
+                flex-direction: column !important;
+                box-sizing: border-box !important;
+            }
+            .saltopagina { display: none !important; }
+            .border-slate-100 { border-color: #f1f5f9 !important; }
+            .border-slate-200 { border-color: #e2e8f0 !important; }
+            .border-slate-300 { border-color: #cbd5e1 !important; }
+            .bg-slate-50 { background-color: #f8fafc !important; }
+        }
+    `
     })
 
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-200 text-slate-600 font-medium">Preparando documento...</div>;
@@ -360,37 +361,58 @@ export default function OrdenEntregaPlantilla() {
 
             <div ref={componenteRef} className="print:w-[210mm] mx-auto text-slate-900 print:bg-white print:text-black">
                 {(() => {
-                    const normalizarTexto = (text) => (text || '').toUpperCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    const normalizarTexto = (text) => (text || '').toUpperCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
                     const paginasFiltradas = paginas.filter(pagina => {
-                        let cumpleComuna = true;
+                        let cumpleComuna = true
                         if (comunaImpresion !== 'TODAS') {
-                            const destinoLimpio = normalizarTexto(pagina.destino);
+                            const destinoLimpio = normalizarTexto(pagina.destino)
                             if (comunaImpresion === 'ZONA_ANTOFAGASTA') {
-                                cumpleComuna = ['ANTOFAGASTA', 'MEJILLONES', 'CALAMA', 'TOCOPILLA'].includes(destinoLimpio);
+                                cumpleComuna = ['ANTOFAGASTA', 'MEJILLONES', 'CALAMA', 'TOCOPILLA'].includes(destinoLimpio)
                             } else {
-                                cumpleComuna = (destinoLimpio === normalizarTexto(comunaImpresion));
+                                cumpleComuna = (destinoLimpio === normalizarTexto(comunaImpresion))
                             }
                         }
-                        let cumpleRut = true;
+                        let cumpleRut = true
                         if (filtroRut.trim() !== '') {
-                            const terminoLimpio = filtroRut.toLowerCase().replace(/[^0-9kK]/g, '');
-                            const rutCliente = pagina.clienteObj?.rut_cliente || pagina.clienteObj?.rut || pagina.cargas?.[0]?.rut_cliente || '';
-                            const rutLimpio = String(rutCliente).toLowerCase().replace(/[^0-9kK]/g, '');
-                            cumpleRut = rutLimpio.includes(terminoLimpio);
+                            const terminoLimpio = filtroRut.toLowerCase().replace(/[^0-9kK]/g, '')
+                            const rutCliente = pagina.clienteObj?.rut_cliente || pagina.clienteObj?.rut || pagina.cargas?.[0]?.rut_cliente || ''
+                            const rutLimpio = String(rutCliente).toLowerCase().replace(/[^0-9kK]/g, '')
+                            cumpleRut = rutLimpio.includes(terminoLimpio)
                         }
 
-                        return cumpleComuna && cumpleRut;
-                    });
+                        return cumpleComuna && cumpleRut
+                    })
+                    const obtenerNumeroOrden = (p) => {
+                        const raw = p.cargas?.[0]?.numero_orden_entrega ?? p.numero_orden ?? ''
+                        const texto = String(raw).trim()
+                        const numDirecto = Number(texto)
+                        if (!isNaN(numDirecto) && texto !== '') {
+                            return numDirecto;
+                        }
+                        const matches = texto.match(/\d+/g)
+                        if (matches && matches.length > 0) {
+                            return parseInt(matches[matches.length - 1], 10)
+                        }
+                        return 999999
+                    }
 
-                    if (paginasFiltradas.length === 0) {
+                    const paginasOrdenadas = [...paginasFiltradas].sort((a, b) => {
+                        const numA = obtenerNumeroOrden(a)
+                        const numB = obtenerNumeroOrden(b)
+                        if (numA !== numB) {
+                            return numA - numB
+                        }
+                        return (a.paginaActual || 1) - (b.paginaActual || 1)
+                    })
+                    if (paginasOrdenadas.length === 0) {
                         return (
                             <div className="max-w-4xl mx-auto bg-white p-12 text-center rounded-2xl shadow border border-slate-200 text-slate-400 font-semibold print:hidden">
                                 No se encontraron registros de carga para los criterios especificados.
                             </div>
-                        );
+                        )
                     }
 
-                    return paginasFiltradas.map((pagina, index) => {
+                    return paginasOrdenadas.map((pagina, index) => {
                         const codigoOrden = pagina.cargas.length > 0 ? pagina.cargas[0].numero_orden_entrega : 'Sin N/O';
                         const idUnicoHoja = pagina.cargas.length > 0 ? pagina.cargas[0].id_mercancia : index;
                         const destinoNombre = pagina.destino || '';
@@ -399,8 +421,7 @@ export default function OrdenEntregaPlantilla() {
                         let direccionMostrar = pagina.clienteObj.direccion || 'Sin dirección';
                         if (pagina.esAlternativa && pagina.direccionAlternativa) {
                             direccionMostrar = pagina.direccionAlternativa;
-                        }
-                        else if (citySecundaria && destinoNombre.toLowerCase().includes(citySecundaria.toLowerCase())) {
+                        } else if (citySecundaria && destinoNombre.toLowerCase().includes(citySecundaria.toLowerCase())) {
                             direccionMostrar = pagina.clienteObj.direccion2 || direccionMostrar;
                         }
 
