@@ -74,72 +74,104 @@ class RegistrarEntregaAPIView(APIView):
     parser_classes = (MultiPartParser, FormParser)
 
     def patch(self, request, id_mercancia=None):
+        print("\n" + "="*50, flush=True)
+        print(">>> [REGISTRAR POD] 1. Petición PATCH recibida en Django", flush=True)
+        print(f">>> Usuario autenticado: {request.user} (Auth: {request.auth})", flush=True)
+        print(f">>> ID URL param: {id_mercancia}", flush=True)
+        print(f">>> request.data: {dict(request.data)}", flush=True)
+        print(f">>> request.FILES: {list(request.FILES.keys())}", flush=True)
+
+        # 1. Parseo de IDs
         mercancia_ids = request.data.getlist('mercancia_ids')
         if not mercancia_ids:
             raw_ids = request.data.get('mercancia_ids')
             if raw_ids:
                 mercancia_ids = [i.strip() for i in str(raw_ids).split(',') if i.strip()]
             elif id_mercancia:
-                mercancia_ids = [id_mercancia]
+                mercancia_ids = [str(id_mercancia)]
+
+        print(f">>> [REGISTRAR POD] 2. IDs identificados: {mercancia_ids}", flush=True)
 
         if not mercancia_ids:
-            return Response(
-                {"error": "Debe especificar al menos una mercancía."}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            print(">>> [ERROR] No se recibieron IDs de mercancía", flush=True)
+            return Response({"error": "Debe especificar al menos una mercancía."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # 2. Búsqueda en base de datos
         mercancias = Mercancia.objects.filter(
             Q(id_mercancia__in=mercancia_ids) | Q(pk__in=mercancia_ids)
         )
+        print(f">>> [REGISTRAR POD] 3. Mercancías encontradas en BD: {mercancias.count()}", flush=True)
 
         if not mercancias.exists():
-            return Response(
-                {"error": f"No se encontró la mercancía con ID {mercancia_ids}."}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            print(f">>> [ERROR] No existen mercancías para los IDs {mercancia_ids}", flush=True)
+            return Response({"error": f"No se encontró mercancía con ID {mercancia_ids}."}, status=status.HTTP_400_BAD_REQUEST)
 
+        for m in mercancias:
+            print(f"    -> Mercancía a procesar: PK={m.pk} | ID_MERCANCIA={getattr(m, 'id_mercancia', None)} | Estado actual={m.estado}", flush=True)
+
+        # 3. Procesamiento de archivo
         saved_file_path = None
         url_absoluta = None
         if 'foto_comprobante' in request.FILES:
             archivo_foto = request.FILES['foto_comprobante']
-            timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
-            nombre_archivo = f"comprobantes_entrega/pod_{timestamp}_{archivo_foto.name}"
-            saved_file_path = default_storage.save(nombre_archivo, archivo_foto)
-            url_absoluta = request.build_absolute_uri(default_storage.url(saved_file_path))
+            print(f">>> [REGISTRAR POD] 4. Subiendo foto: {archivo_foto.name} ({archivo_foto.size} bytes)...", flush=True)
+            try:
+                timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
+                nombre_archivo = f"comprobantes_entrega/pod_{timestamp}_{archivo_foto.name}"
+                saved_file_path = default_storage.save(nombre_archivo, archivo_foto)
+                url_absoluta = request.build_absolute_uri(default_storage.url(saved_file_path))
+                print(f">>> [REGISTRAR POD] 4.1 Foto guardada con éxito: {saved_file_path}", flush=True)
+                print(f">>> [REGISTRAR POD] 4.2 URL absoluta: {url_absoluta}", flush=True)
+            except Exception as e:
+                print(f">>> [EXCEPCIÓN S3/STORAGE]: {str(e)}", flush=True)
+        else:
+            print(">>> [AVISO] No vino 'foto_comprobante' en request.FILES", flush=True)
 
-        with transaction.atomic():
-            ahora = timezone.now()
-            comprobantes_a_crear = []
+        # 4. Transacción a base de datos
+        try:
+            with transaction.atomic():
+                ahora = timezone.now()
+                comprobantes_a_crear = []
 
-            for m in mercancias:
-                control, _ = ControlEntrega.objects.get_or_create(mercancia=m)
-                control.estado_entrega = 'Recibido'
-                control.fecha_entrega = ahora
-                if saved_file_path:
-                    control.foto_comprobante.name = saved_file_path
-                control.save()
+                for m in mercancias:
+                    control, created = ControlEntrega.objects.get_or_create(mercancia=m)
+                    control.estado_entrega = 'Recibido'
+                    control.fecha_entrega = ahora
+                    if saved_file_path:
+                        control.foto_comprobante.name = saved_file_path
+                    control.save()
+                    print(f">>> [REGISTRAR POD] 5.1 ControlEntrega {'creado' if created else 'actualizado'} (ID: {control.id})", flush=True)
 
-                if saved_file_path:
-                    despacho_id = m.id_despacho_id or getattr(m, 'despacho_id', None)
-                    comprobantes_a_crear.append(
-                        ComprobanteEntrega(
-                            mercancia=m,
-                            despacho_id=despacho_id,
-                            url_archivo=url_absoluta,
-                            nombre_original=archivo_foto.name,
-                            observaciones="Entrega confirmada vía POD Móvil"
+                    if saved_file_path:
+                        despacho_id = m.id_despacho_id or getattr(m, 'despacho_id', None)
+                        comprobantes_a_crear.append(
+                            ComprobanteEntrega(
+                                mercancia=m,
+                                despacho_id=despacho_id,
+                                url_archivo=url_absoluta,
+                                nombre_original=archivo_foto.name,
+                                observaciones="Entrega confirmada vía POD Móvil"
+                            )
                         )
-                    )
 
-            if comprobantes_a_crear:
-                ComprobanteEntrega.objects.bulk_create(comprobantes_a_crear)
+                if comprobantes_a_crear:
+                    ComprobanteEntrega.objects.bulk_create(comprobantes_a_crear)
+                    print(f">>> [REGISTRAR POD] 5.2 ComprobanteEntrega creados: {len(comprobantes_a_crear)}", flush=True)
 
-            mercancias.update(estado='Recibido')
+                updated_rows = mercancias.update(estado='Recibido')
+                print(f">>> [REGISTRAR POD] 5.3 Mercancías actualizadas a 'Recibido': {updated_rows}", flush=True)
 
-        return Response({
-            "mensaje": f"¡POD guardado y estado marcado como Recibido para {mercancias.count()} carga(s)!",
-            "mercancia_ids": list(mercancias.values_list('id_mercancia', flat=True))
-        }, status=status.HTTP_200_OK)
+            print(">>> [REGISTRAR POD] 6. Finalizado OK", flush=True)
+            print("="*50 + "\n", flush=True)
+
+            return Response({
+                "mensaje": f"¡POD guardado y estado marcado como Recibido para {mercancias.count()} carga(s)!",
+                "mercancia_ids": list(mercancias.values_list('id_mercancia', flat=True))
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(f">>> [EXCEPCIÓN DATABASE TRANSACTION]: {str(e)}", flush=True)
+            return Response({"error": f"Fallo en base de datos: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class RegistrarIncidenciaAPIView(APIView):
