@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import permissions
 from rest_framework.decorators import action
 from django.core.files.storage import default_storage
 from inventario.models import Mercancia
@@ -69,7 +70,7 @@ class MercanciasDespachoMovilAPIView(APIView):
 
 
 class RegistrarEntregaAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
     parser_classes = (MultiPartParser, FormParser)
 
     def patch(self, request, id_mercancia=None):
@@ -82,11 +83,21 @@ class RegistrarEntregaAPIView(APIView):
                 mercancia_ids = [id_mercancia]
 
         if not mercancia_ids:
-            return Response({"error": "Debe especificar al menos una mercancía."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Debe especificar al menos una mercancía."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        mercancias = Mercancia.objects.filter(pk__in=mercancia_ids, activo=True)
+        mercancias = Mercancia.objects.filter(
+            Q(id_mercancia__in=mercancia_ids) | Q(pk__in=mercancia_ids)
+        )
+
         if not mercancias.exists():
-            return Response({"error": "No se encontraron mercancías activas."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": f"No se encontró la mercancía con ID {mercancia_ids}."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         saved_file_path = None
         url_absoluta = None
         if 'foto_comprobante' in request.FILES:
@@ -95,9 +106,11 @@ class RegistrarEntregaAPIView(APIView):
             nombre_archivo = f"comprobantes_entrega/pod_{timestamp}_{archivo_foto.name}"
             saved_file_path = default_storage.save(nombre_archivo, archivo_foto)
             url_absoluta = request.build_absolute_uri(default_storage.url(saved_file_path))
+
         with transaction.atomic():
             ahora = timezone.now()
             comprobantes_a_crear = []
+
             for m in mercancias:
                 control, _ = ControlEntrega.objects.get_or_create(mercancia=m)
                 control.estado_entrega = 'Recibido'
@@ -105,6 +118,7 @@ class RegistrarEntregaAPIView(APIView):
                 if saved_file_path:
                     control.foto_comprobante.name = saved_file_path
                 control.save()
+
                 if saved_file_path:
                     despacho_id = m.id_despacho_id or getattr(m, 'despacho_id', None)
                     comprobantes_a_crear.append(
@@ -116,8 +130,10 @@ class RegistrarEntregaAPIView(APIView):
                             observaciones="Entrega confirmada vía POD Móvil"
                         )
                     )
+
             if comprobantes_a_crear:
                 ComprobanteEntrega.objects.bulk_create(comprobantes_a_crear)
+
             mercancias.update(estado='Recibido')
 
         return Response({
