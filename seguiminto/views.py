@@ -87,28 +87,41 @@ class RegistrarEntregaAPIView(APIView):
         mercancias = Mercancia.objects.filter(pk__in=mercancia_ids, activo=True)
         if not mercancias.exists():
             return Response({"error": "No se encontraron mercancías activas."}, status=status.HTTP_404_NOT_FOUND)
-
         saved_file_path = None
+        url_absoluta = None
         if 'foto_comprobante' in request.FILES:
             archivo_foto = request.FILES['foto_comprobante']
             timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
             nombre_archivo = f"comprobantes_entrega/pod_{timestamp}_{archivo_foto.name}"
             saved_file_path = default_storage.save(nombre_archivo, archivo_foto)
-
+            url_absoluta = request.build_absolute_uri(default_storage.url(saved_file_path))
         with transaction.atomic():
             ahora = timezone.now()
+            comprobantes_a_crear = []
             for m in mercancias:
                 control, _ = ControlEntrega.objects.get_or_create(mercancia=m)
-                control.estado_entrega = 'Entregado'
+                control.estado_entrega = 'Recibido'
                 control.fecha_entrega = ahora
                 if saved_file_path:
                     control.foto_comprobante.name = saved_file_path
                 control.save()
-
-            mercancias.update(estado='Entregado')
+                if saved_file_path:
+                    despacho_id = m.id_despacho_id or getattr(m, 'despacho_id', None)
+                    comprobantes_a_crear.append(
+                        ComprobanteEntrega(
+                            mercancia=m,
+                            despacho_id=despacho_id,
+                            url_archivo=url_absoluta,
+                            nombre_original=archivo_foto.name,
+                            observaciones="Entrega confirmada vía POD Móvil"
+                        )
+                    )
+            if comprobantes_a_crear:
+                ComprobanteEntrega.objects.bulk_create(comprobantes_a_crear)
+            mercancias.update(estado='Recibido')
 
         return Response({
-            "mensaje": f"¡Entrega confirmada y sincronizada para {mercancias.count()} carga(s)!",
+            "mensaje": f"¡POD guardado y estado marcado como Recibido para {mercancias.count()} carga(s)!",
             "mercancia_ids": list(mercancias.values_list('id_mercancia', flat=True))
         }, status=status.HTTP_200_OK)
 
