@@ -70,16 +70,20 @@ class MercanciasDespachoMovilAPIView(APIView):
 
 
 class RegistrarEntregaAPIView(APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
     parser_classes = (MultiPartParser, FormParser)
 
-    def patch(self, request, id_mercancia=None):
+    def dispatch(self, request, *args, **kwargs):
         print("\n" + "="*50, flush=True)
-        print(">>> [REGISTRAR POD] 1. Petición PATCH recibida en Django", flush=True)
-        print(f">>> Usuario autenticado: {request.user} (Auth: {request.auth})", flush=True)
-        print(f">>> ID URL param: {id_mercancia}", flush=True)
-        print(f">>> request.data: {dict(request.data)}", flush=True)
-        print(f">>> request.FILES: {list(request.FILES.keys())}", flush=True)
+        print(">>> [DISPATCH] ¡LA PETICIÓN LLEGÓ FÍSICAMENTE A DJANGO!", flush=True)
+        print(f">>> Método: {request.method} | Path: {request.path}", flush=True)
+        print("="*50, flush=True)
+        return super().dispatch(request, *args, **kwargs)
+
+    def patch(self, request, id_mercancia=None):
+        print(">>> [REGISTRAR POD] Entrando a def patch()", flush=True)
+        print(f">>> Archivos recibidos: {list(request.FILES.keys())}", flush=True)
 
         # 1. Parseo de IDs
         mercancia_ids = request.data.getlist('mercancia_ids')
