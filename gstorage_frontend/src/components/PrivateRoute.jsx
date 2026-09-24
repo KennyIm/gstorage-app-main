@@ -4,8 +4,12 @@ import { useAuth } from '../context/AuthContext';
 
 
 const PrivateRoute = () => {
-  const { authTokens } = useAuth()
+  const { authTokens, loading } = useAuth()
   const location = useLocation()
+
+  if (loading) {
+    return null 
+  }
 
   return authTokens ? (
     <Outlet />
@@ -14,4 +18,4 @@ const PrivateRoute = () => {
   )
 }
 
-export default PrivateRoute;
+export default PrivateRoute

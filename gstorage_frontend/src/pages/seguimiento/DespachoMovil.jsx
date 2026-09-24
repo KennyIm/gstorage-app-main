@@ -18,7 +18,7 @@ export default function DespachoMovil() {
     const authContext = useAuth() || {}
     const uiContext = useUI() || {}
     const user = authContext.user
-    const logoutUser = authContext.logoutUser
+    const { logoutUser } = useAuth()
     const showLoader = uiContext.showLoader || (() => { })
     const hideLoader = uiContext.hideLoader || (() => { })
     const showToast = uiContext.showToast || ((msg) => console.log(msg))
@@ -168,6 +168,24 @@ export default function DespachoMovil() {
         setObservacionesIncidencia('')
         setModalIncidenciaOpen(true)
     }
+
+    const handleLogout = async () => {
+        if (!window.confirm('¿Seguro que deseas cerrar tu sesión de patio?')) return
+
+        try {
+            if (logoutUser) {
+                await logoutUser()
+            } else {
+                clearTokenEnMemoria()
+                localStorage.clear()
+                window.location.href = '/login-express'
+            }
+        } catch (err) {
+            console.error("Error al cerrar sesión:", err)
+            window.location.href = '/login-express'
+        }
+    }
+
     const handleGuardarIncidencia = async (e) => {
         e.preventDefault()
         if (!itemParaReportar) return
@@ -262,16 +280,13 @@ export default function DespachoMovil() {
                     <p className="text-[11px] text-slate-300 m-0">Chofer: <strong>{user?.nombre || user?.username || 'Conductor'}</strong></p>
                 </div>
                 <button
-                    onClick={logoutUser}
-                    className="bg-red-700/30 hover:bg-red-800/40 text-red-300 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer"
+                    onClick={handleLogout}
+                    className="bg-red-700/30 hover:bg-red-800/40 text-red-300 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1"
                 >
                     Salir
                 </button>
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 shadow-xs">
-                <label className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block mb-1">
-                    Hoja de Ruta / Despacho Activo
-                </label>
                 <select
                     value={selectedDespachoId}
                     onChange={(e) => setSelectedDespachoId(e.target.value)}
@@ -280,11 +295,15 @@ export default function DespachoMovil() {
                     {despachos.length === 0 ? (
                         <option value="">No tienes viajes asignados</option>
                     ) : (
-                        despachos.map(d => (
-                            <option key={d.id_despacho} value={d.id_despacho}>
-                                Ruta #{d.nombre_ruta || d.id_ruta || d.id_despacho} {d.destino ? `(${d.destino})` : ''}
-                            </option>
-                        ))
+                        despachos.map(d => {
+                            const esFinalizado = d.estado_despacho === 'Finalizado'
+                            return (
+                                <option key={d.id_despacho} value={d.id_despacho}>
+                                    {esFinalizado ? '' : ''}
+                                    Ruta {d.nombre_ruta || d.id_ruta || d.id_despacho}
+                                </option>
+                            )
+                        })
                     )}
                 </select>
 

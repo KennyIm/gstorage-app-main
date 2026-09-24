@@ -150,6 +150,11 @@ export const AuthProvider = ({ children }) => {
     if (urlActual && !['/login', '/login-express', '/404'].includes(urlActual)) {
       sessionStorage.setItem('gstorage_ruta_retorno', urlActual)
     }
+    try {
+      await apiClient.post('/api/logout/', {}, { withCredentials: true })
+    } catch (error) {
+      console.error("Error al cerrar sesión en el servidor:", error.response?.status, error.message)
+    }
 
     clearTokenEnMemoria()
     sessionStorage.removeItem('gstorage_has_session')
@@ -163,14 +168,9 @@ export const AuthProvider = ({ children }) => {
 
     canalAutenticacion.postMessage({ tipo: 'LOGOUT_PROCESADO' })
 
-    try {
-      await apiClient.post('/api/logout/')
-    } catch (error) {
-    } finally {
-      const destinoLogin = esExpress ? '/login-express' : '/login'
-      if (window.location.pathname !== destinoLogin) {
-        window.location.href = destinoLogin
-      }
+    const destinoLogin = esExpress ? '/login-express' : '/login'
+    if (window.location.pathname !== destinoLogin) {
+      window.location.href = destinoLogin
     }
   }
 

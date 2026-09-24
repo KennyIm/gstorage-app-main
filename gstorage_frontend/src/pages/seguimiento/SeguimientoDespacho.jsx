@@ -317,7 +317,7 @@ export default function SeguimientoDespacho() {
                                                         ) : esObservacion ? (
                                                             <><AlertCircle className="w-3 h-3 text-amber-600" /> Observación</>
                                                         ) : (
-                                                            <><Clock className="w-3 h-3 text-blue-600" /> {item.estado || 'Pendiente'}</>
+                                                            <>{item.estado || 'Pendiente'}</>
                                                         )}
                                                     </span>
                                                 </td>

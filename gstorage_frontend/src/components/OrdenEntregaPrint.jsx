@@ -340,10 +340,10 @@ export default function OrdenEntregaPlantilla() {
                     </select>
                     <input
                         type="text"
-                        placeholder="Buscar por RUT..."
+                        placeholder="Buscar por RUT u Orden..."
                         value={filtroRut}
                         onChange={(e) => setFiltroRut(e.target.value)}
-                        className="text-xs bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-44 h-9 font-bold tracking-wide"
+                        className="text-xs bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-56 h-9 font-bold tracking-wide"
                     />
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0 w-full md:w-auto justify-end">
@@ -372,15 +372,22 @@ export default function OrdenEntregaPlantilla() {
                                 cumpleComuna = (destinoLimpio === normalizarTexto(comunaImpresion))
                             }
                         }
-                        let cumpleRut = true
-                        if (filtroRut.trim() !== '') {
-                            const terminoLimpio = filtroRut.toLowerCase().replace(/[^0-9kK]/g, '')
+                        let cumpleBusqueda = true
+                        const termino = filtroRut.trim().toLowerCase()
+
+                        if (termino !== '') {
+                            const terminoLimpio = termino.replace(/[^0-9kK]/g, '')
                             const rutCliente = pagina.clienteObj?.rut_cliente || pagina.clienteObj?.rut || pagina.cargas?.[0]?.rut_cliente || ''
                             const rutLimpio = String(rutCliente).toLowerCase().replace(/[^0-9kK]/g, '')
-                            cumpleRut = rutLimpio.includes(terminoLimpio)
+                            const coincideRut = terminoLimpio !== '' && rutLimpio.includes(terminoLimpio)
+                            const coincideOrden = pagina.cargas?.some(carga =>
+                                String(carga.numero_orden_entrega || '').toLowerCase().includes(termino)
+                            ) || String(pagina.numero_orden || '').toLowerCase().includes(termino)
+
+                            cumpleBusqueda = coincideRut || coincideOrden
                         }
 
-                        return cumpleComuna && cumpleRut
+                        return cumpleComuna && cumpleBusqueda
                     })
                     const obtenerNumeroOrden = (p) => {
                         const raw = p.cargas?.[0]?.numero_orden_entrega ?? p.numero_orden ?? ''

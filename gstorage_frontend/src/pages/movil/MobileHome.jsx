@@ -1,20 +1,23 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { 
-  Truck, 
-  PackageCheck, 
-  LogOut, 
-  ChevronRight, 
-  Compass, 
+import { useNavigate } from 'react-router-dom'
+import {
+  Truck,
+  PackageCheck,
+  LogOut,
+  ChevronRight,
+  Compass,
   UserCircle2,
   ShieldCheck,
-  Radio
+  Radio,
+  Layers
 } from 'lucide-react'
 import logoImg from '../../assets/logomedalla.png'
 export default function MobileHome() {
   document.title = "Panel Operativo - GStorage Mobile"
   const { user, logoutUser } = useAuth()
+  const navigate = useNavigate()
   const MODULOS_OPERATIVOS = [
     {
       id: 'reparto',
@@ -31,10 +34,26 @@ export default function MobileHome() {
       ruta: '/patio/recepcion',
       icono: PackageCheck,
       tag: 'Patio / Bodega'
-    }
+    },
   ]
+
+  const handleLogout = async () => {
+    if (!window.confirm('¿Seguro que deseas cerrar tu sesión de patio?')) return
+    try {
+      if (logoutUser) {
+        await logoutUser()
+      } else {
+        clearTokenEnMemoria()
+        localStorage.clear()
+        window.location.href = '/login-express'
+      }
+    } catch (err) {
+      console.error("Error al cerrar sesión:", err)
+      window.location.href = '/login-express'
+    }
+  }
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between p-4 sm:p-6 font-sans select-none relative overflow-hidden">  
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between p-4 sm:p-6 font-sans select-none relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:18px_18px] opacity-60 pointer-events-none" />
       <div className="absolute top-0 right-0 w-72 h-72 bg-red-100/60 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-64 h-64 bg-red-50/50 rounded-full blur-3xl pointer-events-none" />
@@ -51,7 +70,7 @@ export default function MobileHome() {
             </div>
           </div>
           <button
-            onClick={logoutUser}
+            onClick={handleLogout}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 hover:text-red-700 hover:border-red-200 hover:bg-red-50 transition shadow-sm active:scale-95 cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5 text-red-600" />

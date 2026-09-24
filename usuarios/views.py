@@ -253,6 +253,7 @@ def set_refresh_cookie(response, refresh_token_string):
         samesite='Lax',
         max_age=7 * 24 * 60 * 60,
         path='/',
+        domain=getattr(settings, 'SESSION_COOKIE_DOMAIN', None)
     )
 
 class LoginThrottleView(TokenObtainPairView):
@@ -326,19 +327,34 @@ class CustomTokenRefreshView(TokenRefreshView):
 
 class CustomLogoutView(APIView):
     permission_classes = [permissions.AllowAny]
-
     def post(self, request):
-        refresh_token = request.COOKIES.get('refresh_token')
-        response = Response({"detail": "Sesión cerrada correctamente."}, status=status.HTTP_200_OK)
-        response.delete_cookie('refresh_token', path='/')
-        
+        refresh_token = request.COOKIES.get('refresh_token') or request.data.get('refresh')
         if refresh_token:
             try:
                 token = RefreshToken(refresh_token)
                 token.blacklist()
             except Exception:
-                pass 
-                
+                pass
+        response = Response({'detail': 'Sesión cerrada correctamente.'}, status=status.HTTP_200_OK)
+        es_seguro = not settings.DEBUG or request.is_secure() or request.headers.get('X-Forwarded-Proto') == 'https'
+        cookie_domain = getattr(settings, 'SESSION_COOKIE_DOMAIN', None)
+        for dom in [cookie_domain, None]:
+            response.delete_cookie('refresh_token', path='/', domain=dom, samesite='Lax')
+            response.set_cookie(
+                'refresh_token',
+                '',
+                max_age=0,
+                expires='Thu, 01 Jan 1970 00:00:00 GMT',
+                path='/',
+                domain=dom,
+                secure=es_seguro,
+                httponly=True,
+                samesite='Lax'
+            )
+
+        response.delete_cookie('sessionid', path='/')
+        response.delete_cookie('csrftoken', path='/')
+
         return response
 
 
@@ -465,7 +481,7 @@ class SolicitarOTPExpressView(APIView):
 
         key_intentos = f"otp_intentos_hora_{hash_busqueda}"
         intentos = cache.get(key_intentos, 0)
-        if intentos >= 5:
+        if intentos >= 10:
             return Response({
                 "error": "Has superado el límite de solicitudes por hora. Contacta a tu supervisor."
             }, status=status.HTTP_429_TOO_MANY_REQUESTS)

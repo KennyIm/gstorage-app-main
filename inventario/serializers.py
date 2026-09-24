@@ -629,10 +629,12 @@ class MercanciaPatioSerializer(serializers.ModelSerializer):
             'descripcion_carga',
             'cantidad_bultos',
             'nombre_destino',
+            'direccion_entrega',
             'kg',
             'm3',
             'tipo',
             'estado',
+            'factura'
         ]
 
 class ValidacionItemPatioSerializer(serializers.Serializer):

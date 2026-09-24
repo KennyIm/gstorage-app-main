@@ -1,4 +1,6 @@
 from django.shortcuts import render
+from django.db.models import Q
+from datetime import timedelta
 from django.utils import timezone
 from django.db import transaction
 from rest_framework import status, viewsets
@@ -20,12 +22,28 @@ class DespachosMovilActivosAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        ahora = timezone.now()
+        anio_actual = ahora.year
+        mes_actual = ahora.month
+        filtro_en_curso = ~Q(estado_despacho__in=['Eliminado', 'Cancelado', 'Finalizado'])
+
+        primer_dia_mes = ahora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        ventana_mes_anterior = primer_dia_mes - timedelta(days=3)
+
+        filtro_finalizados_mes_actual = (
+            Q(estado_despacho='Finalizado') & (
+                Q(fecha_salida_real__year=anio_actual, fecha_salida_real__month=mes_actual) |
+                Q(fecha_salida_real__gte=ventana_mes_anterior, fecha_salida_real__lt=primer_dia_mes) |
+                Q(fecha_salida_real__isnull=True, fecha_programada__year=anio_actual, fecha_programada__month=mes_actual)
+            )
+        )
+
         queryset = Despacho.objects.filter(
             activo=True
         ).exclude(
             estado_despacho__in=['Eliminado', 'Cancelado']
         ).filter(
-            mercancia__estado__in=['Entregado', 'En Observacion'],
+            filtro_en_curso | filtro_finalizados_mes_actual,
             mercancia__activo=True
         ).distinct().order_by('-id_despacho')
 
@@ -87,7 +105,7 @@ class RegistrarEntregaAPIView(APIView):
                     control.foto_comprobante.name = saved_file_path
                 control.save()
 
-            mercancias.update(estado='Recibido')
+            mercancias.update(estado='Entregado')
 
         return Response({
             "mensaje": f"¡Entrega confirmada y sincronizada para {mercancias.count()} carga(s)!",
