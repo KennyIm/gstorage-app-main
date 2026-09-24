@@ -30,6 +30,14 @@ const originalGet = apiClient.get
 
 apiClient.interceptors.request.use(
   (config) => {
+
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type']
+      if (typeof config.headers.delete === 'function') {
+        config.headers.delete('Content-Type')
+      }
+    }
+
     if (
       config.url === '/api/token/' ||
       config.url === '/api/token/refresh/' ||
