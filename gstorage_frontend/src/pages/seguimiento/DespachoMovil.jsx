@@ -138,9 +138,7 @@ export default function DespachoMovil() {
             formData.append('foto_comprobante', podFile)
             idsSeleccionadosPod.forEach(id => formData.append('mercancia_ids', id))
             const itemPrincipalId = itemBasePod ? itemBasePod.id_mercancia : idsSeleccionadosPod[0]
-            await apiClient.patch(`/api/seguimiento/control-entrega/${itemPrincipalId}/registrar/`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            })
+            await apiClient.patch(`/api/seguimiento/control-entrega/${itemPrincipalId}/registrar/`, formData)
             showToast(`¡Entrega confirmada para ${idsSeleccionadosPod.length} carga(s)!`, "success")
             setMercancias(prev => prev.map(m =>
                 idsSeleccionadosPod.includes(m.id_mercancia)
