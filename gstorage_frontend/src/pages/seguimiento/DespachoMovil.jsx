@@ -232,7 +232,7 @@ export default function DespachoMovil() {
     }
     const checkEsRecibido = (item) => {
         if (!item) return false
-        if (item.estado === 'Recibido' || item.estado === 'Entregado') return true
+        if (item.estado === 'Recibido') return true
         if (item.control_entrega?.foto_comprobante || item.control_entrega?.foto_comprobante_url) {
             if (!checkEsObservacion(item)) {
                 return true
@@ -388,12 +388,12 @@ export default function DespachoMovil() {
 
                                     <span
                                         className={`text-xs font-bold px-2.5 py-1 rounded-full border shrink-0 ${item.estado === 'Recibido'
-                                            ? 'text-emerald-800 bg-emerald-100 border-emerald-300'
-                                            : item.estado === 'Entregado'
-                                                ? 'text-blue-800 bg-blue-100 border-blue-300'
-                                                : esObservacion
-                                                    ? 'text-amber-800 bg-amber-100 border-amber-300'
-                                                    : 'text-slate-700 bg-slate-100 border-slate-200'
+                                                ? 'text-emerald-800 bg-emerald-100 border-emerald-300'
+                                                : item.estado === 'Entregado'
+                                                    ? 'text-blue-800 bg-blue-100 border-blue-300'
+                                                    : esObservacion
+                                                        ? 'text-amber-800 bg-amber-100 border-amber-300'
+                                                        : 'text-slate-700 bg-slate-100 border-slate-200'
                                             }`}
                                     >
                                         {item.estado === 'Recibido'
