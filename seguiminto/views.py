@@ -122,28 +122,21 @@ class RegistrarEntregaAPIView(APIView):
 
         if not mercancia_ids:
             return Response({"error": "Debe especificar al menos una mercancía."}, status=status.HTTP_400_BAD_REQUEST)
-
         foto_path = request.data.get('foto_path')
-        nombre_original = request.data.get('nombre_original', 'comprobante_pod.jpg')
-
         if not foto_path and 'foto_comprobante' in request.FILES:
             from django.core.files.storage import default_storage
             archivo = request.FILES['foto_comprobante']
             timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
             foto_path = default_storage.save(f"comprobantes_entrega/pod_{timestamp}_{archivo.name}", archivo)
-            nombre_original = archivo.name
-
         mercancias = Mercancia.objects.filter(
             Q(id_mercancia__in=mercancia_ids) | Q(pk__in=mercancia_ids)
         )
 
         if not mercancias.exists():
             return Response({"error": "Mercancías no encontradas."}, status=status.HTTP_400_BAD_REQUEST)
-
         try:
             with transaction.atomic():
                 ahora = timezone.now()
-                comprobantes_a_crear = []
 
                 for m in mercancias:
                     control, _ = ControlEntrega.objects.get_or_create(mercancia=m)
@@ -153,26 +146,10 @@ class RegistrarEntregaAPIView(APIView):
                         control.foto_comprobante.name = foto_path
                     control.save()
 
-                    if foto_path:
-                        despacho_id = m.id_despacho_id or getattr(m, 'despacho_id', None)
-                        url_s3 = f"https://gstorage-media-medalla.s3.amazonaws.com/{foto_path}"
-                        comprobantes_a_crear.append(
-                            ComprobanteEntrega(
-                                mercancia=m,
-                                despacho_id=despacho_id,
-                                url_archivo=url_s3,
-                                nombre_original=nombre_original,
-                                observaciones="Entrega confirmada vía POD Móvil (S3 Directo)"
-                            )
-                        )
-
-                if comprobantes_a_crear:
-                    ComprobanteEntrega.objects.bulk_create(comprobantes_a_crear)
-
                 mercancias.update(estado='Recibido')
 
             return Response({
-                "mensaje": f"¡POD guardado y estado marcado como Recibido para {mercancias.count()} carga(s)!",
+                "mensaje": f"¡POD de ruta guardado y estado marcado como Recibido para {mercancias.count()} carga(s)!",
                 "mercancia_ids": list(mercancias.values_list('id_mercancia', flat=True))
             }, status=status.HTTP_200_OK)
 
