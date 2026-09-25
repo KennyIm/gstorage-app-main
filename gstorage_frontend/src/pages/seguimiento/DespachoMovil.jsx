@@ -132,14 +132,36 @@ export default function DespachoMovil() {
     const handleConfirmarEntregaPOD = async () => {
         if (!podFile || idsSeleccionadosPod.length === 0) return
         setSubiendoPod(true)
+
         try {
-            const formData = new FormData()
-            formData.append('estado_entrega', 'Recibido')
-            formData.append('foto_comprobante', podFile)
-            idsSeleccionadosPod.forEach(id => formData.append('mercancia_ids', id))
+            const tipoContenido = podFile.type || 'image/jpeg'
+            const resUrl = await apiClient.post('/api/seguimiento/control-entrega/presigned-url/', {
+                nombre_archivo: podFile.name,
+                content_type: tipoContenido
+            })
+
+            const { upload_url, file_path, nombre_guardado } = resUrl.data
+            const resS3 = await fetch(upload_url, {
+                method: 'PUT',
+                body: podFile,
+                headers: {
+                    'Content-Type': tipoContenido
+                }
+            })
+
+            if (!resS3.ok) {
+                throw new Error(`Fallo en S3: Código ${resS3.status}`)
+            }
             const itemPrincipalId = itemBasePod ? itemBasePod.id_mercancia : idsSeleccionadosPod[0]
-            await apiClient.patch(`/api/seguimiento/control-entrega/${itemPrincipalId}/registrar/`, formData)
+            await apiClient.patch(`/api/seguimiento/control-entrega/${itemPrincipalId}/registrar/`, {
+                mercancia_ids: idsSeleccionadosPod,
+                foto_path: file_path,
+                nombre_original: nombre_guardado,
+                estado_entrega: 'Recibido'
+            })
+
             showToast(`¡Entrega confirmada para ${idsSeleccionadosPod.length} carga(s)!`, "success")
+
             setMercancias(prev => prev.map(m =>
                 idsSeleccionadosPod.includes(m.id_mercancia)
                     ? { ...m, estado: 'Recibido', control_entrega: { ...(m.control_entrega || {}), foto_comprobante: podPreviewUrl } }
@@ -154,8 +176,8 @@ export default function DespachoMovil() {
             setIdsSeleccionadosPod([])
 
         } catch (error) {
-            console.error("Error al registrar entrega:", error)
-            showToast(error.response?.data?.error || "Error al procesar el comprobante de entrega.", "error")
+            console.error("Error al registrar entrega vía S3:", error)
+            showToast(error.response?.data?.error || error.message || "Error al procesar el comprobante de entrega.", "error")
         } finally {
             setSubiendoPod(false)
         }
@@ -386,12 +408,12 @@ export default function DespachoMovil() {
 
                                     <span
                                         className={`text-xs font-bold px-2.5 py-1 rounded-full border shrink-0 ${item.estado === 'Recibido'
-                                                ? 'text-emerald-800 bg-emerald-100 border-emerald-300'
-                                                : item.estado === 'Entregado'
-                                                    ? 'text-blue-800 bg-blue-100 border-blue-300'
-                                                    : esObservacion
-                                                        ? 'text-amber-800 bg-amber-100 border-amber-300'
-                                                        : 'text-slate-700 bg-slate-100 border-slate-200'
+                                            ? 'text-emerald-800 bg-emerald-100 border-emerald-300'
+                                            : item.estado === 'Entregado'
+                                                ? 'text-blue-800 bg-blue-100 border-blue-300'
+                                                : esObservacion
+                                                    ? 'text-amber-800 bg-amber-100 border-amber-300'
+                                                    : 'text-slate-700 bg-slate-100 border-slate-200'
                                             }`}
                                     >
                                         {item.estado === 'Recibido'
