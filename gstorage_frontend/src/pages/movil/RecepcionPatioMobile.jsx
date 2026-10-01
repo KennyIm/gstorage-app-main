@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import axios from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import { clearTokenEnMemoria } from '../../services/api'
-import { ArrowDownUp, Boxes, Layers, ArrowLeft, LogOut } from 'lucide-react'
+import { ArrowDownUp, Boxes, Layers, ArrowLeft, LogOut, Search, X } from 'lucide-react'
 
 const ZONAS_DESTINO = {
   TODOS: [],
@@ -21,7 +21,9 @@ export default function RecepcionPatioMobile() {
   const { logoutUser } = useAuth()
   const navigate = useNavigate()
   const [filtroZonaMercancia, setFiltroZonaMercancia] = useState('TODOS')
-  const [criterioOrden, setCriterioOrden] = useState('DESCARGA')
+  const [busqueda, setBusqueda] = useState('')
+  const [criterioOrden, setCriterioOrden] = useState('ASC') 
+  const [separarRevisados, setSepararRevisados] = useState(false)
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -56,15 +58,14 @@ export default function RecepcionPatioMobile() {
       }))
     }
   }, [despachoInfo, mercancias, despachoId])
-
   const descartarBorrador = () => {
     sessionStorage.removeItem('patio_transfer_draft')
     setDespachoInfo(null)
     setMercancias([])
     setDespachoId('')
     setDraftRestoredMsg(false)
+    setBusqueda('')
   }
-
   const obtenerDespachosDisponibles = async () => {
     try {
       const res = await axios.get('/api/inventario/despachos/disponibles-patio/')
@@ -73,40 +74,64 @@ export default function RecepcionPatioMobile() {
       console.error('Error al cargar lista de despachos:', err)
     }
   }
-
   const cargarDespacho = async (id) => {
     if (!id) return
     setLoading(true)
     setErrorMsg('')
     setSuccessMsg('')
     setDraftRestoredMsg(false)
+    setBusqueda('')
     sessionStorage.removeItem('patio_transfer_draft')
-
     try {
       const res = await axios.get(`/api/inventario/despachos/${id}/mercancias-patio/`)
       const despacho = res.data.despacho
       setDespachoInfo(despacho)
-      let listaIdsOrden = []
+      const mapaOrden = new Map()
       const ordenCampo = despacho?.orden_mercancias
+
+      const registrarEnMapa = (item, indexFallback) => {
+        if (!item) return
+        if (typeof item === 'object') {
+          const mId = String(item.id_mercancia || item.mercancia_id || item.id || '')
+          const pos = item.posicion || item.orden || item.posicion_estiba || (indexFallback + 1)
+          if (mId) mapaOrden.set(mId, Number(pos))
+        } else {
+          mapaOrden.set(String(item), indexFallback + 1)
+        }
+      }
+
       if (Array.isArray(ordenCampo)) {
-        listaIdsOrden = ordenCampo.map(item =>
-          typeof item === 'object' && item !== null ? String(item.id || item.id_mercancia) : String(item)
-        )
+        ordenCampo.forEach((it, i) => registrarEnMapa(it, i))
       } else if (typeof ordenCampo === 'string' && ordenCampo.trim() !== '') {
         try {
           const parsed = JSON.parse(ordenCampo)
-          listaIdsOrden = Array.isArray(parsed)
-            ? parsed.map(item => typeof item === 'object' ? String(item.id || item.id_mercancia) : String(item))
-            : []
+          if (Array.isArray(parsed)) {
+            parsed.forEach((it, i) => registrarEnMapa(it, i))
+          }
         } catch {
-          listaIdsOrden = ordenCampo.split(',').map(s => s.trim())
+          ordenCampo.split(',').forEach((s, i) => {
+            const clean = s.trim()
+            if (clean) mapaOrden.set(clean, i + 1)
+          })
         }
       }
-      const itemsConValidacion = res.data.mercancias.map((item, index) => {
+
+      const itemsConValidacion = (res.data.mercancias || []).map((item, index) => {
         const estaEnObservacion = item.estado === 'En Observacion'
-        const idStr = String(item.id_mercancia || item.id)
-        const idx = listaIdsOrden.findIndex(ordId => String(ordId) === idStr)
-        const posicionEstiba = idx !== -1 ? idx + 1 : (item.numero_orden_carga || index + 1)
+        const idStr = String(item.id_mercancia || item.id || '')
+
+        let posicionEstiba = null
+        if (mapaOrden.has(idStr)) {
+          posicionEstiba = mapaOrden.get(idStr)
+        } else {
+          const campoAlternativo = item.posicion_estiba ?? item.orden_estiba ?? item.orden_carga ?? item.numero_orden_carga ?? item.orden
+          if (campoAlternativo !== undefined && campoAlternativo !== null && !isNaN(Number(campoAlternativo)) && Number(campoAlternativo) > 0) {
+            posicionEstiba = Number(campoAlternativo)
+          } else {
+            posicionEstiba = index + 1
+          }
+        }
+
         return {
           ...item,
           posicion_estiba: posicionEstiba,
@@ -119,6 +144,7 @@ export default function RecepcionPatioMobile() {
           revisado: estaEnObservacion,
         }
       })
+
       setMercancias(itemsConValidacion)
     } catch (err) {
       console.error(err)
@@ -131,6 +157,7 @@ export default function RecepcionPatioMobile() {
       setLoading(false)
     }
   }
+
   const handleLogout = async () => {
     if (!window.confirm('¿Seguro que deseas cerrar tu sesión de patio?')) return
 
@@ -148,6 +175,7 @@ export default function RecepcionPatioMobile() {
       window.location.href = '/login-express'
     }
   }
+
   const marcarConforme = (id_mercancia) => {
     setMercancias((prev) =>
       prev.map((item) => {
@@ -166,9 +194,11 @@ export default function RecepcionPatioMobile() {
       })
     )
   }
+
   const abrirAjuste = (item) => {
     setItemEnEdicion({ ...item })
   }
+
   const guardarAjuste = () => {
     setMercancias((prev) =>
       prev.map((item) => {
@@ -183,29 +213,48 @@ export default function RecepcionPatioMobile() {
     )
     setItemEnEdicion(null)
   }
-  const mercanciasFiltradas = mercancias.filter((m) => {
-    if (filtroZonaMercancia === 'TODOS') return true
-    const destinoStr = (m.nombre_destino || '').toLowerCase()
-    const ciudadesValidas = ZONAS_DESTINO[filtroZonaMercancia] || []
-    return ciudadesValidas.some((ciudad) => destinoStr.includes(ciudad))
-  })
+  const mercanciasFiltradas = useMemo(() => {
+    const query = busqueda.trim().toLowerCase()
+    return mercancias.filter((m) => {
+      if (filtroZonaMercancia !== 'TODOS') {
+        const destinoStr = (m.nombre_destino || '').toLowerCase()
+        const ciudadesValidas = ZONAS_DESTINO[filtroZonaMercancia] || []
+        const coincideZona = ciudadesValidas.some((ciudad) => destinoStr.includes(ciudad))
+        if (!coincideZona) return false
+      }
+      if (query) {
+        const cliente = String(m.nombre_cliente || m.cliente || '').toLowerCase()
+        const codigo = String(m.codigo_interno || m.id_mercancia || '').toLowerCase()
+        const factura = String(m.factura || m.numero_factura || '').toLowerCase()
+
+        const coincide = cliente.includes(query) || codigo.includes(query) || factura.includes(query)
+        if (!coincide) return false
+      }
+
+      return true
+    })
+  }, [mercancias, filtroZonaMercancia, busqueda])
+
   const revisadosFiltradosCount = mercanciasFiltradas.filter((m) => m.revisado).length
   const conformesFiltradosCount = mercanciasFiltradas.filter((m) => m.revisado && m.conforme).length
   const obsFiltradosCount = mercanciasFiltradas.filter((m) => m.revisado && !m.conforme).length
   const mercanciasOrdenadas = useMemo(() => {
     return [...mercanciasFiltradas].sort((a, b) => {
-      if (!a.revisado && b.revisado) return -1
-      if (a.revisado && !b.revisado) return 1
-      const posA = a.posicion_estiba || 999
-      const posB = b.posicion_estiba || 999
-
-      if (criterioOrden === 'DESCARGA') {
-        return posB - posA
-      } else {
-        return posA - posB
+      if (separarRevisados) {
+        if (!a.revisado && b.revisado) return -1
+        if (a.revisado && !b.revisado) return 1
       }
+
+      const posA = Number(a.posicion_estiba) || 9999
+      const posB = Number(b.posicion_estiba) || 9999
+
+      if (posA !== posB) {
+        return criterioOrden === 'ASC' ? posA - posB : posB - posA
+      }
+      return (Number(a.id_mercancia) || 0) - (Number(b.id_mercancia) || 0)
     })
-  }, [mercanciasFiltradas, criterioOrden])
+  }, [mercanciasFiltradas, criterioOrden, separarRevisados])
+
   const finalizarTransferZona = async () => {
     if (mercanciasFiltradas.length === 0) return
     const sinRevisar = mercanciasFiltradas.filter((m) => !m.revisado)
@@ -298,6 +347,7 @@ export default function RecepcionPatioMobile() {
           ✅ {successMsg}
         </div>
       )}
+
       {!despachoInfo && (
         <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4 shadow-sm">
           <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
@@ -353,7 +403,30 @@ export default function RecepcionPatioMobile() {
               </div>
             </div>
           </div>
-          <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3 shadow-xs space-y-2.5">
+
+          <div className="bg-white border border-slate-200 rounded-xl p-3 mb-3 shadow-xs space-y-3">
+            {/* Buscador de Mercancía */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar cliente, código interno o factura..."
+                className="w-full pl-9 pr-8 py-2 text-xs font-semibold rounded-lg border border-slate-300 bg-slate-50 text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition"
+              />
+              {busqueda && (
+                <button
+                  onClick={() => setBusqueda('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                  title="Limpiar búsqueda"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Selector de Zonas */}
             <div className="grid grid-cols-4 gap-1.5">
               {[
                 { id: 'TODOS', label: 'Todas' },
@@ -377,42 +450,61 @@ export default function RecepcionPatioMobile() {
               })}
             </div>
 
-            {/* Alternador de Orden de Estiba */}
-            <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
-              <span className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                <ArrowDownUp className="w-3.5 h-3.5 text-amber-500" />
-                Secuencia:
-              </span>
-              <div className="flex gap-1">
+            {/* Controles de Secuencia y Comportamiento */}
+            <div className="pt-2 border-t border-slate-100 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                  <ArrowDownUp className="w-3.5 h-3.5 text-amber-500" />
+                  Secuencia:
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setCriterioOrden('ASC')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition cursor-pointer ${criterioOrden === 'ASC'
+                        ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    title="Orden natural de estiba: 1 a N (Parapeto al frente)"
+                  >
+                    Parapeto
+                  </button>
+                  <button
+                    onClick={() => setCriterioOrden('DESC')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition cursor-pointer ${criterioOrden === 'DESC'
+                        ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    title="Descarga primero: N a 1 (Puertas traseras / Cola)"
+                  >
+                    Cola
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                <span>Mover revisados al final:</span>
                 <button
-                  onClick={() => setCriterioOrden('DESCARGA')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition cursor-pointer ${criterioOrden === 'DESCARGA'
-                      ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  title="Muestra primero las cargas que están pegadas a las compuertas traseras"
+                  type="button"
+                  onClick={() => setSepararRevisados(!separarRevisados)}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
+                    separarRevisados
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                  }`}
                 >
-                  Parte trasera(Cola)
-                </button>
-                <button
-                  onClick={() => setCriterioOrden('CARGA')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition cursor-pointer ${criterioOrden === 'CARGA'
-                      ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  title="Muestra el orden desde el fondo de la rampla (1 a N)"
-                >
-                  Parapeto
+                  {separarRevisados ? 'ACTIVADO' : 'DESACTIVADO'}
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Listado de Cargas con Insignia de Orden */}
+          {/* Listado de Cargas */}
           <div className="flex flex-col gap-2.5 mb-6">
             {mercanciasOrdenadas.length === 0 ? (
-              <div className="text-center p-8 text-slate-400 bg-white border border-slate-200 rounded-xl">
-                No hay mercancías pendientes en este despacho.
+              <div className="text-center p-8 text-slate-400 bg-white border border-slate-200 rounded-xl text-xs">
+                {busqueda
+                  ? `No se encontraron mercancías que coincidan con "${busqueda}".`
+                  : 'No hay mercancías pendientes en este despacho.'}
               </div>
             ) : (
               mercanciasOrdenadas.map((m) => {

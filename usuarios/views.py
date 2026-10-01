@@ -1,3 +1,4 @@
+import time
 from django.shortcuts import render
 from rest_framework import generics, permissions, viewsets, status
 from django.contrib.auth.models import User
@@ -243,8 +244,32 @@ class AdminResetPasswordView(generics.UpdateAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+TIEMPO_MAX_INACTIVIDAD = 30 * 60 
+
+
+def borrar_cookies_sesion(response, request):
+    es_seguro = not settings.DEBUG or request.is_secure() or request.headers.get('X-Forwarded-Proto') == 'https'
+    cookie_domain = getattr(settings, 'SESSION_COOKIE_DOMAIN', None)
+    
+    for dom in [cookie_domain, None]:
+        for galleta in ['refresh_token', 'last_activity', 'sessionid', 'csrftoken']:
+            response.delete_cookie(galleta, path='/', domain=dom, samesite='Lax')
+            response.set_cookie(
+                galleta,
+                '',
+                max_age=0,
+                expires='Thu, 01 Jan 1970 00:00:00 GMT',
+                path='/',
+                domain=dom,
+                secure=es_seguro,
+                httponly=True,
+                samesite='Lax'
+            )
+
+
 def set_refresh_cookie(response, refresh_token_string):
     es_produccion = not settings.DEBUG
+    cookie_domain = getattr(settings, 'SESSION_COOKIE_DOMAIN', None)
     response.set_cookie(
         key='refresh_token',
         value=refresh_token_string,
@@ -253,7 +278,17 @@ def set_refresh_cookie(response, refresh_token_string):
         samesite='Lax',
         max_age=7 * 24 * 60 * 60,
         path='/',
-        domain=getattr(settings, 'SESSION_COOKIE_DOMAIN', None)
+        domain=cookie_domain
+    )
+    response.set_cookie(
+        key='last_activity',
+        value=str(int(time.time())),
+        httponly=True,
+        secure=es_produccion,
+        samesite='Lax',
+        max_age=7 * 24 * 60 * 60,
+        path='/',
+        domain=cookie_domain
     )
 
 class LoginThrottleView(TokenObtainPairView):
@@ -308,24 +343,60 @@ class Verify2FAView(APIView):
 class CustomTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
         refresh_token = request.COOKIES.get('refresh_token')
+        last_activity = request.COOKIES.get('last_activity')
+        ahora = time.time()
+        if last_activity:
+            try:
+                tiempo_inactivo = ahora - float(last_activity)
+                if tiempo_inactivo > TIEMPO_MAX_INACTIVIDAD:
+                    if refresh_token:
+                        try:
+                            RefreshToken(refresh_token).blacklist()
+                        except Exception:
+                            pass
+                    
+                    response = Response(
+                        {"error": "La sesión ha expirado por inactividad. Por favor inicia sesión nuevamente."},
+                        status=status.HTTP_401_UNAUTHORIZED
+                    )
+                    borrar_cookies_sesion(response, request)
+                    return response
+            except (ValueError, TypeError):
+                pass
+
         if not refresh_token:
-            return Response({"error": "Falta el token de actualización."}, status=status.HTTP_401_UNAUTHORIZED)
+            response = Response({"error": "Falta el token de actualización."}, status=status.HTTP_401_UNAUTHORIZED)
+            borrar_cookies_sesion(response, request)
+            return response
         
         serializer = self.get_serializer(data={'refresh': refresh_token})
         try:
             serializer.is_valid(raise_exception=True)
         except TokenError as e:
-            raise InvalidToken(e.args[0])
-            
+            response = Response({"error": "Token inválido o expirado."}, status=status.HTTP_401_UNAUTHORIZED)
+            borrar_cookies_sesion(response, request)
+            return response
+        
         res_data = serializer.validated_data
         response = Response({'access': res_data.get('access')}, status=status.HTTP_200_OK)
-        
         if 'refresh' in res_data:
             set_refresh_cookie(response, res_data['refresh'])
+        else:
+            response.set_cookie(
+                key='last_activity',
+                value=str(int(ahora)),
+                httponly=True,
+                secure=not settings.DEBUG,
+                samesite='Lax',
+                max_age=7 * 24 * 60 * 60,
+                path='/',
+                domain=getattr(settings, 'SESSION_COOKIE_DOMAIN', None)
+            )
             
         return response
 
 class CustomLogoutView(APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
     def post(self, request):
         refresh_token = request.COOKIES.get('refresh_token') or request.data.get('refresh')
@@ -336,24 +407,23 @@ class CustomLogoutView(APIView):
             except Exception:
                 pass
         response = Response({'detail': 'Sesión cerrada correctamente.'}, status=status.HTTP_200_OK)
-        es_seguro = not settings.DEBUG or request.is_secure() or request.headers.get('X-Forwarded-Proto') == 'https'
         cookie_domain = getattr(settings, 'SESSION_COOKIE_DOMAIN', None)
-        for dom in [cookie_domain, None]:
-            response.delete_cookie('refresh_token', path='/', domain=dom, samesite='Lax')
-            response.set_cookie(
-                'refresh_token',
-                '',
-                max_age=0,
-                expires='Thu, 01 Jan 1970 00:00:00 GMT',
-                path='/',
-                domain=dom,
-                secure=es_seguro,
-                httponly=True,
-                samesite='Lax'
-            )
+        es_seguro = not settings.DEBUG or request.is_secure() or request.headers.get('X-Forwarded-Proto') == 'https'
 
-        response.delete_cookie('sessionid', path='/')
-        response.delete_cookie('csrftoken', path='/')
+        for dom in [cookie_domain, None]:
+            for galleta in ['refresh_token', 'last_activity', 'sessionid', 'csrftoken']:
+                response.delete_cookie(galleta, path='/', domain=dom, samesite='Lax')
+                response.set_cookie(
+                    galleta,
+                    '',
+                    max_age=0,
+                    expires='Thu, 01 Jan 1970 00:00:00 GMT',
+                    path='/',
+                    domain=dom,
+                    secure=es_seguro,
+                    httponly=True,
+                    samesite='Lax'
+                )
 
         return response
 

@@ -41,6 +41,7 @@ apiClient.interceptors.request.use(
     if (
       config.url === '/api/token/' ||
       config.url === '/api/token/refresh/' ||
+      config.url.includes('/logout') ||
       config.url.includes('/auth/express/') ||
       config.url.includes('/password-reset/')
     ) {

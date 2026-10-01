@@ -24,6 +24,16 @@ export default function HistorialView() {
     const timer = setTimeout(() => setDebouncedSearch(searchTerm), 500)
     return () => clearTimeout(timer)
   }, [searchTerm])
+
+  const convertirARutaRelativa = (url) => {
+    if (!url) return null
+    try {
+      const parsed = new URL(url)
+      return `${parsed.pathname}${parsed.search}`
+    } catch {
+      return url
+    }
+  }
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true)
@@ -40,7 +50,7 @@ export default function HistorialView() {
         ])
 
         setHistory(historyRes.data.results || historyRes.data)
-        setNextPageUrl(historyRes.data.next || null)
+        setNextPageUrl(convertirARutaRelativa(historyRes.data?.next) || null)
         setSucursales(sucursalesRes.data)
       } catch (err) {
         if (err.response && err.response.status === 401) {
@@ -56,15 +66,16 @@ export default function HistorialView() {
   }, [debouncedSearch, filterType, fechaDesde, fechaHasta])
 
   const loadMore = async () => {
-    if (!nextPageUrl) return
+    if (!nextPageUrl || loadingMore) return
     setLoadingMore(true)
+
     try {
-      const urlSegura = nextPageUrl.replace(/^http:\/\//i, 'https://')
-      const response = await apiClient.get(urlSegura)
-      setHistory(prevHistory => [...prevHistory, ...(response.data.results || [])])
-      setNextPageUrl(response.data.next || null)
-    } catch (err) {
-      console.error("Error al cargar más historial:", err)
+      const urlLimpia = convertirARutaRelativa(nextPageUrl)
+      const res = await apiClient.get(urlLimpia)
+      setHistory((prev) => [...prev, ...(res.data.results || [])])
+      setNextPageUrl(convertirARutaRelativa(res.data?.next) || null)
+    } catch (error) {
+      console.error("Error al cargar más historial:", error)
     } finally {
       setLoadingMore(false)
     }
@@ -118,7 +129,7 @@ export default function HistorialView() {
             {Object.entries(cambios).map(([key, valores]) => {
               const oldVal = valores.viejo === null || valores.viejo === undefined ? '-' : String(valores.viejo);
               const newVal = valores.nuevo === null || valores.nuevo === undefined ? '-' : String(valores.nuevo);
-              
+
               return (
                 <div key={key} className="flex flex-col border-b border-gray-100 pb-2 mb-1">
                   <span className="text-xs font-bold text-slate-700 capitalize mb-1">{key.replace(/_/g, ' ')}</span>
@@ -167,7 +178,7 @@ export default function HistorialView() {
               <h2 className="text-xl font-semibold text-gray-900">Auditoría de Movimientos</h2>
               {loading && <Loader2 className="w-4 h-4 text-indigo-600 animate-spin" />}
             </div>
-            
+
             {/* Buscador General */}
             <div className="relative">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
@@ -185,7 +196,7 @@ export default function HistorialView() {
           <div className="flex flex-wrap items-end gap-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipo de Acción</label>
-              <select 
+              <select
                 value={filterType}
                 onChange={(e) => setFilterType(e.target.value)}
                 className="text-sm border border-gray-300 rounded-md focus:ring-indigo-500 py-1.5 px-3 bg-white"
@@ -198,7 +209,7 @@ export default function HistorialView() {
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Desde Fecha</label>
-              <input 
+              <input
                 type="date"
                 value={fechaDesde}
                 onChange={(e) => setFechaDesde(e.target.value)}
@@ -208,7 +219,7 @@ export default function HistorialView() {
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Hasta Fecha</label>
-              <input 
+              <input
                 type="date"
                 value={fechaHasta}
                 onChange={(e) => setFechaHasta(e.target.value)}
@@ -216,7 +227,7 @@ export default function HistorialView() {
               />
             </div>
             {(fechaDesde || fechaHasta || filterType !== 'Todos' || searchTerm) && (
-              <button 
+              <button
                 onClick={limpiarFiltros}
                 className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-red-600 transition-colors ml-auto pb-2"
               >
@@ -229,8 +240,8 @@ export default function HistorialView() {
         <div className="space-y-6 pl-2">
           {history.length === 0 && !loading ? (
             <div className="text-center py-12 bg-slate-50 rounded-lg border border-dashed border-slate-300">
-               <History className="w-8 h-8 text-slate-300 mx-auto mb-3" />
-               <p className="text-slate-500 font-medium">No se encontraron movimientos con los filtros actuales.</p>
+              <History className="w-8 h-8 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500 font-medium">No se encontraron movimientos con los filtros actuales.</p>
             </div>
           ) : (
             history.map((item, index) => {
@@ -250,7 +261,7 @@ export default function HistorialView() {
                       <Icon className={`w-5 h-5 ${style.color}`} />
                     </div>
 
-                    <div 
+                    <div
                       className={`flex-1 rounded-xl p-4 border transition-all duration-200 cursor-pointer ${isExpanded ? 'bg-white border-indigo-200 shadow-md ring-1 ring-indigo-50' : 'bg-white border-gray-100 hover:shadow-sm hover:border-gray-200 shadow-sm'}`}
                       onClick={() => setExpandedItemId(isExpanded ? null : item.id_historial)}
                     >
@@ -287,9 +298,9 @@ export default function HistorialView() {
                       </div>
                       <div className={`grid transition-all duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}>
                         <div className="overflow-hidden">
-                           <div className="pt-4 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
-                              {renderDetalles(item)}
-                           </div>
+                          <div className="pt-4 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
+                            {renderDetalles(item)}
+                          </div>
                         </div>
                       </div>
 

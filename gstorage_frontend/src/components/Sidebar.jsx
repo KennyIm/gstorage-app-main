@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronRight, LayoutDashboard, Package, 
   Truck, Users, Settings, Menu, X, DollarSign, 
   UserCircle, LogOut, ShieldCheck, Home, DiamondPlus, 
-  BadgeDollarSign
+  BadgeDollarSign, BadgeInfo
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import apiClient from '../services/api'
@@ -79,6 +79,7 @@ export default function Sidebar() {
       ]
     },
     { name: 'Gestión Usuarios', icon: <ShieldCheck size={20} />, path: '/gestionar-empleados', show: isAdmin },
+    {name: 'Ayuda', icon: <BadgeInfo size={20}/>, path: '/ayuda'}
   ]
 
   return (

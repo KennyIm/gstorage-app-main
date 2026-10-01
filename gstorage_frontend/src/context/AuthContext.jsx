@@ -6,6 +6,8 @@ import { AuthContext } from '../services/AuthContextInstance'
 export const useAuth = () => useContext(AuthContext)
 
 const canalAutenticacion = new BroadcastChannel('gstorage_auth_sync')
+const KEY_LAST_ACTIVITY = 'gstorage_last_activity'
+const MAX_INACTIVITY_TIME = 1800000
 
 export const AuthProvider = ({ children }) => {
   const [authTokens, setAuthTokens] = useState(null)
@@ -14,43 +16,35 @@ export const AuthProvider = ({ children }) => {
   const [authLoading, setAuthLoading] = useState(false)
   const navigate = useNavigate()
 
-  const verificarSesionExistente = useCallback(async () => {
-    const haySesionActiva = localStorage.getItem('gstorage_logged_in') === 'true'
-    const esRutaPublica = ['/login', '/login-express', '/404'].some(r => window.location.pathname.startsWith(r))
+  const logoutUser = useCallback(async () => {
+    const urlActual = window.location.pathname
+    const esExpress = localStorage.getItem('is_express_session') === 'true'
 
-    if (!haySesionActiva && esRutaPublica) {
-      clearTokenEnMemoria()
-      setAuthTokens(null)
-      setUser(null)
-      return null
+    if (urlActual && !['/login', '/login-express', '/404'].includes(urlActual)) {
+      sessionStorage.setItem('gstorage_ruta_retorno', urlActual)
     }
 
     try {
-      const access = await ejecutarRefreshSilencioso()
-      setAuthTokens({ access })
-      sessionStorage.setItem('gstorage_has_session', 'true')
-
-      const isExpress = localStorage.getItem('is_express_session') === 'true'
-      if (isExpress) {
-        const expressUserData = {
-          nombre: localStorage.getItem('operativo_nombre') || 'Operativo',
-          rol: localStorage.getItem('operativo_rol') || 'PATIO',
-          isExpress: true,
-        }
-        setUser(expressUserData)
-        return access
-      }
-
-      const userResponse = await apiClient.get('/api/usuarios/me/')
-      setUser(userResponse.data)
-      return access
-
+      await axios.post('/api/logout/', {}, { withCredentials: true })
     } catch (error) {
-      clearTokenEnMemoria()
-      sessionStorage.removeItem('gstorage_has_session')
-      setAuthTokens(null)
-      setUser(null)
-      return null
+      console.error("Error al cerrar sesión en el servidor:", error.response?.status, error.message)
+    }
+
+    clearTokenEnMemoria()
+    sessionStorage.removeItem('gstorage_has_session')
+    setAuthTokens(null)
+    setUser(null)
+    localStorage.removeItem('gstorage_logged_in')
+    localStorage.removeItem(KEY_LAST_ACTIVITY)
+    localStorage.removeItem('is_express_session')
+    localStorage.removeItem('operativo_nombre')
+    localStorage.removeItem('operativo_rol')
+
+    canalAutenticacion.postMessage({ tipo: 'LOGOUT_PROCESADO' })
+
+    const destinoLogin = esExpress ? '/login-express' : '/login'
+    if (window.location.pathname !== destinoLogin) {
+      window.location.href = destinoLogin
     }
   }, [])
 
@@ -143,36 +137,52 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const logoutUser = async () => {
-    const urlActual = window.location.pathname
-    const esExpress = localStorage.getItem('is_express_session') === 'true'
-
-    if (urlActual && !['/login', '/login-express', '/404'].includes(urlActual)) {
-      sessionStorage.setItem('gstorage_ruta_retorno', urlActual)
+  const verificarSesionExistente = useCallback(async () => {
+    const haySesionActiva = localStorage.getItem('gstorage_logged_in') === 'true'
+    const esRutaPublica = ['/login', '/login-express', '/404'].some(r => window.location.pathname.startsWith(r))
+    const ultimaActividad = parseInt(localStorage.getItem(KEY_LAST_ACTIVITY) || '0', 10)
+    const tiempoInactivo = Date.now() - ultimaActividad
+    if (haySesionActiva && ultimaActividad > 0 && tiempoInactivo >= MAX_INACTIVITY_TIME) {
+      console.warn("Sesión expirada por inactividad mientras la pestaña estuvo cerrada.")
+      await logoutUser()
+      return null
+    }
+    if (!haySesionActiva && esRutaPublica) {
+      clearTokenEnMemoria()
+      setAuthTokens(null)
+      setUser(null)
+      return null
+    }
+    if (!haySesionActiva) {
+      await logoutUser()
+      return null
     }
     try {
-      await apiClient.post('/api/logout/', {}, { withCredentials: true })
+      const access = await ejecutarRefreshSilencioso()
+      setAuthTokens({ access })
+      sessionStorage.setItem('gstorage_has_session', 'true')
+      localStorage.setItem(KEY_LAST_ACTIVITY, Date.now().toString())
+
+      const isExpress = localStorage.getItem('is_express_session') === 'true'
+      if (isExpress) {
+        const expressUserData = {
+          nombre: localStorage.getItem('operativo_nombre') || 'Operativo',
+          rol: localStorage.getItem('operativo_rol') || 'PATIO',
+          isExpress: true,
+        }
+        setUser(expressUserData)
+        return access
+      }
+
+      const userResponse = await apiClient.get('/api/usuarios/me/')
+      setUser(userResponse.data)
+      return access
+
     } catch (error) {
-      console.error("Error al cerrar sesión en el servidor:", error.response?.status, error.message)
+      await logoutUser()
+      return null
     }
-
-    clearTokenEnMemoria()
-    sessionStorage.removeItem('gstorage_has_session')
-    setAuthTokens(null)
-    setUser(null)
-    localStorage.removeItem('gstorage_logged_in')
-    localStorage.removeItem('gstorage_last_activity')
-    localStorage.removeItem('is_express_session')
-    localStorage.removeItem('operativo_nombre')
-    localStorage.removeItem('operativo_rol')
-
-    canalAutenticacion.postMessage({ tipo: 'LOGOUT_PROCESADO' })
-
-    const destinoLogin = esExpress ? '/login-express' : '/login'
-    if (window.location.pathname !== destinoLogin) {
-      window.location.href = destinoLogin
-    }
-  }
+  }, [logoutUser])
 
   useEffect(() => {
     verificarSesionExistente().finally(() => {

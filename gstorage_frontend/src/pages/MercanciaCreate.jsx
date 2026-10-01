@@ -50,8 +50,6 @@ export default function MercanciaCreate() {
 
 
   useEffect(() => {
-    console.log("🟢 Componente MONTADO en memoria");
-
     const controller = new AbortController();
 
     const fetchData = async () => {
@@ -83,7 +81,6 @@ export default function MercanciaCreate() {
     fetchData()
     return () => {
       controller.abort()
-      console.log("🔴 Componente DESMONTADO y destruido de RAM");
     };
   }, [])
 
