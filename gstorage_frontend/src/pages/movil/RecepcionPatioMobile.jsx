@@ -11,6 +11,35 @@ const ZONAS_DESTINO = {
   ANTOFAGASTA: ['antofagasta', 'mejillones', 'tocopilla', 'calama'],
   COPIAPO: ['copiapó', 'copiapo'],
 }
+const extraerOrdenIds = (raw) => {
+  if (!raw) return []
+  if (Array.isArray(raw)) {
+    return raw.map(item => {
+      if (typeof item === 'object' && item !== null) {
+        return String(item.id_mercancia || item.id || item.mercancia_id || '')
+      }
+      return String(item)
+    }).filter(Boolean)
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (!trimmed) return []
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) {
+        return parsed.map(item => {
+          if (typeof item === 'object' && item !== null) {
+            return String(item.id_mercancia || item.id || item.mercancia_id || '')
+          }
+          return String(item)
+        }).filter(Boolean)
+      }
+    } catch {
+      return trimmed.split(',').map(s => s.trim()).filter(Boolean)
+    }
+  }
+  return []
+}
 
 export default function RecepcionPatioMobile() {
   document.title = "Transfer - GStorage"
@@ -58,6 +87,7 @@ export default function RecepcionPatioMobile() {
       }))
     }
   }, [despachoInfo, mercancias, despachoId])
+
   const descartarBorrador = () => {
     sessionStorage.removeItem('patio_transfer_draft')
     setDespachoInfo(null)
@@ -66,6 +96,7 @@ export default function RecepcionPatioMobile() {
     setDraftRestoredMsg(false)
     setBusqueda('')
   }
+
   const obtenerDespachosDisponibles = async () => {
     try {
       const res = await axios.get('/api/inventario/despachos/disponibles-patio/')
@@ -74,6 +105,7 @@ export default function RecepcionPatioMobile() {
       console.error('Error al cargar lista de despachos:', err)
     }
   }
+
   const cargarDespacho = async (id) => {
     if (!id) return
     setLoading(true)
@@ -82,55 +114,49 @@ export default function RecepcionPatioMobile() {
     setDraftRestoredMsg(false)
     setBusqueda('')
     sessionStorage.removeItem('patio_transfer_draft')
+
     try {
       const res = await axios.get(`/api/inventario/despachos/${id}/mercancias-patio/`)
       const despacho = res.data.despacho
       setDespachoInfo(despacho)
-      const mapaOrden = new Map()
-      const ordenCampo = despacho?.orden_mercancias
-
-      const registrarEnMapa = (item, indexFallback) => {
-        if (!item) return
-        if (typeof item === 'object') {
-          const mId = String(item.id_mercancia || item.mercancia_id || item.id || '')
-          const pos = item.posicion || item.orden || item.posicion_estiba || (indexFallback + 1)
-          if (mId) mapaOrden.set(mId, Number(pos))
-        } else {
-          mapaOrden.set(String(item), indexFallback + 1)
-        }
+      let ordenIds = extraerOrdenIds(despacho?.orden_mercancias)
+      if (ordenIds.length === 0) {
+        const despachoEnLista = listaDespachos.find(d => String(d.id_despacho) === String(id))
+        ordenIds = extraerOrdenIds(despachoEnLista?.orden_mercancias)
       }
-
-      if (Array.isArray(ordenCampo)) {
-        ordenCampo.forEach((it, i) => registrarEnMapa(it, i))
-      } else if (typeof ordenCampo === 'string' && ordenCampo.trim() !== '') {
+      if (ordenIds.length === 0) {
         try {
-          const parsed = JSON.parse(ordenCampo)
-          if (Array.isArray(parsed)) {
-            parsed.forEach((it, i) => registrarEnMapa(it, i))
-          }
+          const despRes = await axios.get(`/api/inventario/despachos/${id}/`)
+          ordenIds = extraerOrdenIds(despRes.data?.orden_mercancias)
         } catch {
-          ordenCampo.split(',').forEach((s, i) => {
-            const clean = s.trim()
-            if (clean) mapaOrden.set(clean, i + 1)
-          })
+          try {
+            const despListaRes = await axios.get(`/api/inventario/despachos/?id_despacho=${id}`)
+            const itemsDespacho = despListaRes.data.results || despListaRes.data || []
+            const dFound = itemsDespacho.find(d => String(d.id_despacho) === String(id))
+            ordenIds = extraerOrdenIds(dFound?.orden_mercancias)
+          } catch (e) {
+            console.warn("No se pudo obtener la secuencia de estiba:", e)
+          }
         }
       }
+      const mercanciasDelCamion = [...(res.data.mercancias || [])]
+      mercanciasDelCamion.sort((a, b) => {
+        const idA = String(a.id_mercancia || a.id || '')
+        const idB = String(b.id_mercancia || b.id || '')
+        const indexA = ordenIds.indexOf(idA)
+        const indexB = ordenIds.indexOf(idB)
 
-      const itemsConValidacion = (res.data.mercancias || []).map((item, index) => {
+        if (indexA === -1 && indexB === -1) return 0
+        if (indexA === -1) return 1
+        if (indexB === -1) return -1
+
+        return indexA - indexB
+      })
+      const itemsConValidacion = mercanciasDelCamion.map((item, index) => {
         const estaEnObservacion = item.estado === 'En Observacion'
         const idStr = String(item.id_mercancia || item.id || '')
-
-        let posicionEstiba = null
-        if (mapaOrden.has(idStr)) {
-          posicionEstiba = mapaOrden.get(idStr)
-        } else {
-          const campoAlternativo = item.posicion_estiba ?? item.orden_estiba ?? item.orden_carga ?? item.numero_orden_carga ?? item.orden
-          if (campoAlternativo !== undefined && campoAlternativo !== null && !isNaN(Number(campoAlternativo)) && Number(campoAlternativo) > 0) {
-            posicionEstiba = Number(campoAlternativo)
-          } else {
-            posicionEstiba = index + 1
-          }
-        }
+        const idx = ordenIds.indexOf(idStr)
+        const posicionEstiba = idx !== -1 ? idx + 1 : (index + 1)
 
         return {
           ...item,
@@ -230,7 +256,6 @@ export default function RecepcionPatioMobile() {
         const coincide = cliente.includes(query) || codigo.includes(query) || factura.includes(query)
         if (!coincide) return false
       }
-
       return true
     })
   }, [mercancias, filtroZonaMercancia, busqueda])
@@ -248,10 +273,11 @@ export default function RecepcionPatioMobile() {
       const posA = Number(a.posicion_estiba) || 9999
       const posB = Number(b.posicion_estiba) || 9999
 
-      if (posA !== posB) {
-        return criterioOrden === 'ASC' ? posA - posB : posB - posA
+      if (criterioOrden === 'ASC') {
+        return posA - posB
+      } else {
+        return posB - posA
       }
-      return (Number(a.id_mercancia) || 0) - (Number(b.id_mercancia) || 0)
     })
   }, [mercanciasFiltradas, criterioOrden, separarRevisados])
 
@@ -333,7 +359,7 @@ export default function RecepcionPatioMobile() {
             onClick={descartarBorrador}
             className="bg-blue-100 px-2 py-1 rounded text-blue-800 font-bold text-xs cursor-pointer hover:bg-blue-200"
           >
-            Limpiar
+            Limpiar Borrador
           </button>
         </div>
       )}
@@ -440,8 +466,8 @@ export default function RecepcionPatioMobile() {
                     key={zona.id}
                     onClick={() => setFiltroZonaMercancia(zona.id)}
                     className={`py-1.5 px-1 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${activo
-                        ? 'border-blue-600 bg-blue-600 text-white shadow-xs'
-                        : 'border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      ? 'border-blue-600 bg-blue-600 text-white shadow-xs'
+                      : 'border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100'
                       }`}
                   >
                     {zona.label}
@@ -450,7 +476,7 @@ export default function RecepcionPatioMobile() {
               })}
             </div>
 
-            {/* Controles de Secuencia y Comportamiento */}
+            {/* Controles de Secuencia */}
             <div className="pt-2 border-t border-slate-100 space-y-2">
               <div className="flex items-center justify-between text-xs">
                 <span className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1">
@@ -461,22 +487,22 @@ export default function RecepcionPatioMobile() {
                   <button
                     onClick={() => setCriterioOrden('ASC')}
                     className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition cursor-pointer ${criterioOrden === 'ASC'
-                        ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
-                    title="Orden natural de estiba: 1 a N (Parapeto al frente)"
+                    title="Muestra 1 a N exactamente como el Planificador y el Excel"
                   >
-                    Parapeto
+                    PARAPETO
                   </button>
                   <button
                     onClick={() => setCriterioOrden('DESC')}
                     className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition cursor-pointer ${criterioOrden === 'DESC'
-                        ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                       }`}
-                    title="Descarga primero: N a 1 (Puertas traseras / Cola)"
+                    title="Muestra primero las cargas pegadas a la puerta trasera"
                   >
-                    Cola
+                    COLA
                   </button>
                 </div>
               </div>
@@ -486,11 +512,10 @@ export default function RecepcionPatioMobile() {
                 <button
                   type="button"
                   onClick={() => setSepararRevisados(!separarRevisados)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
-                    separarRevisados
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${separarRevisados
                       ? 'bg-blue-600 text-white'
                       : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
-                  }`}
+                    }`}
                 >
                   {separarRevisados ? 'ACTIVADO' : 'DESACTIVADO'}
                 </button>
@@ -514,10 +539,10 @@ export default function RecepcionPatioMobile() {
                   <div
                     key={m.id_mercancia}
                     className={`border rounded-xl p-3.5 shadow-xs transition ${!esRevisado
-                        ? 'border-slate-200 bg-white'
-                        : esConforme
-                          ? 'border-green-300 bg-green-50/40 opacity-80'
-                          : 'border-amber-300 bg-amber-50/50 opacity-90'
+                      ? 'border-slate-200 bg-white'
+                      : esConforme
+                        ? 'border-green-300 bg-green-50/40 opacity-80'
+                        : 'border-amber-300 bg-amber-50/50 opacity-90'
                       }`}
                   >
                     <div className="flex justify-between items-start mb-1.5">
@@ -602,14 +627,14 @@ export default function RecepcionPatioMobile() {
             )}
           </div>
 
-          {/* Botón flotante para finalizar la recepción */}
+          {/* Finalizar la recepción */}
           <div className="sticky bottom-4 bg-white p-3 rounded-xl shadow-xl border border-slate-200">
             <button
               onClick={finalizarTransferZona}
               disabled={submitting || mercanciasFiltradas.length === 0}
               className={`w-full p-3.5 text-white font-black text-xs uppercase tracking-wider rounded-lg border-none transition active:scale-95 ${mercanciasFiltradas.length === 0
-                  ? 'bg-slate-400 cursor-not-allowed'
-                  : 'bg-slate-900 hover:bg-slate-800 cursor-pointer shadow-md'
+                ? 'bg-slate-400 cursor-not-allowed'
+                : 'bg-slate-900 hover:bg-slate-800 cursor-pointer shadow-md'
                 }`}
             >
               {submitting
