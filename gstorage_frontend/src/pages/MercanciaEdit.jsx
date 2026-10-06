@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -10,6 +10,33 @@ import {
   Truck, Activity, Loader2, AlertCircle, CheckCircle, NotebookPen,
   Calculator, Info
 } from 'lucide-react';
+
+const detectarConfiguracionSucursal = (d) => {
+  if (!d) return { letra: '?', badgeClass: 'bg-slate-100 text-slate-700 border-slate-300' }
+
+  const origenStr = String(
+    d.origen ||
+    d.nombre_origen ||
+    d.sucursal_origen ||
+    d.sucursal_nombre ||
+    d.sucursal?.nombre ||
+    d.sucursal?.ciudad ||
+    d.sucursal ||
+    ''
+  ).toLowerCase()
+
+  if (origenStr.includes('antof')) {
+    return { letra: 'A', badgeClass: 'bg-purple-100 text-purple-700 border-purple-300' }
+  }
+  if (origenStr.includes('iqui')) {
+    return { letra: 'I', badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-300' }
+  }
+  if (origenStr.includes('sant') || origenStr.includes('stgo')) {
+    return { letra: 'S', badgeClass: 'bg-blue-100 text-blue-700 border-blue-300' }
+  }
+
+  return { letra: 'D', badgeClass: 'bg-slate-100 text-slate-700 border-slate-300' }
+}
 
 export default function MercanciaEdit() {
   document.title = "Edición de Mercancia - GStorage";
@@ -57,6 +84,42 @@ export default function MercanciaEdit() {
       setFormData(prev => ({ ...prev, precio_total: nuevoTotal }));
     }
   };
+
+  const opcionesDespachosEdicion = useMemo(() => {
+    const listaBase = [{ value: '', label: '(Ninguno / Pendiente)', isNullOption: true }]
+    if (!despachos || despachos.length === 0) return listaBase
+
+    const opciones = despachos.map((d) => {
+      const rutaRaw = d.nombre_ruta || d.ruta_nombre || d.id_ruta || 'S/N'
+      const rutaCorta = String(rutaRaw).split('-')[0].trim()
+      const textoRuta = rutaCorta.toLowerCase().includes('ruta') ? rutaCorta : `Ruta ${rutaCorta}`
+      const config = detectarConfiguracionSucursal(d)
+
+      return {
+        value: String(d.id_despacho || d.id),
+        label: `[${config.letra}] ${textoRuta} (Despacho #${d.id_despacho || d.id})`,
+        letra: config.letra,
+        textoRuta,
+        badgeClass: config.badgeClass,
+        idDespacho: d.id_despacho || d.id,
+      }
+    })
+
+    return [...listaBase, ...opciones]
+  }, [despachos])
+
+  const opcionDespachoSeleccionada = useMemo(() => {
+    if (!formData?.id_despacho) return opcionesDespachosEdicion[0]
+    return opcionesDespachosEdicion.find(
+      (op) => String(op.value) === String(formData.id_despacho)
+    ) || null
+  }, [opcionesDespachosEdicion, formData?.id_despacho])
+
+  useEffect(() => {
+    apiClient.get('/api/inventario/despachos/')
+      .then((res) => setDespachos(res.data.results || res.data || []))
+      .catch((err) => console.error("Error cargando despachos:", err))
+  }, [])
 
   useEffect(() => {
     if (formData && formData.id_cliente && (formData.kg || formData.m3)) {
@@ -206,6 +269,24 @@ export default function MercanciaEdit() {
     if (!id) return 'Sin sucursal';
     const sucursal = sucursales.find(s => String(s.id) === String(id));
     return sucursal ? sucursal.nombre : `Suc ${id}`
+  }
+
+  const obtenerTextoDespacho = (d) => {
+    if (!d) return ''
+    let textoRuta = 'S/R'
+    const rutaRaw = d.id_ruta || d.nombre_ruta
+
+    if (rutaRaw) {
+      const rutaCorta = String(rutaRaw).split('-')[0].trim()
+      textoRuta = rutaCorta.toLowerCase().includes('ruta') ? rutaCorta : `Ruta ${rutaCorta}`
+    }
+
+    const esCompartido = d.es_compartido || d.compartido
+    const letra = (typeof getLetraOrigen === 'function' && esCompartido)
+      ? getLetraOrigen(d)
+      : null
+
+    return letra ? `[${letra}] ${textoRuta}` : textoRuta
   }
 
 
@@ -593,55 +674,123 @@ export default function MercanciaEdit() {
             </div>
 
             {/* ESTADO Y DESPACHO */}
-            <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-100">
-              <h3 className="text-lg font-semibold text-yellow-800 mb-4 flex items-center gap-2 border-b border-yellow-200 pb-2">
-                <Activity className="w-5 h-5" />
-                Estado y Logística
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="estado" className="block text-sm font-medium text-gray-700 mb-1">Estado Actual</label>
-                  <div className="relative">
-                    <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <select
-                      name="estado"
-                      id="estado"
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                      value={formData.estado || ''}
-                      onChange={handleChange}
-                    >
-                      <option value="" disabled hidden>Seleccione estado...</option>
-                      <option value="En Bodega">En Bodega</option>
-                      <option value="Asignado">Asignado a Despacho</option>
-                      <option value="En Tránsito">En Tránsito</option>
-                      <option value="En Observacion">En Observación</option>
-                      <option value="Entregado">Entregado</option>
-                      <option value="Recibido">Recibido</option>
-                    </select>
-                  </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start ">
+              <div>
+                <label htmlFor="estado" className="block text-sm font-medium text-gray-700 mb-1">
+                  Estado Actual
+                </label>
+                <div className="relative">
+                  <CheckCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  <select
+                    name="estado"
+                    id="estado"
+                    className="w-full pl-10 pr-4 h-[42px] bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm font-medium text-slate-700"
+                    value={formData.estado || ''}
+                    onChange={handleChange}
+                  >
+                    <option value="" disabled hidden>Seleccione estado...</option>
+                    <option value="En Bodega">En Bodega</option>
+                    <option value="Asignado">Asignado a Despacho</option>
+                    <option value="En Tránsito">En Tránsito</option>
+                    <option value="En Observacion">En Observación</option>
+                    <option value="Entregado">Entregado</option>
+                    <option value="Recibido">Recibido</option>
+                  </select>
                 </div>
-
-                <div>
-                  <label htmlFor="despacho" className="block text-sm font-medium text-gray-700 mb-1">Despacho Asignado</label>
-                  <div className="relative">
-                    <Truck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                    <select
-                      name="id_despacho"
-                      id="despacho"
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition"
-                      value={formData.id_despacho}
-                      onChange={handleChange}
-                    >
-                      <option value="">(Ninguno / Pendiente)</option>
-                      {despachos.map(d => (
-                        <option key={d.id_despacho} value={d.id_despacho}>
-                          Despacho #{d.id_despacho} ({d.fecha_programada})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+              </div>
+              <div>
+                <label htmlFor="despacho" className="block text-sm font-medium text-gray-700 mb-1">
+                  Despacho Asignado
+                </label>
+                <Select
+                  inputId="despacho"
+                  name="id_despacho"
+                  options={opcionesDespachosEdicion}
+                  value={opcionDespachoSeleccionada}
+                  isClearable={true}
+                  isSearchable={true}
+                  placeholder="Seleccionar despacho..."
+                  noOptionsMessage={() => "No se encontraron despachos"}
+                  className="text-sm"
+                  menuPlacement="bottom"
+                  maxMenuHeight={185}
+                  menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                  onChange={(opcion) => {
+                    handleChange({
+                      target: {
+                        name: 'id_despacho',
+                        value: opcion ? opcion.value : '',
+                      },
+                    })
+                  }}
+                  formatOptionLabel={(option) => {
+                    if (option.isNullOption || !option.value) {
+                      return <span className="text-gray-400 italic text-sm">(Ninguno / Pendiente)</span>
+                    }
+                    return (
+                      <div className="flex items-center gap-2 py-0.5">
+                        <span className={`w-5 h-5 flex items-center justify-center text-[11px] font-black rounded border shrink-0 uppercase ${option.badgeClass}`}>
+                          {option.letra?.toUpperCase()}
+                        </span>
+                        <span className="font-semibold text-slate-800 text-sm">
+                          {option.textoRuta}
+                        </span>
+                        <span className="text-gray-400 text-xs font-normal">
+                          (#{option.idDespacho})
+                        </span>
+                      </div>
+                    )
+                  }}
+                  styles={{
+                    control: (base, state) => ({
+                      ...base,
+                      backgroundColor: '#FFFFFF',
+                      borderColor: state.isFocused ? '#6366F1' : '#D1D5DB',
+                      boxShadow: state.isFocused ? '0 0 0 2px rgba(99, 102, 241, 0.2)' : 'none',
+                      borderRadius: '0.5rem',
+                      height: '42px',
+                      minHeight: '42px',
+                      '&:hover': {
+                        borderColor: state.isFocused ? '#6366F1' : '#9CA3AF',
+                      },
+                    }),
+                    valueContainer: (base) => ({
+                      ...base,
+                      height: '42px',
+                      padding: '0 8px',
+                    }),
+                    indicatorsContainer: (base) => ({
+                      ...base,
+                      height: '42px',
+                    }),
+                    menuPortal: (base) => ({
+                      ...base,
+                      zIndex: 9999, 
+                    }),
+                    menu: (base) => ({
+                      ...base,
+                      borderRadius: '0.5rem',
+                      marginTop: '4px',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    }),
+                    menuList: (base) => ({
+                      ...base,
+                      maxHeight: '185px',
+                      padding: '4px',
+                    }),
+                    option: (base, state) => ({
+                      ...base,
+                      backgroundColor: state.isSelected ? '#EEF2FF' : state.isFocused ? '#F8FAFC' : 'white',
+                      color: '#374151',
+                      borderRadius: '0.375rem',
+                      padding: '8px 10px',
+                      cursor: 'pointer',
+                      '&:active': {
+                        backgroundColor: '#E0E7FF',
+                      },
+                    }),
+                  }}
+                />
               </div>
             </div>
 

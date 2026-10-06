@@ -10,6 +10,45 @@ import {
 import MermaModal from '../components/MermaModal'
 import { useUI } from '../context/UIContext'
 
+
+const detectarConfiguracionSucursal = (d) => {
+  if (!d) return { letra: '?', badgeClass: 'bg-slate-100 text-slate-700 border-slate-300' }
+  const origenStr = String(
+    d.origen ||
+    d.nombre_origen ||
+    d.sucursal_origen ||
+    d.sucursal_nombre ||
+    d.sucursal?.nombre ||
+    d.sucursal?.ciudad ||
+    d.sucursal ||
+    ''
+  ).toLowerCase()
+  if (origenStr.includes('antof')) {
+    return {
+      letra: 'A',
+      badgeClass: 'bg-purple-100 text-purple-700 border-purple-300',
+    }
+  }
+  if (origenStr.includes('iqui')) {
+    return {
+      letra: 'I',
+      badgeClass: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+    }
+  }
+  if (origenStr.includes('sant') || origenStr.includes('stgo')) {
+    return {
+      letra: 'S',
+      badgeClass: 'bg-blue-100 text-blue-700 border-blue-300',
+    }
+  }
+
+  const letraFallback = typeof getLetraOrigen === 'function' ? getLetraOrigen(d) : 'D'
+  return {
+    letra: letraFallback || 'D',
+    badgeClass: 'bg-slate-100 text-slate-700 border-slate-300',
+  }
+}
+
 export default function MercanciaList() {
   document.title = "Listado de Mercancias - GStorage"
   const { user } = useAuth()
@@ -187,39 +226,68 @@ export default function MercanciaList() {
   }, [clientes])
   const opcionesDespachosAsignacion = useMemo(() => {
     if (!despachos || despachos.length === 0) return []
+
     const userSucursalId = user?.perfil?.sucursal_id || user?.perfil?.sucursal?.id || user?.perfil?.sucursal
     const esDueno = user?.perfil?.rol === 'DUENO'
+
     return despachos
-      .filter(d => {
+      .filter((d) => {
         if (!d) return false
-        if (['Finalizado', 'Cancelado', 'Eliminado'].includes(d.estado_despacho)) return false
+        const estadosExcluidos = ['Finalizado', 'Cancelado', 'Eliminado']
+        if (estadosExcluidos.includes(d.estado_despacho || d.estado)) return false
 
         if (!esDueno) {
-          if (d.es_colaborador) return false
-          if (userSucursalId && d.sucursal_id && String(d.sucursal_id) !== String(userSucursalId)) {
+          const esPropio = userSucursalId && d.sucursal_id && String(d.sucursal_id) === String(userSucursalId)
+          const esCompartido = Boolean(d.es_colaborador || d.compartido)
+          if (!esPropio && !esCompartido) {
             return false
           }
         }
+
         return true
       })
-      .map(d => ({
-        value: d.id_despacho,
-        label: `Despacho #${d.id_despacho} | Ruta: ${d.nombre_ruta || d.id_ruta || 'S/N'}`
-      }))
+      .map((d) => {
+        const rutaRaw = d.nombre_ruta || d.ruta_nombre || d.id_ruta || 'S/N'
+        const rutaCorta = String(rutaRaw).split('-')[0].trim()
+        const textoRuta = rutaCorta.toLowerCase().includes('ruta') ? rutaCorta : `Ruta ${rutaCorta}`
+        const config = detectarConfiguracionSucursal(d)
+
+        return {
+          value: d.id_despacho || d.id,
+          label: `[${config.letra}] ${textoRuta} (Despacho #${d.id_despacho || d.id})`,
+          letra: config.letra,
+          textoRuta,
+          badgeClass: config.badgeClass,
+          idDespacho: d.id_despacho || d.id,
+        }
+      })
   }, [despachos, user])
   const opcionesDespachosFiltro = useMemo(() => {
-    const listaBase = [{ value: 'null', label: 'Sin Despacho Asignado' }]
+    const listaBase = [{ value: 'null', label: 'Sin Despacho Asignado', isNullOption: true }]
     if (!despachos || despachos.length === 0) return listaBase
+
     const esDueno = user?.perfil?.rol === 'DUENO'
     const despachosFiltrados = despachos.filter(d => {
       if (!d) return false
       if (esDueno) return !filtros.verCompartidos || Boolean(d.es_colaborador)
       return filtros.verCompartidos ? Boolean(d.es_colaborador) : !d.es_colaborador
     })
-    const opciones = despachosFiltrados.map(d => ({
-      value: String(d.id_despacho || d.id),
-      label: `${d.nombre_ruta || d.ruta_nombre || d.id_ruta || 'Sin Ruta'} (Despacho #${d.id_despacho || d.id})`
-    }))
+
+    const opciones = despachosFiltrados.map(d => {
+      const rutaRaw = d.nombre_ruta || d.ruta_nombre || d.id_ruta || 'S/N'
+      const rutaCorta = String(rutaRaw).split('-')[0].trim()
+      const textoRuta = rutaCorta.toLowerCase().includes('ruta') ? rutaCorta : `Ruta ${rutaCorta}`
+      const config = detectarConfiguracionSucursal(d)
+
+      return {
+        value: String(d.id_despacho || d.id),
+        label: `[${config.letra}] ${textoRuta} (Despacho #${d.id_despacho || d.id})`,
+        letra: config.letra,
+        textoRuta: textoRuta,
+        badgeClass: config.badgeClass,
+        idDespacho: d.id_despacho || d.id,
+      }
+    })
 
     return [...listaBase, ...opciones]
   }, [despachos, filtros.verCompartidos, user])
@@ -325,14 +393,27 @@ export default function MercanciaList() {
                     : null
                 }
                 onChange={(opt) => setBulkDispatchId(opt ? opt.value : '')}
+                formatOptionLabel={(option) => (
+                  <div className="flex items-center gap-2 py-0.5">
+                    <span className={`w-5 h-5 flex items-center justify-center text-[10px] font-black rounded border shrink-0 ${option.badgeClass}`}>
+                      {option.letra?.toUpperCase()}
+                    </span>
+                    <span className="font-semibold text-purple-500 text-xs">
+                      {option.textoRuta}
+                    </span>
+                    <span className="text-gray-400 text-[11px]">
+                      (#{option.idDespacho})
+                    </span>
+                  </div>
+                )}
               />
             </div>
             <button
               onClick={handleBulkAssign}
               disabled={!bulkDispatchId}
               className={`h-9 px-4 rounded-xl text-sm font-semibold transition-all flex items-center gap-1.5 shrink-0 shadow-sm ${!bulkDispatchId
-                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
-                  : 'bg-red-600 hover:bg-red-700 text-white shadow-red-900/30 active:scale-95'
+                ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                : 'bg-red-600 hover:bg-red-700 text-white shadow-red-900/30 active:scale-95'
                 }`}
             >
               <Check className="w-4 h-4" />
@@ -538,6 +619,24 @@ export default function MercanciaList() {
                   placeholder="Cualquier despacho..."
                   noOptionsMessage={() => "No se encontraron despachos"}
                   className="text-sm"
+                  formatOptionLabel={(option) => {
+                    if (option.isNullOption || option.value === 'null') {
+                      return <span className="text-gray-400 italic">{option.label}</span>
+                    }
+                    return (
+                      <div className="flex items-center gap-2">
+                        <span className={`w-5 h-5 flex items-center justify-center text-[11px] font-black rounded border shrink-0 ${option.badgeClass}`}>
+                          {option.letra}
+                        </span>
+                        <span className="font-semibold text-slate-800">
+                          {option.textoRuta}
+                        </span>
+                        <span className="text-gray-200 text-xs">
+                          (#{option.idDespacho})
+                        </span>
+                      </div>
+                    )
+                  }}
                   onChange={(opcion) => {
                     handleFiltroChange({
                       target: {
@@ -565,10 +664,10 @@ export default function MercanciaList() {
                     }),
                     option: (base, state) => ({
                       ...base,
-                      backgroundColor: state.isSelected ? '#991B1B' : state.isFocused ? '#FEF2F2' : 'white',
-                      color: state.isSelected ? 'white' : '#374151',
+                      backgroundColor: state.isSelected ? '#FEF2F2' : state.isFocused ? '#F3F4F6' : 'white',
+                      color: '#374151',
                       '&:active': {
-                        backgroundColor: '#991B1B'
+                        backgroundColor: '#FEE2E2'
                       }
                     })
                   }}

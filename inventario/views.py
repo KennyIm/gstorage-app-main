@@ -168,14 +168,18 @@ JURISDICCION_SUCURSALES = {
 class MercanciaListCreateAPI(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = MercanciasPagination
+
     def get_queryset(self):
         user = self.request.user
         empresa = get_empresa_from_user(self.request)
-        es_colaborador_subquery = PermisoColaboracion.objects.filter(
-            despacho_id=OuterRef('id_despacho_id'),
-            usuario_invitado=user,
-            activo=True
+        
+        despachos_colab_ids = list(
+            PermisoColaboracion.objects.filter(
+                usuario_invitado=user,
+                activo=True
+            ).values_list('despacho_id', flat=True)
         )
+
         qs = Mercancia.activos.filter(empresa=empresa).select_related(
             'id_cliente',
             'id_ubicacion_actual',
@@ -184,21 +188,40 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
             'id_proveedor',
             'control_entrega',
             'sucursal'
-        ).annotate(
-            es_colaborador=Exists(es_colaborador_subquery)
         )
+
         ver_compartidos = self.request.query_params.get('ver_compartidos') in ['true', 'True', '1']
         despacho_id = self.request.query_params.get('despacho') or self.request.query_params.get('id_despacho')
-        if getattr(user, 'perfil', None) and user.perfil.rol != 'DUENO':
+        from django.db.models import Case, When, Value, BooleanField
+        qs = qs.annotate(
+            es_colaborador=Case(
+                When(id_despacho__in=despachos_colab_ids, then=Value(True)),
+                default=Value(False),
+                output_field=BooleanField()
+            )
+        )
+        es_dueno = getattr(getattr(user, 'perfil', None), 'rol', '') == 'DUENO' or user.is_superuser
+
+        if not es_dueno and getattr(user, 'perfil', None):
             sucursal_usuario = user.perfil.sucursal
-            nombre_sucursal = getattr(sucursal_usuario, 'ciudad', getattr(sucursal_usuario, 'nombre', ''))
-            ciudades_zona = JURISDICCION_SUCURSALES.get(nombre_sucursal, [nombre_sucursal])
+            nombre_sucursal = ''
+            if sucursal_usuario:
+                nombre_sucursal = getattr(sucursal_usuario, 'ciudad', '') or getattr(sucursal_usuario, 'nombre', '')
+                if isinstance(nombre_sucursal, str):
+                    nombre_sucursal = nombre_sucursal.replace('Sucursal', '').strip()
+
+            ciudades_zona = JURISDICCION_SUCURSALES.get(nombre_sucursal, [nombre_sucursal]) if nombre_sucursal else []
+            
             q_destino_mi_zona = Q()
             for ciudad in ciudades_zona:
-                q_destino_mi_zona |= Q(id_destino__nombre_ciudad__icontains=ciudad)
+                if ciudad:
+                    q_destino_mi_zona |= Q(id_destino__nombre_ciudad__icontains=ciudad)
 
             condicion_propia = Q(sucursal=sucursal_usuario)
-            condicion_compartido = Q(es_colaborador=True) & q_destino_mi_zona
+            
+            condicion_compartido = Q(id_despacho__in=despachos_colab_ids)
+            if q_destino_mi_zona:
+                condicion_compartido = condicion_compartido & q_destino_mi_zona
 
             if ver_compartidos:
                 qs = qs.filter(condicion_compartido)
@@ -208,12 +231,14 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
                 qs = qs.filter(condicion_propia)
         else:
             if ver_compartidos:
-                qs = qs.filter(es_colaborador=True)
+                qs = qs.filter(id_despacho__in=despachos_colab_ids)
+
         if despacho_id:
-            if despacho_id == 'null':
+            if despacho_id == 'null' and not ver_compartidos:
                 qs = qs.filter(id_despacho__isnull=True)
-            else:
+            elif despacho_id != 'null':
                 qs = qs.filter(id_despacho=despacho_id)
+
         estado = self.request.query_params.get('estado')
         if estado and estado != 'TODOS':
             if estado in ['En Tránsito', 'En Transito']:
@@ -222,30 +247,39 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
                 qs = qs.filter(estado__in=['En Observacion', 'En Observación'])
             else:
                 qs = qs.filter(estado=estado)
+
         estado_in = self.request.query_params.get('estado_in')
         if estado_in:
             qs = qs.filter(estado__in=estado_in.split(','))
+
         search_general = self.request.query_params.get('search')
         if search_general:
             qs = qs.filter(Q(codigo_interno__icontains=search_general) | Q(factura__icontains=search_general))
+
         cliente = self.request.query_params.get('cliente')
         if cliente:
             qs = qs.filter(id_cliente__nombre_cliente__icontains=cliente)
+
         codigo_interno = self.request.query_params.get('codigo_interno')
         if codigo_interno:
             qs = qs.filter(codigo_interno__icontains=codigo_interno)
+
         destino = self.request.query_params.get('destino')
         if destino:
             qs = qs.filter(id_destino__nombre_ciudad__icontains=destino)
+
         factura = self.request.query_params.get('factura')
         if factura:
             qs = qs.filter(factura__icontains=factura)
+
         proveedor = self.request.query_params.get('proveedor')
         if proveedor:
             qs = qs.filter(id_proveedor__nombre_proveedor__icontains=proveedor)
+
         fecha_desde = self.request.query_params.get('fechaDesde')
         if fecha_desde:
             qs = qs.filter(fecha_ingreso__gte=fecha_desde)
+
         fecha_hasta = self.request.query_params.get('fechaHasta')
         if fecha_hasta:
             try:
@@ -527,11 +561,28 @@ class MercanciaAsignarMasivoAPI(APIView):
         ids = request.data.get('ids', [])
         id_despacho = request.data.get('id_despacho')
         user = request.user
+        empresa = get_empresa_from_user(request)
+
         if not ids or not id_despacho:
             return Response(
                 {"error": "Debe seleccionar mercancías y un despacho de destino."}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        try:
+            despacho = Despacho.objects.get(pk=id_despacho, empresa=empresa)
+        except Despacho.DoesNotExist:
+            return Response(
+                {"error": "El despacho seleccionado no existe o no pertenece a su empresa."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if despacho.estado_despacho in ['Finalizado', 'Cancelado', 'Eliminado']:
+            return Response(
+                {"error": f"No se puede asignar carga al Despacho #{id_despacho} porque se encuentra {despacho.estado_despacho}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
             with transaction.atomic():
                 queryset_seguro = filtrar_por_sucursal_y_empresa(Mercancia.objects.all(), request)
@@ -542,11 +593,14 @@ class MercanciaAsignarMasivoAPI(APIView):
                         {"error": "No se encontraron mercancías válidas para procesar en su sucursal."}, 
                         status=status.HTTP_404_NOT_FOUND
                     )
-                ubicaciones_ids = mercancias.exclude(id_ubicacion_actual__isnull=True)\
-                                            .values_list('id_ubicacion_actual', flat=True)
+
+                ubicaciones_ids = list(
+                    mercancias.exclude(id_ubicacion_actual__isnull=True)
+                              .values_list('id_ubicacion_actual', flat=True)
+                )
 
                 count = mercancias.update(
-                    id_despacho_id=id_despacho,
+                    id_despacho=despacho,
                     id_ubicacion_actual=None,
                     estado='Asignado',
                     id_usuario_ultima_modificacion=user
@@ -555,21 +609,25 @@ class MercanciaAsignarMasivoAPI(APIView):
                 if ubicaciones_ids:
                     Ubicacion.objects.filter(id_ubicacion__in=ubicaciones_ids).update(estado_ocupado=False)
 
-                empresa = get_empresa_from_user(request)
+                ruta_desc = getattr(despacho, 'nombre_ruta', None) or getattr(despacho, 'id_ruta', None) or id_despacho
+
                 HistorialMovimientos.objects.create(
                     empresa=empresa,
                     id_usuario=user,
                     id_mercancia=None,
                     tipo_movimiento='Asignación Masiva',
-                    descripcion_adicional=f"Asignación masiva de {mercancias.count()} ítems al Despacho #{id_despacho}.",
-                    )
+                    descripcion_adicional=f"Asignación masiva de {count} ítems al Despacho #{id_despacho} (Ruta: {ruta_desc}).",
+                )
 
             return Response({
-                "message": f"Éxito: {count} mercancías asignadas y ubicaciones liberadas."
+                "message": f"Éxito: {count} mercancías asignadas al Despacho #{id_despacho} y ubicaciones liberadas."
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
-            return Response({"error": f"Error en el servidor: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": f"Error en el servidor: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class MercanciaBulkUpdateOrdenAPIView(APIView):

@@ -19,6 +19,7 @@ export default function MercanciaDetail() {
   const [destinos, setDestinos] = useState([])
   const [ubicaciones, setUbicaciones] = useState([])
   const [sucursales, setSucursales] = useState([])
+  const [despachoInfo, setDespachoInfo] = useState(null)
   const [loading, setLoading] = useState(true)
   const { showToast } = useUI()
   const { id } = useParams()
@@ -27,9 +28,19 @@ export default function MercanciaDetail() {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!id) return
       setLoading(true)
+
       try {
-        const [mercanciaRes, controlRes, clientesRes, destinosRes, ubicacionesRes, sucursalesRes, provRes] = await Promise.all([
+        const [
+          mercanciaRes,
+          controlRes,
+          clientesRes,
+          destinosRes,
+          ubicacionesRes,
+          sucursalesRes,
+          provRes
+        ] = await Promise.all([
           apiClient.get(`/api/inventario/mercancias/${id}/`),
           apiClient.get(`/api/seguimiento/control-entrega/${id}/`),
           apiClient.get('/api/inventario/clientes/'),
@@ -38,13 +49,27 @@ export default function MercanciaDetail() {
           apiClient.get('/api/usuarios/sucursales/'),
           apiClient.get('/api/inventario/proveedores/')
         ])
-        setMercancia(mercanciaRes.data)
+
+        const mercanciaData = mercanciaRes.data
+        setMercancia(mercanciaData)
         setControlEntrega(controlRes.data)
         setClientes(clientesRes.data)
         setDestinos(destinosRes.data)
         setUbicaciones(ubicacionesRes.data)
         setSucursales(sucursalesRes.data)
         setProveedores(provRes.data)
+
+        if (mercanciaData?.id_despacho) {
+          try {
+            const despachoRes = await apiClient.get(`/api/inventario/despachos/${mercanciaData.id_despacho}/`)
+            setDespachoInfo(despachoRes.data)
+          } catch (errDespacho) {
+            console.warn("No se pudo cargar la información del despacho:", errDespacho)
+            setDespachoInfo(null)
+          }
+        } else {
+          setDespachoInfo(null)
+        }
 
       } catch (err) {
         if (err.response && err.response.status === 401) {
@@ -58,6 +83,7 @@ export default function MercanciaDetail() {
         setLoading(false)
       }
     }
+
     fetchData()
   }, [id, logoutUser, showToast])
   const getNombreCliente = (id) => {
@@ -89,7 +115,41 @@ export default function MercanciaDetail() {
         showToast('No se pudo eliminar la mercancía.', 'error');
       }
     }
-  };
+  }
+
+  const renderRutaDespacho = () => {
+    if (!mercancia?.id_despacho) {
+      return <span className="text-slate-400 italic text-xs">Sin despacho asignado</span>
+    }
+    if (!despachoInfo) {
+      return (
+        <div className="flex items-center gap-1.5 text-blue-600 font-medium text-sm">
+          <Truck className="w-4 h-4 shrink-0 animate-pulse" />
+          <span>Despacho #{mercancia.id_despacho}</span>
+        </div>
+      )
+    }
+    const rutaRaw = despachoInfo.codigo_ruta || despachoInfo.nombre_ruta || ''
+    const rutaCorta = String(rutaRaw).split('-')[0].trim()
+    const textoRuta = rutaCorta.toLowerCase().includes('ruta')
+      ? rutaCorta
+      : (rutaCorta ? `Ruta ${rutaCorta}` : `Despacho #${mercancia.id_despacho}`)
+    const esCompartido = despachoInfo.es_compartido || despachoInfo.compartido
+    const letra = (typeof getLetraOrigen === 'function' && esCompartido)
+      ? getLetraOrigen(despachoInfo)
+      : null
+    return (
+      <div className="flex items-center gap-1.5 text-blue-600 font-semibold text-sm">
+        <Truck className="w-4 h-4 shrink-0" />
+        {letra && (
+          <span className="text-yellow-500 font-black text-[15px]">
+            {letra}
+          </span>
+        )}
+        <span>{textoRuta}</span>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -348,8 +408,7 @@ export default function MercanciaDetail() {
                   <span className="block text-xs font-medium text-gray-500 uppercase mb-1">Despacho</span>
                   {mercancia.id_despacho ? (
                     <div className="flex items-center gap-2 text-blue-600 font-medium">
-                      <Truck className="w-4 h-4" />
-                      Despacho #{mercancia.id_despacho}
+                      {renderRutaDespacho()}
                     </div>
                   ) : (
                     <span className="text-gray-400 italic text-sm">Pendiente de asignar</span>

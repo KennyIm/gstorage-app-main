@@ -322,7 +322,7 @@ export default function OrdenEntregaPlantilla() {
                     </label>
                 </div>
             </div>
-            <div className="max-w-5xl mx-auto mb-6 flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100 print:hidden">
+            <div className="max-w-6xl mx-auto mb-6 flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100 print:hidden">
                 <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-600 hover:text-indigo-600 font-medium transition flex-shrink-0">
                     <ArrowLeft className="w-5 h-5" /> Volver al Despacho
                 </button>
@@ -512,7 +512,7 @@ export default function OrdenEntregaPlantilla() {
                                             </div>
                                             <div className="flex flex-wrap items-start gap-x-4 gap-y-1 text-[10px] font-medium text-slate-600">
                                                 <p className="flex items-start gap-1 flex-1 min-w-[50%]">
-                                                    <MapPin className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
+                                                    <MapPin className="w-3 h-3 text-red-500 shrink-0 mt-0.1" />
                                                     <span className='text-slate-900 font-bold leading-tight break-words'>
                                                         {direccionMostrar}, {ciudadMostrar}
                                                     </span>
@@ -575,7 +575,7 @@ export default function OrdenEntregaPlantilla() {
                                                                     readOnly
                                                                 />
                                                             </td>
-                                                            <td className="py-1.5 px-1 text-center font-medium text-slate-700 align-middle">{carga.tipo_documento_mercancia}:{carga.factura || '-'}</td>
+                                                            <td className="py-1.5 px-1 text-center font-semibold text-slate-900 align-middle">{carga.tipo_documento_mercancia}:{carga.factura || '-'}</td>
                                                             <td className="py-1.5 px-1 text-center leading-tight align-middle">
                                                                 {cobroPorM3 ? (
                                                                     <>
@@ -596,14 +596,14 @@ export default function OrdenEntregaPlantilla() {
                                             </tbody>
                                         </table>
                                     </div>
-                                    <div className="mt-4 pt-4 border-t border-slate-100 shrink-0">
+                                    <div className="mt-4 pt-4 border-t border-slate-100 shrink-0 ">
                                         <div className="flex justify-between items-end w-full gap-4">
                                             <div className="text-center w-72 mb-1">
                                                 <div className="border-t-2 border-slate-400 pt-1.5">
-                                                    <p className="font-bold text-[9px] text-slate-900 uppercase">Recibe Conforme, Nombre, RUT, Firma y Fecha</p>
+                                                    <p className="font-bold text-[11px] text-slate-900 uppercase">Recibe Conforme, Nombre, RUT, Firma y Fecha</p>
                                                 </div>
                                             </div>
-                                            <div className="border border-slate-400 rounded-md py-1 px-2 w-72 text-[9px] text-slate-900 font-semibold bg-white mb-1 shrink-0">
+                                            <div className="border border-slate-400 rounded-md py-1 px-2 w-72 text-[11px] text-slate-900 font-semibold bg-white mb-1 shrink-0">
                                                 <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                                                     <div className="flex items-center gap-1.5 w-full">
                                                         <span className="shrink-0">Efectivo</span>
@@ -633,20 +633,20 @@ export default function OrdenEntregaPlantilla() {
                                                     <div className="flex items-center gap-1.5 w-full">
                                                         <span className="shrink-0">Orden de Compra</span>
                                                         <div className="w-2.5 h-2.5 border border-slate-900 rounded-sm shrink-0"></div>
-                                                        <div className="flex-1 border-b border-slate-400 h-2 min-w-[35px]"></div>
+                                                        <div className="flex-1 border-b border-slate-400 h-2 min-w-[22px]"></div>
                                                     </div>
                                                 </div>
                                             </div>
                                             <div className="w-48 text-right">
                                                 {pagina.esUltimaPaginaDelCliente ? (
                                                     <div className="border-t border-slate-200 pt-2">
-                                                        <div className="flex justify-between text-[10px] text-slate-600">
+                                                        <div className="flex justify-between text-[11px] text-slate-900 font-semibold">
                                                             <span>Subtotal Neto</span><span>${formatoDinero(pagina.totalNeto)}</span>
                                                         </div>
-                                                        <div className="flex justify-between text-[10px] text-slate-600">
+                                                        <div className="flex justify-between text-[11px] text-slate-900 font-semibold">
                                                             <span>IVA (19%)</span><span>${formatoDinero(pagina.iva)}</span>
                                                         </div>
-                                                        <div className="flex justify-between border-t border-slate-900 font-black text-sm text-slate-900 mt-1 pt-1">
+                                                        <div className="flex justify-between border-t border-slate-900 font-black text-lg text-slate-900 mt-1 pt-1">
                                                             <span>TOTAL</span><span>${formatoDinero(pagina.totalBruto)}</span>
                                                         </div>
                                                     </div>
