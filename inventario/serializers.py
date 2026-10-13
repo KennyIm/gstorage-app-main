@@ -155,19 +155,19 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
     nombre_conductor = serializers.CharField(source='id_conductor.nombre_completo', read_only=True)
     nombre_ruta = serializers.CharField(source='id_ruta.codigo_ruta', read_only=True)
     colaboradores_activos = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = Despacho
         fields = [
             'id_despacho',
             'fecha_programada', 'fecha_salida_real', 'id_camion', 'nombre_ruta',
-            'id_conductor', 'id_ruta', 'estado_despacho','nombre_conductor',
-            'origen','destino','id_rampla','sucursal_id', 'colaboradores_activos', 'orden_mercancias'
+            'id_conductor', 'id_ruta', 'estado_despacho', 'nombre_conductor',
+            'origen', 'destino', 'id_rampla', 'sucursal_id', 'colaboradores_activos', 'orden_mercancias'
         ]
         read_only_fields = ['empresa']
 
     def get_colaboradores_activos(self, obj):
         permisos = obj.colaboradores_invitados.filter(activo=True)
-        
         lista_colaboradores = []
         for permiso in permisos:
             usuario = permiso.usuario_invitado
@@ -177,60 +177,99 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
                 "nombre_completo": f"{usuario.first_name} {usuario.last_name}".strip() or usuario.username,
                 "otorgado_por": permiso.otorgado_por.username if permiso.otorgado_por else "Sistema"
             })
-            
         return lista_colaboradores
-    
+
     def validate(self, data):
         camion = data.get('id_camion')
         conductor = data.get('id_conductor')
-        fecha_nueva_prog = data.get('fecha_programada')
+        rampla = data.get('id_rampla')
+
+        inicio_nuevo = data.get('fecha_salida_real') or data.get('fecha_programada')
         
+        if not inicio_nuevo and self.instance:
+            inicio_nuevo = self.instance.fecha_salida_real or self.instance.fecha_programada
+
+        if not inicio_nuevo:
+            return data
+
+        duracion_estimada = timedelta(days=1, hours=4)
+        fin_nuevo = inicio_nuevo + duracion_estimada
         instance_id = self.instance.id_despacho if self.instance else None
 
-        if camion and fecha_nueva_prog:
-            despachos_previos = Despacho.objects.filter(
-                id_camion=camion
+        if camion:
+            despachos_camion = Despacho.objects.filter(
+                id_camion=camion,
+                activo=True
             ).exclude(
-                estado_despacho='Finalizado'
+                estado_despacho__in=['Finalizado', 'Cancelado', 'Eliminado']
             ).exclude(
-                pk=instance_id 
+                pk=instance_id
             )
 
-            for previo in despachos_previos:
-                if not previo.fecha_salida_real:
-                     raise serializers.ValidationError({
-                        "id_camion": f"El camión {camion} está ocupado en el Despacho #{previo.id_despacho} (Aún no sale)."
-                    })
-                
-                else:
-                    fecha_liberacion_exacta = previo.fecha_salida_real + timedelta(days=1, hours=4)
-                    fecha_liberacion = fecha_liberacion_exacta.date()
-                    
-                    if fecha_nueva_prog < fecha_liberacion:
-                        raise serializers.ValidationError({
-                            "id_camion": f"El camión no estará disponible hasta el {fecha_liberacion.strftime('%d/%m/%Y')} (Despacho #{previo.id_despacho})."
-                        })
-        
-        if conductor and fecha_nueva_prog:
-            despachos_conductor = Despacho.objects.filter(id_conductor=conductor).exclude(pk=instance_id)
-            
-            for previo in despachos_conductor:
-                if not previo.fecha_salida_real and previo.estado_despacho != 'Finalizado':
-                     raise serializers.ValidationError({
-                        "id_conductor": f"El conductor {conductor} ya está asignado al Despacho #{previo.id_despacho}."
-                    })
-                
-                if previo.fecha_salida_real:
-                    fecha_liberacion_exacta = previo.fecha_salida_real + timedelta(days=1, hours=4)
-                    fecha_liberacion = fecha_liberacion_exacta.date()
+            for previo in despachos_camion:
+                inicio_previo = previo.fecha_salida_real or previo.fecha_programada
+                if not inicio_previo:
+                    continue
 
-                    fecha_inicio_previo = previo.fecha_salida_real.date()
-                    
-                    if fecha_inicio_previo <= fecha_nueva_prog <= fecha_liberacion:
-                        raise serializers.ValidationError({
-                            "id_conductor": f"Conflicto de fechas. El conductor estuvo/estará ocupado desde el {fecha_inicio_previo.strftime('%d/%m/%Y')} hasta el {fecha_liberacion.strftime('%d/%m/%Y')}."
-                        })
-        
+                fin_previo = inicio_previo + duracion_estimada
+
+                if inicio_nuevo < fin_previo and fin_nuevo > inicio_previo:
+                    f_ini = inicio_previo.strftime('%d/%m/%Y %H:%M')
+                    f_fin = fin_previo.strftime('%d/%m/%Y %H:%M')
+                    raise serializers.ValidationError({
+                        "id_camion": f"El camión {camion} tiene un conflicto de horario con el Despacho #{previo.id_despacho} ({f_ini} al {f_fin})."
+                    })
+
+
+        if conductor:
+            despachos_conductor = Despacho.objects.filter(
+                id_conductor=conductor,
+                activo=True
+            ).exclude(
+                estado_despacho__in=['Finalizado', 'Cancelado', 'Eliminado']
+            ).exclude(
+                pk=instance_id
+            )
+
+            for previo in despachos_conductor:
+                inicio_previo = previo.fecha_salida_real or previo.fecha_programada
+                if not inicio_previo:
+                    continue
+
+                fin_previo = inicio_previo + duracion_estimada
+
+                if inicio_nuevo < fin_previo and fin_nuevo > inicio_previo:
+                    f_ini = inicio_previo.strftime('%d/%m/%Y %H:%M')
+                    f_fin = fin_previo.strftime('%d/%m/%Y %H:%M')
+                    raise serializers.ValidationError({
+                        "id_conductor": f"El conductor {conductor} tiene un conflicto de horario con el Despacho #{previo.id_despacho} ({f_ini} al {f_fin})."
+                    })
+
+
+        if rampla:
+            despachos_rampla = Despacho.objects.filter(
+                id_rampla=rampla,
+                activo=True
+            ).exclude(
+                estado_despacho__in=['Finalizado', 'Cancelado', 'Eliminado']
+            ).exclude(
+                pk=instance_id
+            )
+
+            for previo in despachos_rampla:
+                inicio_previo = previo.fecha_salida_real or previo.fecha_programada
+                if not inicio_previo:
+                    continue
+
+                fin_previo = inicio_previo + duracion_estimada
+
+                if inicio_nuevo < fin_previo and fin_nuevo > inicio_previo:
+                    f_ini = inicio_previo.strftime('%d/%m/%Y %H:%M')
+                    f_fin = fin_previo.strftime('%d/%m/%Y %H:%M')
+                    raise serializers.ValidationError({
+                        "id_rampla": f"La rampla {rampla} tiene un conflicto de horario con el Despacho #{previo.id_despacho} ({f_ini} al {f_fin})."
+                    })
+
         return data
 
     def validate_fecha_salida_real(self, value):
