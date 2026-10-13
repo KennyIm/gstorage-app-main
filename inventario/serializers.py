@@ -3,7 +3,7 @@ from cryptography.fernet import Fernet
 from django.conf import settings
 from rest_framework import serializers
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, date, datetime
 from .models import (
     Mercancia, Cliente, Despacho, Conductor, 
     Camion, Ruta, Destino, Ubicacion, Estanteria, ReporteGenerado, HistorialMovimientos,
@@ -151,6 +151,19 @@ class DespachoListSerializer(serializers.ModelSerializer):
             return obj.colaboradores_invitados.filter(usuario_invitado=request.user, activo=True).exists()
         return False
 
+def normalizar_datetime(val):
+    if not val:
+        return None
+    
+    if isinstance(val, date) and not isinstance(val, datetime):
+        val = datetime.combine(val, datetime.min.time())
+        
+    if timezone.is_naive(val):
+        val = timezone.make_aware(val)
+        
+    return val
+
+
 class DespachoWriteSerializer(serializers.ModelSerializer):
     nombre_conductor = serializers.CharField(source='id_conductor.nombre_completo', read_only=True)
     nombre_ruta = serializers.CharField(source='id_ruta.codigo_ruta', read_only=True)
@@ -184,14 +197,15 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
         conductor = data.get('id_conductor')
         rampla = data.get('id_rampla')
 
-        inicio_nuevo = data.get('fecha_salida_real') or data.get('fecha_programada')
+        raw_inicio = data.get('fecha_salida_real') or data.get('fecha_programada')
         
-        if not inicio_nuevo and self.instance:
-            inicio_nuevo = self.instance.fecha_salida_real or self.instance.fecha_programada
+        if not raw_inicio and self.instance:
+            raw_inicio = self.instance.fecha_salida_real or self.instance.fecha_programada
 
-        if not inicio_nuevo:
+        if not raw_inicio:
             return data
 
+        inicio_nuevo = normalizar_datetime(raw_inicio)
         duracion_estimada = timedelta(days=1, hours=4)
         fin_nuevo = inicio_nuevo + duracion_estimada
         instance_id = self.instance.id_despacho if self.instance else None
@@ -207,7 +221,8 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
             )
 
             for previo in despachos_camion:
-                inicio_previo = previo.fecha_salida_real or previo.fecha_programada
+                raw_previo = previo.fecha_salida_real or previo.fecha_programada
+                inicio_previo = normalizar_datetime(raw_previo)
                 if not inicio_previo:
                     continue
 
@@ -216,11 +231,11 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
                 if inicio_nuevo < fin_previo and fin_nuevo > inicio_previo:
                     f_ini = inicio_previo.strftime('%d/%m/%Y %H:%M')
                     f_fin = fin_previo.strftime('%d/%m/%Y %H:%M')
+                    patente = getattr(camion, 'patente', str(camion))
                     raise serializers.ValidationError({
-                        "id_camion": f"El camión {camion} tiene un conflicto de horario con el Despacho #{previo.id_despacho} ({f_ini} al {f_fin})."
+                        "id_camion": f"El camión {patente} tiene un conflicto de horario con el Despacho #{previo.id_despacho} ({f_ini} al {f_fin})."
                     })
-
-
+                
         if conductor:
             despachos_conductor = Despacho.objects.filter(
                 id_conductor=conductor,
@@ -232,7 +247,8 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
             )
 
             for previo in despachos_conductor:
-                inicio_previo = previo.fecha_salida_real or previo.fecha_programada
+                raw_previo = previo.fecha_salida_real or previo.fecha_programada
+                inicio_previo = normalizar_datetime(raw_previo)
                 if not inicio_previo:
                     continue
 
@@ -241,11 +257,11 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
                 if inicio_nuevo < fin_previo and fin_nuevo > inicio_previo:
                     f_ini = inicio_previo.strftime('%d/%m/%Y %H:%M')
                     f_fin = fin_previo.strftime('%d/%m/%Y %H:%M')
+                    nombre = getattr(conductor, 'nombre_completo', str(conductor))
                     raise serializers.ValidationError({
-                        "id_conductor": f"El conductor {conductor} tiene un conflicto de horario con el Despacho #{previo.id_despacho} ({f_ini} al {f_fin})."
+                        "id_conductor": f"El conductor {nombre} tiene un conflicto de horario con el Despacho #{previo.id_despacho} ({f_ini} al {f_fin})."
                     })
-
-
+                
         if rampla:
             despachos_rampla = Despacho.objects.filter(
                 id_rampla=rampla,
@@ -257,7 +273,8 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
             )
 
             for previo in despachos_rampla:
-                inicio_previo = previo.fecha_salida_real or previo.fecha_programada
+                raw_previo = previo.fecha_salida_real or previo.fecha_programada
+                inicio_previo = normalizar_datetime(raw_previo)
                 if not inicio_previo:
                     continue
 
@@ -266,16 +283,18 @@ class DespachoWriteSerializer(serializers.ModelSerializer):
                 if inicio_nuevo < fin_previo and fin_nuevo > inicio_previo:
                     f_ini = inicio_previo.strftime('%d/%m/%Y %H:%M')
                     f_fin = fin_previo.strftime('%d/%m/%Y %H:%M')
+                    patente_rampla = getattr(rampla, 'patente', str(rampla))
                     raise serializers.ValidationError({
-                        "id_rampla": f"La rampla {rampla} tiene un conflicto de horario con el Despacho #{previo.id_despacho} ({f_ini} al {f_fin})."
+                        "id_rampla": f"La rampla {patente_rampla} tiene un conflicto de horario con el Despacho #{previo.id_despacho} ({f_ini} al {f_fin})."
                     })
 
         return data
 
     def validate_fecha_salida_real(self, value):
         if value:
+            dt_val = normalizar_datetime(value)
             now = timezone.now()
-            if value < (now - timedelta(days=365)):
+            if dt_val < (now - timedelta(days=365)):
                 raise serializers.ValidationError("La fecha de salida real no puede ser tan antigua (máx 1 año atrás).")
         return value
 
