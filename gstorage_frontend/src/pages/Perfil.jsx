@@ -1,26 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import apiClient from '../services/api';
-import ChangePasswordModal from '../components/ChangePasswordModal';
-import EditProfileModal from '../components/EditProfileModal';
-import { User, Mail, Calendar, Shield, Edit, Phone, Building, Warehouse, QrCode, ShieldAlert, Trash2, Trash, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react'
+import { useAuth } from '../context/AuthContext'
+import apiClient from '../services/api'
+import ChangePasswordModal from '../components/ChangePasswordModal'
+import EditProfileModal from '../components/EditProfileModal'
+import { User, Mail, Calendar, Shield, Edit, Phone, Building, Warehouse, QrCode, ShieldAlert, Trash2, Trash, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 export default function Perfil() {
-  document.title = "Perfil - GStorage";
+  document.title = "Perfil - GStorage"
   const navigate = useNavigate()
-  const { user, authTokens } = useAuth();
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [sucursales, setSucursales] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showDisableModal, setShowDisableModal] = useState(false);
-  const [loading2fa, setLoading2fa] = useState(false);
-  const is2faActivo = user?.perfil?.is_2fa_enabled || false;
-  const [error, setError] = useState(null);
+  const { user: authUser, logoutUser } = useAuth()
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [sucursales, setSucursales] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showDisableModal, setShowDisableModal] = useState(false)
+  const [loading2fa, setLoading2fa] = useState(false)
+  const [error, setError] = useState(null)
+  const [userData, setUserData] = useState(null)
+  const user = userData || authUser
+  const is2faActivo = user?.perfil?.is_2fa_enabled || false
 
   const handleDesactivar2FA = async () => {
-    setLoading2fa(true);
+    setLoading2fa(true)
     try {
       await apiClient.post('/api/usuarios/2fa/desactivar/')
       alert("Seguridad modificada: Doble factor eliminado.")
@@ -28,60 +30,62 @@ export default function Perfil() {
     } catch (err) {
       alert("Hubo un error al intentar desactivar el 2FA.")
     } finally {
-      setLoading2fa(false);
-      setShowDisableModal(false);
+      setLoading2fa(false)
+      setShowDisableModal(false)
     }
   }
 
   const handleProfileUpdate = () => {
-    window.location.reload();
-  };
+    window.location.reload()
+  }
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setError(null);
+        setError(null)
 
-        const [sucursalesRes] = await Promise.all([
-          apiClient.get('/api/usuarios/sucursales/')
-        ]);
+        const [sucursalesRes, userRes] = await Promise.all([
+          apiClient.get('/api/usuarios/sucursales/'),
+          apiClient.get('/api/usuarios/me/') 
+        ])
 
-        setSucursales(sucursalesRes.data);
-        setLoading(false);
-
+        setSucursales(sucursalesRes.data)
+        setUserData(userRes.data)
       } catch (err) {
         if (err.response && err.response.status === 401) {
-          if (logoutUser) logoutUser();
+          if (logoutUser) logoutUser()
         } else {
-          console.error("Error al cargar datos:", err);
-          setError("No se pudo cargar la información de las sucursales.");
+          console.error("Error al cargar datos:", err)
+          setError("No se pudo cargar la información del perfil.")
         }
-        setLoading(false);
+      } finally {
+        setLoading(false)
       }
-    };
+    }
 
-    fetchData();
-  }, []);
+    fetchData()
+  }, [])
 
   const getNombreSucursal = (id) => {
-    if (!id) return 'Sin sucursal';
-    const sucursal = sucursales.find(s => String(s.id) === String(id));
+    if (!id) return 'Sin sucursal'
+    const sucursal = sucursales.find(s => String(s.id) === String(id))
     return sucursal ? sucursal.nombre : `Suc ${id}`
   }
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'Nunca';
+    if (!dateString) return 'Nunca'
     return new Date(dateString).toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
-    });
-  };
+    })
+  }
+
 
   if (!user) return <div className="p-8 text-center">Cargando perfil...</div>;
-  if (loading) return <div>Cargando perfil...</div>;
-  if (error) return <div className="text-red-600">{error}</div>;
+  if (loading) return <div>Cargando perfil...</div>
+  if (error) return <div className="text-red-600">{error}</div>
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
