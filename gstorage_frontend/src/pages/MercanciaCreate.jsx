@@ -367,8 +367,9 @@ export default function MercanciaCreate() {
                       <option value="Guia">Guía de Despacho</option>
                       <option value="DUS">Aduana (DUS)</option>
                       <option value="Solicitud Envio">Solicitud de envió</option>
-                      <option value="DIN">Declaración de Ingreso</option>
-                      <option value="DIPS">Declaración de Ingreso Simplificada</option>
+                      <option value="DIN">Declaración de Ingreso(DIN)</option>
+                      <option value="DIPS">Declaración de Ingreso Simplificada(DIPS)</option>
+                      <option value="MFTO">Manifiesto(MFTO)</option>
                     </select>
                   </div>
                 </div>

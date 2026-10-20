@@ -408,7 +408,8 @@ class Mercancia(models.Model):
         ('DUS', 'Documento Único de Salida (Aduana)'),
         ('Solicitud Envio', 'Solicitud de envió'),
         ("DIN", "Declaración de Ingreso"),
-        ("DIPS", "Declaración de Importación y Pago Simultáneo")
+        ("DIPS", "Declaración de Importación y Pago Simultáneo"),
+        ("MFTO", "Manifiesto")
     ]
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name="mercancias")
     sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE)
