@@ -594,6 +594,11 @@ class MercanciaAsignarMasivoAPI(APIView):
                         status=status.HTTP_404_NOT_FOUND
                     )
 
+                codigos_internos = list(
+                    mercancias.exclude(codigo_interno__isnull=True)
+                              .values_list('codigo_interno', flat=True)
+                )
+
                 ubicaciones_ids = list(
                     mercancias.exclude(id_ubicacion_actual__isnull=True)
                               .values_list('id_ubicacion_actual', flat=True)
@@ -617,6 +622,12 @@ class MercanciaAsignarMasivoAPI(APIView):
                     id_mercancia=None,
                     tipo_movimiento='Asignación Masiva',
                     descripcion_adicional=f"Asignación masiva de {count} ítems al Despacho #{id_despacho} (Ruta: {ruta_desc}).",
+                    detalles={
+                        "id_despacho": id_despacho,
+                        "cantidad_items": count,
+                        "codigos_internos": codigos_internos, 
+                        "ruta": str(ruta_desc)
+                    }
                 )
 
             return Response({
@@ -1294,22 +1305,33 @@ class EstanteriaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
 class HistorialPagination(PageNumberPagination):
     page_size = 25  
     page_size_query_param = 'page_size'
-    max_page_size = 50
+    max_page_size = 1000
 
 class HistorialListAPI(generics.ListAPIView):
     serializer_class = HistorialSerializer
     permission_classes = [permissions.IsAuthenticated, AllowRoles('DUENO')]
     pagination_class = HistorialPagination
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['descripcion_adicional', 'modelo_afectado', 'accion'] 
 
     def get_queryset(self):
-        qs = HistorialMovimientos.objects.all().order_by('-fecha_hora_movimiento')
+        qs = HistorialMovimientos.objects.all().select_related('id_usuario').order_by('-fecha_hora_movimiento')
+        
+        search = self.request.query_params.get('search', None)
         accion = self.request.query_params.get('accion', None)
         fecha_desde = self.request.query_params.get('fecha_desde', None)
         fecha_hasta = self.request.query_params.get('fecha_hasta', None)
+
+        if search:
+            qs = qs.filter(
+                Q(id_usuario__username__icontains=search) |
+                Q(id_usuario__first_name__icontains=search) |
+                Q(id_usuario__last_name__icontains=search) |
+                Q(descripcion_adicional__icontains=search) |
+                Q(tipo_movimiento__icontains=search) |
+                Q(detalles__icontains=search)
+            )
+
         if accion and accion != 'Todos':
-            qs = qs.filter(accion__icontains=accion)
+            qs = qs.filter(tipo_movimiento__icontains=accion)
 
         if fecha_desde:
             qs = qs.filter(fecha_hora_movimiento__gte=fecha_desde)

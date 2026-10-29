@@ -558,9 +558,12 @@ export default function RecepcionPatioMobile() {
                             FAC: <strong className='text-green-300'>{m.factura || `S/N`}</strong>
                           </span>
                         </div>
-                        <h4 className="m-0 text-sm font-bold text-slate-900 leading-tight">
+                        <h4 className="mb-1 text-sm font-bold text-slate-900 leading-tight">
                           {m.nombre_cliente}
                         </h4>
+                        <h2 className="text-xs font-bold text-purple-600 leading-tight">
+                          {m.nombre_proveedor}
+                        </h2>
                       </div>
 
                       {esRevisado && (
