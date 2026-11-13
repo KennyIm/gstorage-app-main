@@ -92,6 +92,8 @@ import DespachoMovil from './pages/seguimiento/DespachoMovil'
 import SeguimientoDespacho from './pages/seguimiento/SeguimientoDespacho'
 import RecepcionPatioMobile from './pages/movil/RecepcionPatioMobile'
 
+import HistorialLlamadas from './pages/historial/HistorialLlamadas'
+
 import LoginExpress from './pages/LoginExpress'
 
 const MainPlatformGuard = () => {
@@ -214,6 +216,8 @@ function App() {
             <Route path='/despachos-cobranza' element={<VistaGlobalDespachosCobranza />} />
 
             <Route path='/grilla-finanzas' element={<FinanzasGrillaExcel />} />
+
+            <Route path='/telefonia' element={<HistorialLlamadas/>}/>
           </Route>
         </Route>
       </Route>

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import ComprobanteEntrega, ControlEntrega
+from .models import ComprobanteEntrega, ControlEntrega, LlamadaTelefonica, EventoTelefonico
 from inventario.models import Mercancia
 
 class ComprobanteEntregaSerializer(serializers.ModelSerializer):
@@ -74,3 +74,54 @@ class MercanciaSeguimientoSerializer(serializers.ModelSerializer):
         if hasattr(obj, 'id_destino') and obj.id_destino:
             return obj.id_destino.nombre_ciudad
         return getattr(obj, 'nombre_destino', '') or 'Sin Destino'
+
+
+# ******** SERIALIZERS PARA LAS LLAMADAS ******** #
+
+class EventoTelefonicoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventoTelefonico
+        fields = [
+            'id',
+            'tipo_evento',
+            'destino',
+            'motivo_fallo',
+            'payload',
+            'creado_en',
+        ]
+
+
+class LlamadaTelefonicaListSerializer(serializers.ModelSerializer):
+    estado_final_display = serializers.CharField(
+        source='get_estado_final_display',
+        read_only=True
+    )
+    duracion_segundos = serializers.SerializerMethodField()
+    total_eventos = serializers.IntegerField(source='eventos.count', read_only=True)
+
+    class Meta:
+        model = LlamadaTelefonica
+        fields = [
+            'unique_id',
+            'origen',
+            'bodega_seleccionada',
+            'estado_final',
+            'estado_final_display',
+            'paga_proveedor',
+            'fecha_inicio',
+            'fecha_fin',
+            'duracion_segundos',
+            'total_eventos',
+        ]
+
+    def get_duracion_segundos(self, obj):
+        if obj.fecha_inicio and obj.fecha_fin:
+            return int((obj.fecha_fin - obj.fecha_inicio).total_seconds())
+        return None
+
+
+class LlamadaTelefonicaDetailSerializer(LlamadaTelefonicaListSerializer):
+    eventos = EventoTelefonicoSerializer(many=True, read_only=True)
+
+    class Meta(LlamadaTelefonicaListSerializer.Meta):
+        fields = LlamadaTelefonicaListSerializer.Meta.fields + ['eventos']

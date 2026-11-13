@@ -86,16 +86,28 @@ export default function MercanciaCreate() {
 
   // --- CÁLCULO DE PRECIO EN VIVO ---
   useEffect(() => {
-    if (formData?.id_cliente && formData?.kg && formData?.m3) {
+    if (formData?.id_cliente && (formData?.kg || formData?.m3)) {
       const clienteSeleccionado = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente))
+
       if (clienteSeleccionado) {
         const peso = parseFloat(String(formData.kg).replace(',', '.')) || 0
         const volumen = parseFloat(String(formData.m3).replace(',', '.')) || 0
-        const precioKg = parseFloat(clienteSeleccionado.precio_kg) || 0
-        const precioM3 = parseFloat(clienteSeleccionado.precio_m3) || 0
+
+        let precioKg = parseFloat(clienteSeleccionado.precio_kg) || 0
+        let precioM3 = parseFloat(clienteSeleccionado.precio_m3) || 0
+
+        if (formData.tipo_tarifa === 'tarifa_2') {
+          precioKg = parseFloat(clienteSeleccionado.precio_kg_2) || 0
+          precioM3 = parseFloat(clienteSeleccionado.precio_m3_2) || 0
+        } else if (formData.tipo_tarifa === 'tarifa_3') {
+          precioKg = parseFloat(clienteSeleccionado.precio_kg_3) || 0
+          precioM3 = parseFloat(clienteSeleccionado.precio_m3_3) || 0
+        }
+
         const costoPorPeso = peso * precioKg
         const costoPorVolumen = volumen * precioM3
         const totalCalculado = Math.max(costoPorPeso, costoPorVolumen).toFixed(0)
+
         if (formData.precio_total !== totalCalculado) {
           setFormData(prev => ({
             ...prev,
@@ -104,7 +116,7 @@ export default function MercanciaCreate() {
         }
       }
     }
-  }, [formData?.kg, formData?.m3, formData?.id_cliente, clientes])
+  }, [formData?.kg, formData?.m3, formData?.id_cliente, formData?.tipo_tarifa, clientes])
 
   const destinoSeleccionado = destinos.find(d => String(d.id_destino) === String(formData.id_destino))
   const nombreCiudad = destinoSeleccionado ? destinoSeleccionado.nombre_ciudad : ''
@@ -161,7 +173,7 @@ export default function MercanciaCreate() {
 
   const handleClienteChange = async (selectedOption) => {
     if (!selectedOption) {
-      setFormData(prev => ({ ...prev, id_cliente: '', direccion_entrega: '' }))
+      setFormData(prev => ({ ...prev, id_cliente: '', direccion_entrega: '', tipo_tarifa: 'base' }))
       setDireccionesSugeridas([])
       return
     }
@@ -348,6 +360,53 @@ export default function MercanciaCreate() {
                 <Package className="w-5 h-5 text-indigo-600" />
                 Detalles de Carga
               </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-3">
+
+                {/* SELECTOR DE TARIFA DEL CLIENTE */}
+                <div className="col-span-1 sm:col-span-3 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <label htmlFor="tipo_tarifa" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Tarifa del Cliente
+                    </label>
+                  </div>
+
+                  <select
+                    id="tipo_tarifa"
+                    name="tipo_tarifa"
+                    value={formData.tipo_tarifa || 'base'}
+                    onChange={(e) => setFormData({ ...formData, tipo_tarifa: e.target.value })}
+                    disabled={!formData.id_cliente}
+                    className="py-2 px-3 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition disabled:opacity-50 min-w-[240px]"
+                  >
+                    {(() => {
+                      const cliente = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente))
+                      if (!cliente) return <option value="base">Sin cliente seleccionado</option>
+
+                      const opciones = [
+                        <option key="base" value="base">
+                          ${cliente.precio_kg || 0}/Kg ----- ${cliente.precio_m3 || 0}/m³
+                        </option>
+                      ]
+                      if (cliente.nombre_tarifa_2 || parseFloat(cliente.precio_kg_2) > 0 || parseFloat(cliente.precio_m3_2) > 0) {
+                        opciones.push(
+                          <option key="tarifa_2" value="tarifa_2">
+                            {cliente.nombre_tarifa_2 || 'Tarifa 2'} (${cliente.precio_kg_2 || 0}/Kg - ${cliente.precio_m3_2 || 0}/m³)
+                          </option>
+                        )
+                      }
+                      if (cliente.nombre_tarifa_3 || parseFloat(cliente.precio_kg_3) > 0 || parseFloat(cliente.precio_m3_3) > 0) {
+                        opciones.push(
+                          <option key="tarifa_3" value="tarifa_3">
+                            {cliente.nombre_tarifa_3 || 'Tarifa 3'} (${cliente.precio_kg_3 || 0}/Kg - ${cliente.precio_m3_3 || 0}/m³)
+                          </option>
+                        )
+                      }
+
+                      return opciones
+                    })()}
+                  </select>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>

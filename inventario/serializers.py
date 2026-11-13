@@ -128,6 +128,7 @@ class MercanciaWriteSerializer(serializers.ModelSerializer):
 
 class DespachoListSerializer(serializers.ModelSerializer):
     id_camion = serializers.StringRelatedField()
+    id_rampla = serializers.StringRelatedField()
     id_conductor = serializers.StringRelatedField()
     id_ruta = serializers.StringRelatedField()
     nombre_ruta = serializers.CharField(source='id_ruta.codigo_ruta', read_only=True)
@@ -313,7 +314,8 @@ class ClienteSerializer(serializers.ModelSerializer):
         fields = [
             'id_cliente', 'nombre_cliente', 'precio_kg', 'precio_m3',
             'nombre_contacto', 'ciudad', 'direccion2', 'ciudad2', 'activo', 'empresa',
-            'rut_cliente', 'telefono_contacto', 'email_contacto', 'direccion'
+            'rut_cliente', 'telefono_contacto', 'email_contacto', 'direccion', 'nombre_tarifa_2',
+            'nombre_tarifa_3', 'precio_kg_2', 'precio_kg_3', 'precio_m3_2', 'precio_m3_3'
         ]
         read_only_fields = ['empresa']
     

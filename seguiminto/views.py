@@ -1,11 +1,12 @@
+import uuid
 from django.shortcuts import render
-from django.db.models import Q
+from django.db.models import Q, Count, Prefetch
 import boto3
 import os
 from datetime import timedelta
 from django.utils import timezone
 from django.db import transaction
-from rest_framework import status, viewsets
+from rest_framework import status, viewsets, filters
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -14,11 +15,13 @@ from rest_framework import permissions
 from rest_framework.decorators import action
 from django.core.files.storage import default_storage
 from inventario.models import Mercancia
-from .models import ControlEntrega, ComprobanteEntrega
-from .serializers import ComprobanteEntregaSerializer, ControlEntregaSerializer, MercanciaSeguimientoSerializer
+from .models import ControlEntrega, ComprobanteEntrega, LlamadaTelefonica, EventoTelefonico
+from .serializers import ComprobanteEntregaSerializer, ControlEntregaSerializer, MercanciaSeguimientoSerializer, EventoTelefonicoSerializer, LlamadaTelefonicaDetailSerializer, LlamadaTelefonicaListSerializer
 
 from inventario.models import Despacho
 from inventario.serializers import DespachoListSerializer, MercanciaListSerializer
+from django.conf import settings
+import requests
 
 
 class DespachosMovilActivosAPIView(APIView):
@@ -281,3 +284,199 @@ class MercanciasSeguimientoDespachoAPIView(APIView):
             context={'request': request}
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+# ********** VIEWS PARA LLAMADAS *************** #
+class LlamadaTelefonicaViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['unique_id', 'origen', 'bodega_seleccionada']
+    ordering_fields = ['fecha_inicio', 'fecha_fin', 'estado_final']
+    ordering = ['-fecha_inicio']
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return LlamadaTelefonicaDetailSerializer
+        return LlamadaTelefonicaListSerializer
+
+    def get_queryset(self):
+        queryset = LlamadaTelefonica.objects.all()
+
+        if self.action == 'retrieve':
+            queryset = queryset.prefetch_related(
+                Prefetch(
+                    'eventos',
+                    queryset=EventoTelefonico.objects.order_by('creado_en')
+                )
+            )
+
+        estado = self.request.query_params.get('estado')
+        bodega = self.request.query_params.get('bodega')
+        origen = self.request.query_params.get('origen')
+        fecha_desde = self.request.query_params.get('fecha_desde')
+        fecha_hasta = self.request.query_params.get('fecha_hasta')
+
+        if estado:
+            queryset = queryset.filter(estado_final=estado)
+        if bodega:
+            queryset = queryset.filter(bodega_seleccionada__icontains=bodega)
+        if origen:
+            queryset = queryset.filter(origen__icontains=origen)
+        if fecha_desde:
+            queryset = queryset.filter(fecha_inicio__date__gte=fecha_desde)
+        if fecha_hasta:
+            queryset = queryset.filter(fecha_inicio__date__lte=fecha_hasta)
+
+        return queryset
+
+    @action(detail=False, methods=['get'], url_path='resumen')
+    def resumen(self, request):
+        """Métricas consolidadas para tarjetas KPI en el frontend"""
+        qs = self.get_queryset()
+        stats = qs.aggregate(
+            total=Count('unique_id'),
+            contestadas_bodega=Count(
+                'unique_id',
+                filter=Q(estado_final=LlamadaTelefonica.EstadoFinal.CONTESTADA_BODEGA)
+            ),
+            desviadas_general=Count(
+                'unique_id',
+                filter=Q(
+                    estado_final__in=[
+                        LlamadaTelefonica.EstadoFinal.NO_CONTESTA_DESVIADA,
+                        LlamadaTelefonica.EstadoFinal.CONTESTADA_GENERAL,
+                    ]
+                )
+            ),
+            abandonadas=Count(
+                'unique_id',
+                filter=Q(estado_final=LlamadaTelefonica.EstadoFinal.ABANDONADA)
+            ),
+            en_curso=Count(
+                'unique_id',
+                filter=Q(estado_final=LlamadaTelefonica.EstadoFinal.EN_CURSO)
+            ),
+        )
+        return Response(stats)
+
+
+class EventoTelefonicoViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = EventoTelefonicoSerializer
+    permission_classes = [IsAuthenticated]
+    ordering = ['-creado_en']
+
+    def get_queryset(self):
+        queryset = EventoTelefonico.objects.select_related('llamada').all()
+        unique_id = self.request.query_params.get('unique_id')
+        tipo_evento = self.request.query_params.get('tipo_evento')
+
+        if unique_id:
+            queryset = queryset.filter(llamada_id=unique_id)
+        if tipo_evento:
+            queryset = queryset.filter(tipo_evento=tipo_evento)
+
+        return queryset
+
+class WebhookMovilView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        token = request.data.get("api_key") or request.headers.get("X-Api-Key")
+        if token != getattr(settings, "TELEFONIA_MOBILE_API_KEY", "gstorage_mobile_2026"):
+            return Response({"detail": "No autorizado"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        bodega = request.data.get("bodega", "General")
+        origen = request.data.get("origen") or "Desconocido"
+        estado = (request.data.get("estado") or "").upper()
+        call_uuid = request.data.get("call_uuid") or f"{bodega[:3].upper()}-{uuid.uuid4().hex[:12]}"
+
+        if estado == "RINGING":
+            llamada, _ = LlamadaTelefonica.objects.get_or_create(
+                unique_id=call_uuid,
+                defaults={
+                    "origen": origen,
+                    "bodega_seleccionada": bodega,
+                    "estado_final": LlamadaTelefonica.EstadoFinal.EN_CURSO,
+                }
+            )
+            EventoTelefonico.objects.create(
+                llamada=llamada,
+                tipo_evento="CALL_INIT",
+                destino=bodega,
+                payload=request.data,
+            )
+
+        elif estado == "ANSWERED":
+            llamada, _ = LlamadaTelefonica.objects.get_or_create(
+                unique_id=call_uuid,
+                defaults={"origen": origen, "bodega_seleccionada": bodega}
+            )
+            llamada.estado_final = LlamadaTelefonica.EstadoFinal.CONTESTADA_BODEGA
+            llamada.save(update_fields=["estado_final"])
+
+            EventoTelefonico.objects.create(
+                llamada=llamada,
+                tipo_evento="BRANCH_ANSWERED",
+                destino=bodega,
+                payload=request.data,
+            )
+
+        elif estado in ["ENDED", "MISSED"]:
+            llamada, _ = LlamadaTelefonica.objects.get_or_create(
+                unique_id=call_uuid,
+                defaults={"origen": origen, "bodega_seleccionada": bodega}
+            )
+
+            if llamada.fecha_fin is not None:
+                return Response({"status": "already_closed", "unique_id": call_uuid}, status=status.HTTP_200_OK)
+
+            llamada.fecha_fin = timezone.now()
+
+            if estado == "MISSED" or llamada.estado_final == LlamadaTelefonica.EstadoFinal.EN_CURSO:
+                llamada.estado_final = LlamadaTelefonica.EstadoFinal.ABANDONADA
+                motivo = "NOANSWER"
+                self._notificar_whatsapp_perdida(origen, bodega)
+            else:
+                motivo = "NORMAL_CLEARING"
+
+            llamada.save(update_fields=["estado_final", "fecha_fin"])
+
+            EventoTelefonico.objects.create(
+                llamada=llamada,
+                tipo_evento="GENERAL_RESULT",
+                destino=bodega,
+                motivo_fallo=motivo,
+                payload=request.data,
+            )
+
+        return Response({"status": "ok", "unique_id": call_uuid}, status=status.HTTP_200_OK)
+
+    def _notificar_whatsapp_perdida(self, origen, bodega):
+        evo_url = getattr(settings, "EVOLUTION_API_URL", None)
+        evo_key = getattr(settings, "EVOLUTION_API_KEY", None)
+        instance = getattr(settings, "EVOLUTION_INSTANCE", "bodega_notificaciones")
+        alert_num = getattr(settings, "WHATSAPP_ALERT_NUMBER", None)
+
+        if not all([evo_url, evo_key, alert_num]):
+            return
+
+        try:
+            requests.post(
+                f"{evo_url}/message/sendText/{instance}",
+                headers={"apikey": evo_key, "Content-Type": "application/json"},
+                json={
+                    "number": alert_num,
+                    "text": (
+                        f"⚠️ *LLAMADA PERDIDA EN BODEGA*\n\n"
+                        f"• *Bodega:* {bodega}\n"
+                        f"• *Número Cliente:* {origen}\n"
+                        f"• *Estado:* No contestada\n\n"
+                        f"_Registro automático GStorage_"
+                    ),
+                },
+                timeout=4,
+            )
+        except requests.RequestException:
+            pass

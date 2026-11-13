@@ -333,7 +333,7 @@ export default function PlanificadorRutas() {
             isClearable
             options={despachos.map(d => ({
               value: d.id_despacho,
-              label: `Despacho N° ${d.id_despacho} | Ruta N° ${getCodigoRuta(d.id_despacho)}`
+              label: `Ruta N° ${getCodigoRuta(d.id_despacho)} | Despacho N° ${d.id_despacho}`
             }))}
             value={despachoSeleccionado ? {
               value: despachoSeleccionado,
@@ -415,7 +415,7 @@ export default function PlanificadorRutas() {
                                 <span className="font-bold text-slate-800 text-xs truncate" title={getNombreCliente(item.id_cliente)}>
                                   {getNombreCliente(item.id_cliente)}
                                 </span>
-                                <span className="text-[11px] text-slate-500 truncate font-medium">
+                                <span className="text-[13px] text-slate-500 truncate font-medium">
                                   <span className="text-slate-900 font-mono font-bold mr-1">{item.codigo_interno}</span>
                                   ({item.cantidad_bultos}B | {item.kg}kg)
                                 </span>

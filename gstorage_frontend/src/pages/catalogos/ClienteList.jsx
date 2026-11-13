@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react'
-import apiClient, { limpiarCacheCatalogos } from '../../services/api'
-import { Link } from 'react-router-dom'
+import apiClient from '../../services/api'
 import { useUI } from '../../context/UIContext'
 import {
   Search, Plus, Edit, Briefcase, X, Users, Mail, Phone,
   CreditCard, User, MapPin, Building, AlertCircle, CheckCircle,
-  XCircle, DollarSign, ChevronLeft, ChevronRight, ArrowLeft, Loader2
+  XCircle, DollarSign, ChevronLeft, ChevronRight, Loader2, Tag
 } from 'lucide-react'
 
 import {
   normalizeRUT,
-  normalizePhone,
   normalizeCity,
   normalizeEmail,
   normalizeName
@@ -29,21 +27,28 @@ export default function ClientsCatalog() {
   const ITEMS_PER_PAGE = 10
   const [sinRut, setSinRut] = useState(false)
 
-  const [formData, setFormData] = useState({
+  const initialFormState = {
     nombre_cliente: '',
     rut_cliente: '',
     email_contacto: '',
     telefono_contacto: '',
     precio_kg: '',
     precio_m3: '',
+    nombre_tarifa_2: '',
+    precio_kg_2: '',
+    precio_m3_2: '',
+    nombre_tarifa_3: '',
+    precio_kg_3: '',
+    precio_m3_3: '',
     nombre_contacto: '',
     direccion: '',
     ciudad: '',
     direccion2: '',
     ciudad2: '',
     activo: true
-  })
+  }
 
+  const [formData, setFormData] = useState(initialFormState)
 
   // --- CARGA DE DATOS ---
   const fetchClients = async () => {
@@ -84,7 +89,7 @@ export default function ClientsCatalog() {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
   const paginatedClients = filteredClients.slice(startIndex, startIndex + ITEMS_PER_PAGE)
 
-  // --- HANDLERS ---
+  // --- HANDLERS MODAL ---
   const handleOpenModal = (client = null) => {
     setError(null)
     if (client) {
@@ -93,12 +98,18 @@ export default function ClientsCatalog() {
       setSinRut(tieneRutVacio)
 
       setFormData({
-        nombre_cliente: client.nombre_cliente,
+        nombre_cliente: client.nombre_cliente || '',
         rut_cliente: client.rut_cliente || '',
         email_contacto: client.email_contacto || '',
         telefono_contacto: client.telefono_contacto || '',
-        precio_kg: client.precio_kg || '',
-        precio_m3: client.precio_m3 || '',
+        precio_kg: client.precio_kg ?? '',
+        precio_m3: client.precio_m3 ?? '',
+        nombre_tarifa_2: client.nombre_tarifa_2 || '',
+        precio_kg_2: client.precio_kg_2 ?? '',
+        precio_m3_2: client.precio_m3_2 ?? '',
+        nombre_tarifa_3: client.nombre_tarifa_3 || '',
+        precio_kg_3: client.precio_kg_3 ?? '',
+        precio_m3_3: client.precio_m3_3 ?? '',
         nombre_contacto: client.nombre_contacto || '',
         direccion: client.direccion || '',
         direccion2: client.direccion2 || '',
@@ -109,20 +120,7 @@ export default function ClientsCatalog() {
     } else {
       setEditingClient(null)
       setSinRut(false)
-      setFormData({
-        nombre_cliente: '',
-        rut_cliente: '',
-        email_contacto: '',
-        telefono_contacto: '',
-        precio_kg: '',
-        precio_m3: '',
-        nombre_contacto: '',
-        direccion: '',
-        ciudad: '',
-        direccion2: '',
-        ciudad2: '',
-        activo: true
-      })
+      setFormData(initialFormState)
     }
     setShowModal(true)
   }
@@ -130,20 +128,7 @@ export default function ClientsCatalog() {
   const handleCloseModal = () => {
     setShowModal(false);
     setEditingClient(null);
-    setFormData({
-      nombre_cliente: '',
-      rut_cliente: '',
-      email_contacto: '',
-      telefono_contacto: '',
-      precio_kg: '',
-      precio_m3: '',
-      nombre_contacto: '',
-      direccion: '',
-      ciudad: '',
-      direccion2: '',
-      ciudad2: '',
-      activo: true
-    });
+    setFormData(initialFormState);
     setError(null);
   };
 
@@ -163,114 +148,115 @@ export default function ClientsCatalog() {
       telefono_contacto: formData.telefono_contacto,
       ciudad: normalizeCity(formData.ciudad),
       ciudad2: normalizeCity(formData.ciudad2),
-      nombre_contacto: normalizeName(formData.nombre_contacto)
+      nombre_contacto: normalizeName(formData.nombre_contacto),
+      precio_kg: formData.precio_kg === '' ? 0 : formData.precio_kg,
+      precio_m3: formData.precio_m3 === '' ? 0 : formData.precio_m3,
+      precio_kg_2: formData.precio_kg_2 === '' ? 0 : formData.precio_kg_2,
+      precio_m3_2: formData.precio_m3_2 === '' ? 0 : formData.precio_m3_2,
+      precio_kg_3: formData.precio_kg_3 === '' ? 0 : formData.precio_kg_3,
+      precio_m3_3: formData.precio_m3_3 === '' ? 0 : formData.precio_m3_3,
     }
     setError(null)
 
     try {
       let res;
       if (editingClient) {
-        res = await apiClient.put(`/api/inventario/clientes/${editingClient.id_cliente}/`, cleanData);
-        showToast('Registro actualizado con éxito', 'success');
-
-        setClients(prev => prev.map(c => c.id_cliente === editingClient.id_cliente ? res.data : c));
+        res = await apiClient.put(`/api/inventario/clientes/${editingClient.id_cliente}/`, cleanData)
+        showToast('Registro actualizado con éxito', 'success')
+        setClients(prev => prev.map(c => c.id_cliente === editingClient.id_cliente ? res.data : c))
       } else {
-        res = await apiClient.post('/api/inventario/clientes/', cleanData);
-        showToast('Registro creado con éxito', 'success');
-
-        setClients(prev => [res.data, ...prev]);
+        res = await apiClient.post('/api/inventario/clientes/', cleanData)
+        showToast('Registro creado con éxito', 'success')
+        setClients(prev => [res.data, ...prev])
       }
-      handleCloseModal();
+      handleCloseModal()
     } catch (err) {
-      console.error(err);
-      const errorData = err.response?.data;
-      const esRutDuplicado = errorData?.rut_cliente || errorData?.rut_hash || errorData?.non_field_errors;
+      console.error(err)
+      const errorData = err.response?.data
+      const esRutDuplicado = errorData?.rut_cliente || errorData?.rut_hash || errorData?.non_field_errors
 
       showToast(
         esRutDuplicado
           ? 'El RUT ingresado ya existe en el sistema.'
           : 'Error al guardar el cliente.',
         'error'
-      );
+      )
     } finally {
-      hideLoader();
+      hideLoader()
     }
-  };
+  }
 
-  // --- LÓGICA DE ESTADO ---
   const handleToggleStatus = async (client) => {
-    const action = client.activo ? 'DESACTIVAR' : 'ACTIVAR';
-    if (!window.confirm(`¿Seguro que deseas ${action} a ${client.nombre_cliente}?`)) return;
+    const action = client.activo ? 'DESACTIVAR' : 'ACTIVAR'
+    if (!window.confirm(`¿Seguro que deseas ${action} a ${client.nombre_cliente}?`)) return
     try {
       if (client.activo) {
-        await apiClient.delete(`/api/inventario/clientes/${client.id_cliente}/`);
+        await apiClient.delete(`/api/inventario/clientes/${client.id_cliente}/`)
       } else {
-        await apiClient.patch(`/api/inventario/clientes/${client.id_cliente}/`, { activo: true });
+        await apiClient.patch(`/api/inventario/clientes/${client.id_cliente}/`, { activo: true })
       }
-      fetchClients();
+      fetchClients()
     } catch (err) {
-      console.error(err);
-      showToast('Error al cambiar el estado.', 'error');
+      console.error(err)
+      showToast('Error al cambiar el estado.', 'error')
     }
-  };
+  }
 
   const formatearRUT = (rut) => {
-    if (!rut) return 'Sin RUT';
-    let valor = rut.replace(/\./g, '').replace(/-/g, '').trim();
-
-    if (valor.length < 2) return valor;
-    const cuerpo = valor.slice(0, -1);
-    const dv = valor.slice(-1).toUpperCase();
-    const cuerpoFormateado = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    return `${cuerpoFormateado}-${dv}`;
-  };
+    if (!rut) return 'Sin RUT'
+    let valor = rut.replace(/\./g, '').replace(/-/g, '').trim()
+    if (valor.length < 2) return valor
+    const cuerpo = valor.slice(0, -1)
+    const dv = valor.slice(-1).toUpperCase()
+    const cuerpoFormateado = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+    return `${cuerpoFormateado}-${dv}`
+  }
 
   const formatRUT = (rut) => {
-    let value = rut.replace(/[^0-9kK]/g, '').toUpperCase();
-    if (value.length <= 1) return value;
-    const body = value.slice(0, -1);
-    const dv = value.slice(-1);
-    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    return `${formattedBody}-${dv}`;
-  };
+    let value = rut.replace(/[^0-9kK]/g, '').toUpperCase()
+    if (value.length <= 1) return value
+    const body = value.slice(0, -1)
+    const dv = value.slice(-1)
+    const formattedBody = body.replace(/\B(?=(\d{3})+(?!\d))/g, ".")
+    return `${formattedBody}-${dv}`
+  }
 
   const isValidRUT = (rut) => {
-    const cleanRUT = rut.replace(/[^0-9kK]/g, '').toUpperCase();
-    if (cleanRUT.length < 7) return false;
-    const body = cleanRUT.slice(0, -1);
-    const dv = cleanRUT.slice(-1);
-    let sum = 0;
-    let multiplier = 2;
+    const cleanRUT = rut.replace(/[^0-9kK]/g, '').toUpperCase()
+    if (cleanRUT.length < 7) return false
+    const body = cleanRUT.slice(0, -1)
+    const dv = cleanRUT.slice(-1)
+    let sum = 0
+    let multiplier = 2
     for (let i = body.length - 1; i >= 0; i--) {
-      sum += parseInt(body.charAt(i)) * multiplier;
-      multiplier = multiplier === 7 ? 2 : multiplier + 1;
+      sum += parseInt(body.charAt(i)) * multiplier
+      multiplier = multiplier === 7 ? 2 : multiplier + 1
     }
-    const expectedDV = 11 - (sum % 11);
-    const finalDV = expectedDV === 11 ? '0' : expectedDV === 10 ? 'K' : expectedDV.toString();
-    return dv === finalDV;
-  };
+    const expectedDV = 11 - (sum % 11)
+    const finalDV = expectedDV === 11 ? '0' : expectedDV === 10 ? 'K' : expectedDV.toString()
+    return dv === finalDV
+  }
 
   const getVisiblePages = (current, total) => {
     if (total <= 5) {
-      return Array.from({ length: total }, (_, i) => i + 1);
+      return Array.from({ length: total }, (_, i) => i + 1)
     }
     if (current <= 3) {
-      return [1, 2, 3, 4, 5];
+      return [1, 2, 3, 4, 5]
     }
     if (current >= total - 2) {
-      return [total - 4, total - 3, total - 2, total - 1, total];
+      return [total - 4, total - 3, total - 2, total - 1, total]
     }
-    return [current - 2, current - 1, current, current + 1, current + 2];
-  };
+    return [current - 2, current - 1, current, current + 1, current + 2]
+  }
 
-  // --- RENDER ---
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-500">
         <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
         <p>Cargando clientes...</p>
       </div>
-    );
+    )
   }
 
   return (
@@ -280,7 +266,6 @@ export default function ClientsCatalog() {
       </div>
       <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
 
-        {/* Toolbar */}
         <div className="flex flex-col md:flex-row gap-4 mb-6">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -301,15 +286,14 @@ export default function ClientsCatalog() {
           </button>
         </div>
 
-        {/* Tabla */}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Cliente / RUT</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Ubicación</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio Kg</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Precio m³</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarifa Base</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarifas Adicionales</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Contacto</th>
                 <th className="text-left py-4 px-4 text-sm font-semibold text-gray-600">Estado</th>
                 <th className="text-right py-4 px-4 text-sm font-semibold text-gray-600">Acciones</th>
@@ -319,6 +303,9 @@ export default function ClientsCatalog() {
               {paginatedClients.map((client) => {
                 const precioKg = parseFloat(client.precio_kg) || 0;
                 const precioM3 = parseFloat(client.precio_m3) || 0;
+
+                const tieneTarifa2 = parseFloat(client.precio_kg_2) > 0 || parseFloat(client.precio_m3_2) > 0;
+                const tieneTarifa3 = parseFloat(client.precio_kg_3) > 0 || parseFloat(client.precio_m3_3) > 0;
 
                 return (
                   <tr
@@ -335,6 +322,7 @@ export default function ClientsCatalog() {
                         </div>
                       </div>
                     </td>
+
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col items-start gap-1">
                         {client.ciudad ? (
@@ -349,17 +337,34 @@ export default function ClientsCatalog() {
                         </span>
                       </div>
                     </td>
+
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`text-sm font-semibold ${precioKg === 0 ? 'text-red-600 bg-red-50 px-2 py-1 rounded' : 'text-gray-900'}`}>
-                        ${precioKg.toFixed(0)}
-                      </span>
+                      <div className="flex flex-col text-xs font-semibold text-gray-900">
+                        <span>Kg: ${precioKg.toFixed(0)}</span>
+                        <span>m³: ${precioM3.toFixed(0)}</span>
+                      </div>
                     </td>
 
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`text-sm font-semibold ${precioM3 === 0 ? 'text-red-600 bg-red-50 px-2 py-1 rounded' : 'text-gray-900'}`}>
-                        ${precioM3.toFixed(0)}
-                      </span>
+                      <div className="flex flex-col gap-1 text-[11px]">
+                        {tieneTarifa2 ? (
+                          <span className="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded border border-emerald-100 font-medium truncate max-w-[160px]" title={client.nombre_tarifa_2 || 'Tarifa 2'}>
+                            {client.nombre_tarifa_2 || 'T2'}: ${client.precio_kg_2 || 0}/Kg - ${client.precio_m3_2 || 0}/m³
+                          </span>
+                        ) : null}
+
+                        {tieneTarifa3 ? (
+                          <span className="bg-amber-50 text-amber-700 px-2 py-0.5 rounded border border-amber-100 font-medium truncate max-w-[160px]" title={client.nombre_tarifa_3 || 'Tarifa 3'}>
+                            {client.nombre_tarifa_3 || 'T3'}: ${client.precio_kg_3 || 0}/Kg - ${client.precio_m3_3 || 0}/m³
+                          </span>
+                        ) : null}
+
+                        {!tieneTarifa2 && !tieneTarifa3 && (
+                          <span className="text-gray-400 italic">Solo Tarifa Base</span>
+                        )}
+                      </div>
                     </td>
+
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
@@ -376,6 +381,7 @@ export default function ClientsCatalog() {
                         </div>
                       </div>
                     </td>
+
                     <td className="py-4 px-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${client.activo
                         ? 'bg-green-100 text-green-700'
@@ -384,9 +390,9 @@ export default function ClientsCatalog() {
                         {client.activo ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
+
                     <td className="py-4 px-4">
                       <div className="flex items-center justify-end gap-2">
-
                         <button
                           onClick={() => handleOpenModal(client)}
                           disabled={!client.activo}
@@ -396,7 +402,6 @@ export default function ClientsCatalog() {
                           <Edit className="w-4 h-4" />
                         </button>
 
-                        {/* Botón Toggle Status */}
                         <button
                           onClick={() => handleToggleStatus(client)}
                           className={`p-2 rounded-lg transition ${client.activo
@@ -407,7 +412,6 @@ export default function ClientsCatalog() {
                         >
                           {client.activo ? <XCircle className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
                         </button>
-
                       </div>
                     </td>
                   </tr>
@@ -417,7 +421,6 @@ export default function ClientsCatalog() {
           </table>
         </div>
 
-        {/* --- CONTROLES DE PAGINACIÓN --- */}
         {filteredClients.length > 0 && (
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-100 pt-6">
             <p className="text-sm text-gray-600">
@@ -449,7 +452,6 @@ export default function ClientsCatalog() {
                   </button>
                 ))}
               </div>
-
               <button
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages}
@@ -461,10 +463,10 @@ export default function ClientsCatalog() {
           </div>
         )}
       </div>
-      {/* MODAL FORMULARIO */}
+
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full transform scale-100 transition-all overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full transform scale-100 transition-all overflow-hidden flex flex-col max-h-[90vh]">
 
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
               <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -560,6 +562,7 @@ export default function ClientsCatalog() {
                     </div>
                   </div>
                 </div>
+
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider border-b border-gray-100 pb-2">
                     Contacto y Ubicación
@@ -594,9 +597,10 @@ export default function ClientsCatalog() {
                       </div>
                     </div>
                   </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Dirección Principal</label>
                       <div className="relative">
                         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
@@ -609,7 +613,7 @@ export default function ClientsCatalog() {
                       </div>
                     </div>
                     <div className="sm:col-span-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad / Comuna</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad Principal</label>
                       <div className="relative">
                         <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
@@ -623,6 +627,7 @@ export default function ClientsCatalog() {
                       </div>
                     </div>
                   </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Dirección Alternativa</label>
@@ -653,56 +658,158 @@ export default function ClientsCatalog() {
                     </div>
                   </div>
                 </div>
-                <div className="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100">
-                  <h3 className="text-sm font-semibold text-emerald-800 flex items-center gap-2 mb-4">
-                    <DollarSign className="w-5 h-5 text-emerald-600" /> Tarifas
+
+                <div className="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100 space-y-6">
+                  <h3 className="text-sm font-semibold text-emerald-800 flex items-center gap-2 border-b border-emerald-200/60 pb-2">
+                    Configuración de Tarifas
                   </h3>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-emerald-700 mb-1">Precio por Kg</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
-                        <input
-                          type="number"
-                          step="0"
-                          value={formData.precio_kg}
-                          onChange={(e) => setFormData({ ...formData, precio_kg: e.target.value })}
-                          className="w-full pl-8 pr-4 py-2 bg-white border border-emerald-200 text-emerald-900 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition"
-                          placeholder="0"
-                        />
+                  <div>
+                    <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider block mb-2 flex items-center gap-1">
+                      Tarifa Base
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-medium text-emerald-700 mb-1">Precio por Kg</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
+                          <input
+                            type="number"
+                            step="1"
+                            value={formData.precio_kg}
+                            onChange={(e) => setFormData({ ...formData, precio_kg: e.target.value })}
+                            className="w-full pl-8 pr-4 py-2 bg-white border border-emerald-200 text-emerald-900 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition text-sm"
+                            placeholder="0"
+                          />
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-emerald-700 mb-1">Precio por m³</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
-                        <input
-                          type="number"
-                          step="0"
-                          value={formData.precio_m3}
-                          onChange={(e) => setFormData({ ...formData, precio_m3: e.target.value })}
-                          className="w-full pl-8 pr-4 py-2 bg-white border border-emerald-200 text-emerald-900 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition"
-                          placeholder="0"
-                        />
+                      <div>
+                        <label className="block text-xs font-medium text-emerald-700 mb-1">Precio por m³</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
+                          <input
+                            type="number"
+                            step="1"
+                            value={formData.precio_m3}
+                            onChange={(e) => setFormData({ ...formData, precio_m3: e.target.value })}
+                            className="w-full pl-8 pr-4 py-2 bg-white border border-emerald-200 text-emerald-900 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition text-sm"
+                            placeholder="0"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
+                  <div className="pt-3 border-t border-emerald-200/50">
+                    <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider block mb-2">
+                      Tarifa 2
+                    </span>
+                    <div className="space-y-3">
+                      <div>
+                        <input
+                          type="text"
+                          value={formData.nombre_tarifa_2}
+                          onChange={(e) => setFormData({ ...formData, nombre_tarifa_2: e.target.value })}
+                          className="w-full px-3 py-1.5 bg-white border border-emerald-200 text-emerald-900 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition text-xs font-semibold"
+                          placeholder="Nombre Tarifa 2 (Ej: Antofagasta)"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-emerald-700 mb-1">Precio por Kg</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
+                            <input
+                              type="number"
+                              step="1"
+                              value={formData.precio_kg_2}
+                              onChange={(e) => setFormData({ ...formData, precio_kg_2: e.target.value })}
+                              className="w-full pl-8 pr-4 py-2 bg-white border border-emerald-200 text-emerald-900 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition text-sm"
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-emerald-700 mb-1">Precio por m³</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
+                            <input
+                              type="number"
+                              step="1"
+                              value={formData.precio_m3_2}
+                              onChange={(e) => setFormData({ ...formData, precio_m3_2: e.target.value })}
+                              className="w-full pl-8 pr-4 py-2 bg-white border border-emerald-200 text-emerald-900 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition text-sm"
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-emerald-200/50">
+                    <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider block mb-2">
+                      Tarifa 3
+                    </span>
+                    <div className="space-y-3">
+                      <div>
+                        <input
+                          type="text"
+                          value={formData.nombre_tarifa_3}
+                          onChange={(e) => setFormData({ ...formData, nombre_tarifa_3: e.target.value })}
+                          className="w-full px-3 py-1.5 bg-white border border-emerald-200 text-emerald-900 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition text-xs font-semibold"
+                          placeholder="Nombre Tarifa 3 (Ej: Santiago)"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-emerald-700 mb-1">Precio por Kg</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
+                            <input
+                              type="number"
+                              step="1"
+                              value={formData.precio_kg_3}
+                              onChange={(e) => setFormData({ ...formData, precio_kg_3: e.target.value })}
+                              className="w-full pl-8 pr-4 py-2 bg-white border border-emerald-200 text-emerald-900 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition text-sm"
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-emerald-700 mb-1">Precio por m³</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
+                            <input
+                              type="number"
+                              step="1"
+                              value={formData.precio_m3_3}
+                              onChange={(e) => setFormData({ ...formData, precio_m3_3: e.target.value })}
+                              className="w-full pl-8 pr-4 py-2 bg-white border border-emerald-200 text-emerald-900 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none transition text-sm"
+                              placeholder="0"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
               </form>
             </div>
+
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex gap-3 justify-end rounded-b-2xl">
               <button
                 type="button"
                 onClick={handleCloseModal}
-                className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-white transition font-medium"
-              >Cancelar
+                className="px-5 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-white transition font-medium text-sm"
+              >
+                Cancelar
               </button>
               <button
                 type="submit"
                 form="clienteForm"
-                className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium shadow-sm flex items-center gap-2"
+                className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium text-sm shadow-sm flex items-center gap-2"
               >
                 {editingClient ? 'Guardar Cambios' : 'Crear Cliente'}
               </button>

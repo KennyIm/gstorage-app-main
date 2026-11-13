@@ -600,6 +600,10 @@ export default function DespachoList() {
                               <Truck className="w-3.5 h-3.5 text-gray-400" />
                               <span className="font-medium">{despacho.id_camion}</span>
                             </div>
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <Truck className="w-3.5 h-3.5 text-blue-400" />
+                              <span className="font-medium">{despacho.id_rampla}</span>
+                            </div>
                             <div className="flex items-center gap-2 text-gray-500 text-xs">
                               <User className="w-3.5 h-3.5" />
                               <span className="font-bold text-slate-900">

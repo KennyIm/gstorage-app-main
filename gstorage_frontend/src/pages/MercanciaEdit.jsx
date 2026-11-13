@@ -1,15 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
-import apiClient from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import Select from 'react-select';
-import CreatableSelect from 'react-select/creatable';
-import { useUI } from '../context/UIContext';
+import React, { useState, useEffect, useMemo } from 'react'
+import { useNavigate, useParams, Link } from 'react-router-dom'
+import apiClient from '../services/api'
+import { useAuth } from '../context/AuthContext'
+import Select from 'react-select'
+import CreatableSelect from 'react-select/creatable'
+import { useUI } from '../context/UIContext'
 import {
-  Save, ArrowLeft, User, MapPin, Map, Package, Scale, Box, FileText,
-  Truck, Activity, Loader2, AlertCircle, CheckCircle, NotebookPen,
-  Calculator, Info
-} from 'lucide-react';
+  Save, ArrowLeft, Package, Scale, Box, FileText,
+  Loader2, CheckCircle, NotebookPen, Calculator, Info
+} from 'lucide-react'
 
 const detectarConfiguracionSucursal = (d) => {
   if (!d) return { letra: '?', badgeClass: 'bg-slate-100 text-slate-700 border-slate-300' }
@@ -39,51 +38,57 @@ const detectarConfiguracionSucursal = (d) => {
 }
 
 export default function MercanciaEdit() {
-  document.title = "Edición de Mercancia - GStorage";
-  const { id } = useParams();
+  document.title = "Edición de Mercancia - GStorage"
+  const { id } = useParams()
   const navigate = useNavigate();
-  const { user, logoutUser } = useAuth();
+  const { user, logoutUser } = useAuth()
 
-  const [formData, setFormData] = useState(null);
+  const [formData, setFormData] = useState(null)
 
-  const [clientes, setClientes] = useState([]);
-  const [destinos, setDestinos] = useState([]);
-  const [ubicaciones, setUbicaciones] = useState([]);
-  const [despachos, setDespachos] = useState([]);
-  const [proveedores, setProveedores] = useState([]);
-  const [sucursales, setSucursales] = useState([]);
+  const [clientes, setClientes] = useState([])
+  const [destinos, setDestinos] = useState([])
+  const [ubicaciones, setUbicaciones] = useState([])
+  const [despachos, setDespachos] = useState([])
+  const [proveedores, setProveedores] = useState([])
+  const [sucursales, setSucursales] = useState([])
 
-  const [mercanciaOriginal, setMercanciaOriginal] = useState(null);
+  const [mercanciaOriginal, setMercanciaOriginal] = useState(null)
 
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const { showLoader, hideLoader, showToast } = useUI();
-  const [direccionesSugeridas, setDireccionesSugeridas] = useState([]);
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const { showLoader, hideLoader, showToast } = useUI()
+  const [direccionesSugeridas, setDireccionesSugeridas] = useState([])
 
-  const [showPricing, setShowPricing] = useState(false);
+  const [showPricing, setShowPricing] = useState(false)
 
-  // --- LÓGICA DE CÁLCULO DE PRECIO ---
-  const calcularPrecioLogica = () => {
-    if (!formData || !formData.id_cliente) return null;
+  const calcularPrecioLogica = (tipoTarifa = formData?.tipo_tarifa || 'base') => {
+    if (!formData || !formData.id_cliente) return null
 
-    const clienteSeleccionado = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente));
-    if (!clienteSeleccionado) return null;
+    const clienteSeleccionado = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente))
+    if (!clienteSeleccionado) return null
 
-    const peso = parseFloat(String(formData.kg).replace(',', '.')) || 0;
-    const volumen = parseFloat(String(formData.m3).replace(',', '.')) || 0;
-    const precioKg = parseFloat(clienteSeleccionado.precio_kg) || 0;
-    const precioM3 = parseFloat(clienteSeleccionado.precio_m3) || 0;
+    const peso = parseFloat(String(formData.kg).replace(',', '.')) || 0
+    const volumen = parseFloat(String(formData.m3).replace(',', '.')) || 0
+    let precioKg = parseFloat(clienteSeleccionado.precio_kg) || 0
+    let precioM3 = parseFloat(clienteSeleccionado.precio_m3) || 0
+    if (tipoTarifa === 'tarifa_2') {
+      precioKg = parseFloat(clienteSeleccionado.precio_kg_2) || 0
+      precioM3 = parseFloat(clienteSeleccionado.precio_m3_2) || 0
+    } else if (tipoTarifa === 'tarifa_3') {
+      precioKg = parseFloat(clienteSeleccionado.precio_kg_3) || 0
+      precioM3 = parseFloat(clienteSeleccionado.precio_m3_3) || 0
+    }
 
-    return Math.max(peso * precioKg, volumen * precioM3).toFixed(0);
-  };
+    return Math.max(peso * precioKg, volumen * precioM3).toFixed(0)
+  }
 
   const handleRecalculate = (e) => {
-    e.preventDefault();
-    const nuevoTotal = calcularPrecioLogica();
+    if (e) e.preventDefault()
+    const nuevoTotal = calcularPrecioLogica()
     if (nuevoTotal !== null) {
-      setFormData(prev => ({ ...prev, precio_total: nuevoTotal }));
+      setFormData(prev => ({ ...prev, precio_total: nuevoTotal }))
     }
-  };
+  }
 
   const opcionesDespachosEdicion = useMemo(() => {
     const listaBase = [{ value: '', label: '(Ninguno / Pendiente)', isNullOption: true }]
@@ -123,40 +128,39 @@ export default function MercanciaEdit() {
 
   useEffect(() => {
     if (formData && formData.id_cliente && (formData.kg || formData.m3)) {
-      const valorActual = parseFloat(formData.precio_total);
+      const valorActual = parseFloat(formData.precio_total)
 
       if (!formData.precio_total || valorActual === 0 || isNaN(valorActual)) {
-        const sugerido = calcularPrecioLogica();
+        const sugerido = calcularPrecioLogica()
         if (sugerido) {
-          setFormData(prev => ({ ...prev, precio_total: sugerido }));
+          setFormData(prev => ({ ...prev, precio_total: sugerido }))
         }
       }
     }
-  }, [formData?.kg, formData?.m3, formData?.id_cliente, clientes]);
+  }, [formData?.kg, formData?.m3, formData?.id_cliente, formData?.tipo_tarifa, clientes])
 
   const cargarDireccionesDelCliente = async (clienteId) => {
     if (!clienteId) {
-      setDireccionesSugeridas([]);
-      return;
+      setDireccionesSugeridas([])
+      return
     }
     try {
-      const response = await apiClient.get(`/api/inventario/clientes/${clienteId}/direcciones/`);
+      const response = await apiClient.get(`/api/inventario/clientes/${clienteId}/direcciones/`)
       const suggestions = response.data.map(dir => ({
         label: String(dir),
         value: String(dir)
-      }));
+      }))
       setDireccionesSugeridas(suggestions);
     } catch (err) {
-      console.error("Error cargando direcciones en edición", err);
-      setDireccionesSugeridas([]);
+      console.error("Error cargando direcciones en edición", err)
+      setDireccionesSugeridas([])
     }
-  };
-
+  }
 
   // --- CARGA DE DATOS ---
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
+      setLoading(true)
       try {
         const [mercanciaoriginalRes, clientesRes, destinosRes, ubicacionesRes, despachosRes, provRes, sucursalesRes] = await Promise.all([
           apiClient.get(`/api/inventario/mercancias/${id}/`),
@@ -166,22 +170,21 @@ export default function MercanciaEdit() {
           apiClient.get('/api/inventario/despachos/'),
           apiClient.get('/api/inventario/proveedores/'),
           apiClient.get('/api/usuarios/sucursales/')
-        ]);
+        ])
         const mercanciaRes = await apiClient.get(`/api/inventario/mercancias/${id}/`);
         const currentData = mercanciaRes.data;
 
-
         const ubicacionesFiltradas = ubicacionesRes.data.filter(u =>
           !u.estado_ocupado || u.id_ubicacion === currentData.id_ubicacion_actual
-        );
+        )
 
-        setMercanciaOriginal(mercanciaoriginalRes.data);
-        setClientes(clientesRes.data);
-        setDestinos(destinosRes.data);
-        setUbicaciones(ubicacionesFiltradas);
-        setDespachos(despachosRes.data);
-        setProveedores(provRes.data);
-        setSucursales(sucursalesRes.data);
+        setMercanciaOriginal(mercanciaoriginalRes.data)
+        setClientes(clientesRes.data)
+        setDestinos(destinosRes.data)
+        setUbicaciones(ubicacionesFiltradas)
+        setDespachos(despachosRes.data)
+        setProveedores(provRes.data)
+        setSucursales(sucursalesRes.data)
 
         setFormData({
           id_cliente: currentData.id_cliente,
@@ -200,38 +203,39 @@ export default function MercanciaEdit() {
           tipo: currentData.tipo || '',
           paga_proveedor: currentData.paga_proveedor || false,
           codigo_interno: currentData.codigo_interno || '',
-          direccion_entrega: currentData.direccion_entrega || ''
-        });
+          direccion_entrega: currentData.direccion_entrega || '',
+          tipo_tarifa: currentData.tipo_tarifa || 'base'
+        })
         if (currentData.id_cliente) {
-          cargarDireccionesDelCliente(currentData.id_cliente);
+          cargarDireccionesDelCliente(currentData.id_cliente)
         }
       } catch (err) {
         if (err.response && err.response.status === 401) {
-          showToast('Credenciales de autenticación no válidas, por favor ingrese de nuevo.', 'error');
-          logoutUser();
+          showToast('Credenciales de autenticación no válidas, por favor ingrese de nuevo.', 'error')
+          logoutUser()
         } else {
-          console.error("Error al buscar la información:", err);
-          showToast('No se pudo cargar la información necesaria.', 'error');
+          console.error("Error al buscar la información:", err)
+          showToast('No se pudo cargar la información necesaria.', 'error')
         }
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
-    fetchData();
-  }, [id, logoutUser, showToast]);
+    }
+    fetchData()
+  }, [id, logoutUser, showToast])
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value, type, checked } = e.target
     setFormData(prevData => ({
       ...prevData,
       [name]: type === 'checkbox' ? checked : value
-    }));
-  };
+    }))
+  }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    showLoader();
+    e.preventDefault()
+    setSubmitting(true)
+    showLoader()
 
     const dataToSubmit = {
       ...formData,
@@ -249,48 +253,22 @@ export default function MercanciaEdit() {
       tipo: formData.tipo || null,
       paga_proveedor: formData.paga_proveedor || false,
       codigo_interno: formData.codigo_interno || null,
-      direccion_entrega: formData.direccion_entrega || null
-    };
+      direccion_entrega: formData.direccion_entrega || null,
+      tipo_tarifa: formData.tipo_tarifa || 'base'
+    }
 
     try {
-      await apiClient.put(`/api/inventario/mercancias/${id}/`, dataToSubmit);
-      showToast('Mercancía actualizada exitosamente.', 'success');
-      navigate(`/mercancias/${id}`);
+      await apiClient.put(`/api/inventario/mercancias/${id}/`, dataToSubmit)
+      showToast('Mercancía actualizada exitosamente.', 'success')
+      navigate(`/mercancias/${id}`)
     } catch (err) {
-      console.error(err);
-      showToast('Error al actualizar la mercancía. Por favor revisa los datos.', 'error');
+      console.error(err)
+      showToast('Error al actualizar la mercancía. Por favor revisa los datos.', 'error')
     } finally {
-      setSubmitting(false);
-      hideLoader();
+      setSubmitting(false)
+      hideLoader()
     }
-  };
-
-  const getNombreSucursal = (id) => {
-    if (!id) return 'Sin sucursal';
-    const sucursal = sucursales.find(s => String(s.id) === String(id));
-    return sucursal ? sucursal.nombre : `Suc ${id}`
   }
-
-  const obtenerTextoDespacho = (d) => {
-    if (!d) return ''
-    let textoRuta = 'S/R'
-    const rutaRaw = d.id_ruta || d.nombre_ruta
-
-    if (rutaRaw) {
-      const rutaCorta = String(rutaRaw).split('-')[0].trim()
-      textoRuta = rutaCorta.toLowerCase().includes('ruta') ? rutaCorta : `Ruta ${rutaCorta}`
-    }
-
-    const esCompartido = d.es_compartido || d.compartido
-    const letra = (typeof getLetraOrigen === 'function' && esCompartido)
-      ? getLetraOrigen(d)
-      : null
-
-    return letra ? `[${letra}] ${textoRuta}` : textoRuta
-  }
-
-
-  // --- RENDERIZADO ---
 
   if (loading) {
     return (
@@ -298,7 +276,7 @@ export default function MercanciaEdit() {
         <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
         <p>Cargando datos de edición...</p>
       </div>
-    );
+    )
   }
 
   if (!formData && !loading) {
@@ -350,11 +328,11 @@ export default function MercanciaEdit() {
                 </button>
               </h3>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                 <div className="relative z-40">
                   <label htmlFor="id_cliente" className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
                   <div className="relative">
-                    <div >
+                    <div>
                       <Select
                         inputId="id_cliente"
                         placeholder="Seleccionar cliente..."
@@ -376,7 +354,7 @@ export default function MercanciaEdit() {
                           handleChange({
                             target: { name: 'id_cliente', value: nuevoId }
                           });
-                          setFormData(prev => ({ ...prev, direccion_entrega: '' }));
+                          setFormData(prev => ({ ...prev, direccion_entrega: '', tipo_tarifa: 'base' }));
                           cargarDireccionesDelCliente(nuevoId);
                         }}
                         isClearable
@@ -427,12 +405,10 @@ export default function MercanciaEdit() {
                         inputId="id_proveedor"
                         placeholder="Selecciona un proveedor..."
                         noOptionsMessage={() => "No se encontró el proveedor"}
-
                         options={proveedores.map(p => ({
                           value: p.id,
                           label: `${p.nombre_proveedor} (RUT: ${p.rut})`
                         }))}
-
                         value={(() => {
                           if (!formData.id_proveedor) return null;
                           const provObj = proveedores.find(p => Number(p.id) === Number(formData.id_proveedor));
@@ -442,7 +418,6 @@ export default function MercanciaEdit() {
                             label: `${provObj.nombre_proveedor} (RUT: ${provObj.rut})`
                           } : null;
                         })()}
-
                         onChange={(opcion) => {
                           handleChange({
                             target: {
@@ -456,6 +431,7 @@ export default function MercanciaEdit() {
                     </div>
                   </div>
                 </div>
+
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Dirección de Entrega</label>
                   <CreatableSelect
@@ -479,6 +455,60 @@ export default function MercanciaEdit() {
                   />
                 </div>
               </div>
+
+              {/* SELECTOR DE TARIFA DEL CLIENTE */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-3">
+                <div className="col-span-1 sm:col-span-3 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <label htmlFor="tipo_tarifa" className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Tarifa del Cliente
+                    </label>
+                  </div>
+
+                  <select
+                    id="tipo_tarifa"
+                    name="tipo_tarifa"
+                    value={formData.tipo_tarifa || 'base'}
+                    onChange={(e) => {
+                      const nuevaTarifa = e.target.value;
+                      setFormData(prev => ({ ...prev, tipo_tarifa: nuevaTarifa }));
+                      const nuevoTotal = calcularPrecioLogica(nuevaTarifa);
+                      if (nuevoTotal !== null) {
+                        setFormData(prev => ({ ...prev, tipo_tarifa: nuevaTarifa, precio_total: nuevoTotal }));
+                      }
+                    }}
+                    disabled={!formData.id_cliente}
+                    className="py-2 px-3 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition disabled:opacity-50 min-w-[240px]"
+                  >
+                    {(() => {
+                      const cliente = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente))
+                      if (!cliente) return <option value="base">Sin cliente seleccionado</option>
+
+                      const opciones = [
+                        <option key="base" value="base">
+                          ${cliente.precio_kg || 0}/Kg ----- ${cliente.precio_m3 || 0}/m³
+                        </option>
+                      ]
+                      if (cliente.nombre_tarifa_2 || parseFloat(cliente.precio_kg_2) > 0 || parseFloat(cliente.precio_m3_2) > 0) {
+                        opciones.push(
+                          <option key="tarifa_2" value="tarifa_2">
+                            {cliente.nombre_tarifa_2 || 'Tarifa 2'} (${cliente.precio_kg_2 || 0}/Kg - ${cliente.precio_m3_2 || 0}/m³)
+                          </option>
+                        )
+                      }
+                      if (cliente.nombre_tarifa_3 || parseFloat(cliente.precio_kg_3) > 0 || parseFloat(cliente.precio_m3_3) > 0) {
+                        opciones.push(
+                          <option key="tarifa_3" value="tarifa_3">
+                            {cliente.nombre_tarifa_3 || 'Tarifa 3'} (${cliente.precio_kg_3 || 0}/Kg - ${cliente.precio_m3_3 || 0}/m³)
+                          </option>
+                        )
+                      }
+
+                      return opciones
+                    })()}
+                  </select>
+                </div>
+              </div>
             </div>
 
             {/* DETALLES DE CARGA */}
@@ -487,10 +517,9 @@ export default function MercanciaEdit() {
                 <Package className="w-5 h-5 text-indigo-600" />
                 Detalles de Carga
               </h3>
-
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>
-                  <label htmlFor="factura" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="tipo_documento_mercancia" className="block text-sm font-medium text-gray-700 mb-1">
                     Tipo de Documento
                   </label>
                   <div className="relative">
@@ -614,7 +643,7 @@ export default function MercanciaEdit() {
                   </div>
                 </div>
 
-                {/* --- INPUT PRECIO TOTAL REFORMULADO --- */}
+                {/* INPUT PRECIO TOTAL */}
                 <div className="col-span-1 md:col-span-2">
                   <label htmlFor="precio_total" className=" text-sm font-bold text-emerald-700 mb-1 flex justify-between items-center">
                     Precio Total ($)
@@ -768,7 +797,7 @@ export default function MercanciaEdit() {
                     }),
                     menuPortal: (base) => ({
                       ...base,
-                      zIndex: 9999, 
+                      zIndex: 9999,
                     }),
                     menu: (base) => ({
                       ...base,
@@ -825,24 +854,20 @@ export default function MercanciaEdit() {
 
           </form>
         </div>
+
+        {/* MODAL TARIFAS GENERALES */}
         {showPricing && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
 
-              {/* Cabecera */}
               <div className="bg-blue-600 text-white p-5 flex items-center justify-between shrink-0">
                 <h2 className="text-xl font-bold">Tarifas y Precios</h2>
               </div>
 
-              {/* Contenido*/}
               <div className="p-6 space-y-6 overflow-y-auto">
-
-                {/* Valores por Caja */}
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 mb-3">Valores por Caja</h3>
                   <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 divide-y divide-slate-200">
-
-                    {/* Cabecera (Grid de 5 columnas) */}
                     <div className="grid grid-cols-5 gap-2 py-2 first:pt-0 text-[10px] sm:text-xs">
                       <span className="font-bold text-slate-900 text-left text-sm">Destino</span>
                       <span className="font-bold text-slate-900 text-center text-sm">Hasta 5Kg</span>
@@ -869,17 +894,12 @@ export default function MercanciaEdit() {
                         <span className="text-slate-600 text-center text-sm">{fila.p4}</span>
                       </div>
                     ))}
-
                   </div>
                 </div>
 
-                {/* Adicionales por Tipo de Embalaje */}
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 mb-3">Adicionales por Embalaje</h3>
-
                   <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex flex-col gap-3">
-
-                    {/* Cajones (Maquinaria) */}
                     <div className="grid grid-cols-4 gap-2">
                       <div className="col-span-1 flex items-center text-slate-900 font-medium text-sm pr-2">
                         Cajones (Maquinaria)
@@ -898,7 +918,6 @@ export default function MercanciaEdit() {
                       </div>
                     </div>
 
-                    {/* Jaulas/Javas */}
                     <div className="grid grid-cols-4 gap-2">
                       <div className="col-span-1 flex items-center text-slate-900 font-medium text-sm pr-2">
                         Jaulas/Javas
@@ -908,7 +927,6 @@ export default function MercanciaEdit() {
                       </div>
                     </div>
 
-                    {/* Bultos largos/indivisibles */}
                     <div className="grid grid-cols-4 gap-2">
                       <div className="col-span-1 flex items-center text-slate-900 font-medium text-sm pr-2 leading-tight">
                         Bultos largos/indivisibles
@@ -926,11 +944,9 @@ export default function MercanciaEdit() {
                         <span className="font-bold text-emerald-600">+60%</span>
                       </div>
                     </div>
-
                   </div>
                 </div>
 
-                {/* Precio Mínimo */}
                 <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl">
                   <h3 className="text-lg font-bold text-amber-900 mb-1">Precio Mínimo</h3>
                   <p className="text-amber-800 mb-2">
@@ -941,13 +957,12 @@ export default function MercanciaEdit() {
                   </p>
                 </div>
 
-                {/* Información Adicional */}
                 <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
                   <h4 className="font-bold text-blue-900 mb-2">Información Adicional</h4>
                   <ul className="text-sm text-blue-800 space-y-1.5">
                     <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span> Los precios no incluyen IVA.</li>
                     <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span> La mercadería de lujo y/o alto valor se debe cobrar un adicional de 2% a 5% del monto de la factura.</li>
-                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span> Cuando coincidan dos criterios adicionales se aplicará el mas alto.</li>
+                    <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span> Cuando coincidan dos criterios adicionales se aplicará el más alto.</li>
                   </ul>
                 </div>
               </div>
@@ -966,5 +981,5 @@ export default function MercanciaEdit() {
         )}
       </div>
     </div>
-  );
+  )
 }

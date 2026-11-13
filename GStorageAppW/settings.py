@@ -262,3 +262,9 @@ WHATSAPP_GATEWAY_CONFIG = {
     'INSTANCE': os.getenv('WHATSAPP_INSTANCE_NAME', 'gstorage_express'),
     'TIMEOUT': 5,
 }
+
+TELEFONIA_MOBILE_API_KEY=os.getenv('TELEFONIA_MOBILE_API_KEY', 'gstorage_mobile_2026')
+EVOLUTION_API_URL=os.getenv('EVOLUTION_API_URL', 'http://localhost:8080').rstrip('/')
+EVOLUTION_API_KEY=os.getenv('EVOLUTION_API_KEY', 'apikey_evolution')
+EVOLUTION_INSTANCE=os.getenv('EVOLUTION_INSTANCE', 'bodega_notificaciones')
+WHATSAPP_ALERT_NUMBER=os.getenv('WHATSAPP_ALERT_NUMBER', '56912345678')
