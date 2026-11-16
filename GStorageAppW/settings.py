@@ -194,6 +194,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 REST_FRAMEWORK = {
+    'NUM_PROXIES': 2,
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'usuarios.authentication.ExpressJWTAuthentication',
     ),
@@ -206,7 +207,7 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.ScopedRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/day',
+        'anon': '300/min',
         'user': '1000/min',
         'login': '2/minute',
     }

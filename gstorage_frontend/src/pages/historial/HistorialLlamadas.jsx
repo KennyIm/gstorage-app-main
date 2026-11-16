@@ -110,6 +110,11 @@ export default function HistorialLlamadas() {
   const { showToast } = useUI()
 
   const [llamadas, setLlamadas] = useState([])
+  const [page, setPage] = useState(1)
+  const [totalRegistros, setTotalRegistros] = useState(0)
+  const [hasNext, setHasNext] = useState(false)
+  const [hasPrev, setHasPrev] = useState(false)
+  const pageSize = 20
   const [resumen, setResumen] = useState({
     total: 0,
     contestadas_bodega: 0,
@@ -140,17 +145,29 @@ export default function HistorialLlamadas() {
     return params
   }, [filtros])
 
+  const actualizarFiltro = (campo, valor) => {
+    setPage(1)
+    setFiltros((prev) => ({ ...prev, [campo]: valor }))
+  }
+
   const cargarDatos = useCallback(async () => {
     setLoading(true)
     try {
-      const params = construirParams()
+      const baseParams = construirParams()
+      const llamadasParams = { ...baseParams, page, page_size: pageSize }
+
       const [llamadasRes, resumenRes] = await Promise.all([
-        apiClient.get('/api/seguimiento/telefonia/llamadas/', { params }),
-        apiClient.get('/api/seguimiento/telefonia/llamadas/resumen/', { params }),
+        apiClient.get('/api/seguimiento/telefonia/llamadas/', { params: llamadasParams }),
+        apiClient.get('/api/seguimiento/telefonia/llamadas/resumen/', { params: baseParams }),
       ])
 
-      const lista = llamadasRes.data?.results || llamadasRes.data || []
+      const data = llamadasRes.data
+      const lista = data?.results || (Array.isArray(data) ? data : [])
       setLlamadas(lista)
+      setTotalRegistros(data?.count ?? lista.length)
+      setHasNext(Boolean(data?.next))
+      setHasPrev(Boolean(data?.previous))
+
       if (resumenRes.data) {
         setResumen(resumenRes.data)
       }
@@ -160,7 +177,7 @@ export default function HistorialLlamadas() {
     } finally {
       setLoading(false)
     }
-  }, [construirParams, showToast])
+  }, [construirParams, page, pageSize, showToast])
 
   useEffect(() => {
     cargarDatos()
@@ -206,14 +223,15 @@ export default function HistorialLlamadas() {
   }, [resumen])
 
   const limpiarFiltros = () => {
+    setPage(1)
     setFiltros({
       search: '',
       bodega: '',
       estado: '',
       fecha_desde: '',
       fecha_hasta: '',
-    });
-  };
+    })
+  }
 
   const hayFiltrosActivos = Object.values(filtros).some((v) => v !== '');
 
@@ -315,17 +333,11 @@ export default function HistorialLlamadas() {
                 <button
                   key={b.nombre}
                   type="button"
-                  onClick={() =>
-                    setFiltros((prev) => ({
-                      ...prev,
-                      bodega: activa ? '' : b.nombre,
-                    }))
-                  }
-                  className={`text-left p-4 rounded-xl border transition ${
-                    activa
-                      ? 'bg-indigo-50/70 border-indigo-400 ring-2 ring-indigo-200'
-                      : 'bg-slate-50/60 border-slate-200 hover:bg-slate-100/70'
-                  }`}
+                  onClick={() => actualizarFiltro('bodega', activa ? '' : b.nombre)}
+                  className={`text-left p-4 rounded-xl border transition ${activa
+                    ? 'bg-indigo-50/70 border-indigo-400 ring-2 ring-indigo-200'
+                    : 'bg-slate-50/60 border-slate-200 hover:bg-slate-100/70'
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-bold text-slate-900 text-sm">Bodega {b.nombre}</span>
@@ -362,14 +374,14 @@ export default function HistorialLlamadas() {
                 type="text"
                 placeholder="Buscar teléfono o ID..."
                 value={filtros.search}
-                onChange={(e) => setFiltros({ ...filtros, search: e.target.value })}
+                onChange={(e) => actualizarFiltro('search', e.target.value)}
                 className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
               />
             </div>
 
             <select
               value={filtros.bodega}
-              onChange={(e) => setFiltros({ ...filtros, bodega: e.target.value })}
+              onChange={(e) => actualizarFiltro('search', e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
             >
               <option value="">Todas las bodegas</option>
@@ -380,7 +392,7 @@ export default function HistorialLlamadas() {
 
             <select
               value={filtros.estado}
-              onChange={(e) => setFiltros({ ...filtros, estado: e.target.value })}
+              onChange={(e) => actualizarFiltro('search', e.target.value)}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
             >
               <option value="">Todos los estados</option>
@@ -396,7 +408,7 @@ export default function HistorialLlamadas() {
               <input
                 type="date"
                 value={filtros.fecha_desde}
-                onChange={(e) => setFiltros({ ...filtros, fecha_desde: e.target.value })}
+                onChange={(e) => actualizarFiltro('search', e.target.value)}
                 title="Fecha desde"
                 className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
               />
@@ -408,7 +420,7 @@ export default function HistorialLlamadas() {
                 <input
                   type="date"
                   value={filtros.fecha_hasta}
-                  onChange={(e) => setFiltros({ ...filtros, fecha_hasta: e.target.value })}
+                  onChange={(e) => actualizarFiltro('search', e.target.value)}
                   title="Fecha hasta"
                   className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
@@ -532,6 +544,36 @@ export default function HistorialLlamadas() {
                   })}
                 </tbody>
               </table>
+              {totalRegistros > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-600">
+                  <div>
+                    Mostrando página <strong className="text-slate-900">{page}</strong> de{' '}
+                    <strong className="text-slate-900">
+                      {Math.max(1, Math.ceil(totalRegistros / pageSize))}
+                    </strong>{' '}
+                    ({totalRegistros} registros en total)
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={!hasPrev || loading}
+                      className="px-3.5 py-1.5 font-semibold bg-white text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Anterior
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPage((p) => p + 1)}
+                      disabled={!hasNext || loading}
+                      className="px-3.5 py-1.5 font-semibold bg-white text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

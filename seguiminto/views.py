@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from rest_framework import permissions
 from rest_framework.decorators import action
 from django.core.files.storage import default_storage
@@ -22,6 +23,7 @@ from inventario.models import Despacho
 from inventario.serializers import DespachoListSerializer, MercanciaListSerializer
 from django.conf import settings
 import requests
+
 
 
 class DespachosMovilActivosAPIView(APIView):
@@ -288,12 +290,19 @@ class MercanciasSeguimientoDespachoAPIView(APIView):
 
 
 # ********** VIEWS PARA LLAMADAS *************** #
+
+class LlamadaPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
 class LlamadaTelefonicaViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['unique_id', 'origen', 'bodega_seleccionada']
     ordering_fields = ['fecha_inicio', 'fecha_fin', 'estado_final']
     ordering = ['-fecha_inicio']
+    pagination_class = LlamadaPagination
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
