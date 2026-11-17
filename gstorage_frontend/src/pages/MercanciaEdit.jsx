@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import apiClient from '../services/api'
 import { useAuth } from '../context/AuthContext'
@@ -7,7 +7,8 @@ import CreatableSelect from 'react-select/creatable'
 import { useUI } from '../context/UIContext'
 import {
   Save, ArrowLeft, Package, Scale, Box, FileText,
-  Loader2, CheckCircle, NotebookPen, Calculator, Info
+  Loader2, CheckCircle, NotebookPen, Calculator, Info,
+  ImagePlus, Trash2, Eye, X, ExternalLink
 } from 'lucide-react'
 
 const detectarConfiguracionSucursal = (d) => {
@@ -58,8 +59,17 @@ export default function MercanciaEdit() {
   const [submitting, setSubmitting] = useState(false)
   const { showLoader, hideLoader, showToast } = useUI()
   const [direccionesSugeridas, setDireccionesSugeridas] = useState([])
-
   const [showPricing, setShowPricing] = useState(false)
+
+  // Estados para manejo y visor de imagen
+  const [imagenExistenteUrl, setImagenExistenteUrl] = useState(null)
+  const [imagenArchivo, setImagenArchivo] = useState(null)
+  const [imagenPreview, setImagenPreview] = useState(null)
+  const [eliminarImagenExistente, setEliminarImagenExistente] = useState(false)
+  const [showImageModal, setShowImageModal] = useState(false)
+  const fileInputRef = useRef(null)
+
+  const imagenActivaUrl = imagenPreview || (!eliminarImagenExistente ? imagenExistenteUrl : null)
 
   const calcularPrecioLogica = (tipoTarifa = formData?.tipo_tarifa || 'base') => {
     if (!formData || !formData.id_cliente) return null
@@ -139,6 +149,12 @@ export default function MercanciaEdit() {
     }
   }, [formData?.kg, formData?.m3, formData?.id_cliente, formData?.tipo_tarifa, clientes])
 
+  useEffect(() => {
+    return () => {
+      if (imagenPreview) URL.revokeObjectURL(imagenPreview)
+    }
+  }, [imagenPreview])
+
   const cargarDireccionesDelCliente = async (clienteId) => {
     if (!clienteId) {
       setDireccionesSugeridas([])
@@ -162,7 +178,7 @@ export default function MercanciaEdit() {
     const fetchData = async () => {
       setLoading(true)
       try {
-        const [mercanciaoriginalRes, clientesRes, destinosRes, ubicacionesRes, despachosRes, provRes, sucursalesRes] = await Promise.all([
+        const [mercanciaRes, clientesRes, destinosRes, ubicacionesRes, despachosRes, provRes, sucursalesRes] = await Promise.all([
           apiClient.get(`/api/inventario/mercancias/${id}/`),
           apiClient.get('/api/inventario/clientes/'),
           apiClient.get('/api/inventario/destinos/'),
@@ -171,14 +187,14 @@ export default function MercanciaEdit() {
           apiClient.get('/api/inventario/proveedores/'),
           apiClient.get('/api/usuarios/sucursales/')
         ])
-        const mercanciaRes = await apiClient.get(`/api/inventario/mercancias/${id}/`);
         const currentData = mercanciaRes.data;
 
         const ubicacionesFiltradas = ubicacionesRes.data.filter(u =>
           !u.estado_ocupado || u.id_ubicacion === currentData.id_ubicacion_actual
         )
 
-        setMercanciaOriginal(mercanciaoriginalRes.data)
+        setMercanciaOriginal(currentData)
+        setImagenExistenteUrl(currentData.imagen || null)
         setClientes(clientesRes.data)
         setDestinos(destinosRes.data)
         setUbicaciones(ubicacionesFiltradas)
@@ -232,6 +248,36 @@ export default function MercanciaEdit() {
     }))
   }
 
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Selecciona un archivo de imagen válido (JPG, PNG, WebP).', 'error')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('La imagen no puede superar los 5 MB.', 'error')
+      return
+    }
+
+    if (imagenPreview) URL.revokeObjectURL(imagenPreview)
+    setImagenArchivo(file)
+    setImagenPreview(URL.createObjectURL(file))
+    setEliminarImagenExistente(false)
+  }
+
+  const handleRemoveImage = () => {
+    if (imagenPreview) URL.revokeObjectURL(imagenPreview)
+    setImagenArchivo(null)
+    setImagenPreview(null)
+    if (imagenExistenteUrl) {
+      setEliminarImagenExistente(true)
+    }
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSubmitting(true)
@@ -258,7 +304,25 @@ export default function MercanciaEdit() {
     }
 
     try {
-      await apiClient.put(`/api/inventario/mercancias/${id}/`, dataToSubmit)
+      if (imagenArchivo) {
+        const multipartData = new FormData()
+        Object.entries(dataToSubmit).forEach(([key, value]) => {
+          if (value !== null && value !== undefined) {
+            multipartData.append(key, value)
+          }
+        })
+        multipartData.append('imagen', imagenArchivo)
+
+        await apiClient.patch(`/api/inventario/mercancias/${id}/`, multipartData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+      } else {
+        if (eliminarImagenExistente) {
+          dataToSubmit.imagen = null
+        }
+        await apiClient.patch(`/api/inventario/mercancias/${id}/`, dataToSubmit)
+      }
+
       showToast('Mercancía actualizada exitosamente.', 'success')
       navigate(`/mercancias/${id}`)
     } catch (err) {
@@ -689,6 +753,95 @@ export default function MercanciaEdit() {
                 </div>
               </div>
 
+              {/* FOTOGRAFÍA DEL BULTO */}
+              <div className="mt-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Fotografía del Bulto <span className="text-xs text-gray-400 font-normal">(Opcional)</span>
+                </label>
+
+                <input
+                  ref={fileInputRef}
+                  id="imagen_mercancia_edit"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                />
+
+                {!imagenActivaUrl ? (
+                  <label
+                    htmlFor="imagen_mercancia_edit"
+                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-slate-50/70 hover:bg-indigo-50/40 hover:border-indigo-400 transition"
+                  >
+                    <div className="flex flex-col items-center justify-center py-4 text-center px-4">
+                      <ImagePlus className="w-7 h-7 text-indigo-500 mb-1.5" />
+                      <p className="text-sm font-medium text-gray-700">
+                        Haz clic para subir o reemplazar foto del bulto
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">JPG, PNG o WebP</p>
+                    </div>
+                  </label>
+                ) : (
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setShowImageModal(true)}
+                      className="relative group w-24 h-24 rounded-lg overflow-hidden border border-gray-200 shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      title="Ampliar imagen"
+                    >
+                      <img
+                        src={imagenActivaUrl}
+                        alt="Fotografía del bulto"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
+                      <span className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                        <Eye className="w-5 h-5" />
+                      </span>
+                    </button>
+
+                    <div className="flex-grow min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {imagenArchivo ? imagenArchivo.name : 'Imagen registrada del bulto'}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {imagenArchivo
+                          ? `${(imagenArchivo.size / (1024 * 1024)).toFixed(2)} MB (Nueva imagen por guardar)`
+                          : 'Almacenada en el inventario'}
+                      </p>
+
+                      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowImageModal(true)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          Ver imagen
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg transition"
+                        >
+                          <ImagePlus className="w-3.5 h-3.5" />
+                          Cambiar foto
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Quitar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="mt-6">
                 <label htmlFor="descripcion_carga" className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
                 <div className="relative">
@@ -854,6 +1007,49 @@ export default function MercanciaEdit() {
 
           </form>
         </div>
+
+        {/* MODAL VISOR DE IMAGEN */}
+        {showImageModal && imagenActivaUrl && (
+          <div
+            onClick={() => setShowImageModal(false)}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between bg-slate-50">
+                <h3 className="font-bold text-slate-800 text-sm sm:text-base">
+                  Fotografía — Mercancía #{id}
+                </h3>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={imagenActivaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Abrir original
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setShowImageModal(false)}
+                    className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200/70 rounded-lg transition"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-4 bg-slate-900 flex items-center justify-center overflow-auto">
+                <img
+                  src={imagenActivaUrl}
+                  alt={`Mercancía #${id}`}
+                  className="max-h-[75vh] w-auto object-contain rounded-lg"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODAL TARIFAS GENERALES */}
         {showPricing && (

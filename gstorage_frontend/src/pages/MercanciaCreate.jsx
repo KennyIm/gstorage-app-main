@@ -1,19 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import apiClient from '../services/api';
-import { useAuth } from '../context/AuthContext';
-import Select from 'react-select';
-import { useUI } from '../context/UIContext';
-import CreatableSelect from 'react-select/creatable';
+import React, { useState, useEffect, useRef } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import apiClient from '../services/api'
+import { useAuth } from '../context/AuthContext'
+import Select from 'react-select'
+import { useUI } from '../context/UIContext'
+import CreatableSelect from 'react-select/creatable'
 import {
   Save, X, NotebookPen, User, MapPin, Map, Package, Scale,
-  Box, FileText, AlertCircle, Loader2, ArrowLeft, Truck, Info
-} from 'lucide-react';
-
-
+  Box, FileText, AlertCircle, Loader2, ArrowLeft, Truck, Info,
+  ImagePlus, Trash2
+} from 'lucide-react'
 
 export default function MercanciaCreate() {
-  document.title = "Creación de Mercancias - GStorage";
+  document.title = "Creación de Mercancias - GStorage"
   const initialFormState = {
     id_cliente: '',
     id_destino: '',
@@ -30,24 +29,27 @@ export default function MercanciaCreate() {
     codigo_interno: '',
     paga_proveedor: false,
     direccion_entrega: ''
-  }
+  };
 
-  const { logoutUser } = useAuth();
+  const { logoutUser } = useAuth()
 
-  const [clientes, setClientes] = useState([]);
-  const [destinos, setDestinos] = useState([]);
-  const [proveedores, setProveedores] = useState([]);
+  const [clientes, setClientes] = useState([])
+  const [destinos, setDestinos] = useState([])
+  const [proveedores, setProveedores] = useState([])
 
-
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
-  const { showLoader, hideLoader, showToast } = useUI();
-  const [direccionesSugeridas, setDireccionesSugeridas] = useState([]);
-  const [showPricing, setShowPricing] = useState(false);
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState(null)
+  const { showLoader, hideLoader, showToast } = useUI()
+  const [direccionesSugeridas, setDireccionesSugeridas] = useState([])
+  const [showPricing, setShowPricing] = useState(false)
   const navigate = useNavigate()
   const [formData, setFormData] = useState(initialFormState)
 
+  // Estados para la imagen del bulto
+  const [imagenArchivo, setImagenArchivo] = useState(null)
+  const [imagenPreview, setImagenPreview] = useState(null)
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     const controller = new AbortController();
@@ -59,7 +61,7 @@ export default function MercanciaCreate() {
           apiClient.get('/api/inventario/clientes/', { signal: controller.signal }),
           apiClient.get('/api/inventario/destinos/', { signal: controller.signal }),
           apiClient.get('/api/inventario/proveedores/', { signal: controller.signal })
-        ])
+        ]);
 
         setClientes(clientesRes.data)
         setDestinos(destinosRes.data)
@@ -76,15 +78,20 @@ export default function MercanciaCreate() {
       } finally {
         setLoading(false)
       }
-    }
+    };
 
     fetchData()
     return () => {
       controller.abort()
     };
-  }, [])
+  }, []);
 
-  // --- CÁLCULO DE PRECIO EN VIVO ---
+  useEffect(() => {
+    return () => {
+      if (imagenPreview) URL.revokeObjectURL(imagenPreview)
+    };
+  }, [imagenPreview])
+
   useEffect(() => {
     if (formData?.id_cliente && (formData?.kg || formData?.m3)) {
       const clienteSeleccionado = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente))
@@ -118,9 +125,6 @@ export default function MercanciaCreate() {
     }
   }, [formData?.kg, formData?.m3, formData?.id_cliente, formData?.tipo_tarifa, clientes])
 
-  const destinoSeleccionado = destinos.find(d => String(d.id_destino) === String(formData.id_destino))
-  const nombreCiudad = destinoSeleccionado ? destinoSeleccionado.nombre_ciudad : ''
-
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
     setFormData(prevData => ({
@@ -129,10 +133,37 @@ export default function MercanciaCreate() {
     }))
   }
 
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Selecciona un archivo de imagen válido (JPG, PNG, WebP).', 'error')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('La imagen no puede superar los 5 MB.', 'error')
+      return
+    }
+
+    if (imagenPreview) URL.revokeObjectURL(imagenPreview)
+    setImagenArchivo(file)
+    setImagenPreview(URL.createObjectURL(file))
+  }
+
+  const handleRemoveImage = () => {
+    if (imagenPreview) URL.revokeObjectURL(imagenPreview)
+    setImagenArchivo(null)
+    setImagenPreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
   const handleSubmit = async (e, crearOtra = false) => {
     if (e) e.preventDefault()
     setSubmitting(true)
     showLoader()
+
     const payload = {
       ...formData,
       id_cliente: formData.id_cliente ? parseInt(formData.id_cliente.toString(), 10) : null,
@@ -150,14 +181,30 @@ export default function MercanciaCreate() {
       codigo_interno: formData.codigo_interno || null,
       direccion_entrega: formData.direccion_entrega || null,
     }
+
     try {
-      const res = await apiClient.post('/api/inventario/mercancias/', payload)
+      let res
+      if (imagenArchivo) {
+        const multipartData = new FormData()
+        Object.entries(payload).forEach(([key, value]) => {
+          if (value !== null && value !== undefined) {
+            multipartData.append(key, value)
+          }
+        });
+        multipartData.append('imagen', imagenArchivo)
+
+        res = await apiClient.post('/api/inventario/mercancias/', multipartData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+      } else {
+        res = await apiClient.post('/api/inventario/mercancias/', payload);
+      }
+
       showToast('Mercancía registrada con éxito.', 'success')
       if (crearOtra) {
         setFormData(initialFormState)
         setDireccionesSugeridas([])
-        if (typeof setMostrarMapa === 'function') setMostrarMapa(false)
-
+        handleRemoveImage()
         window.scrollTo({ top: 0, behavior: 'smooth' })
       } else {
         navigate('/mercancias', { state: { nuevaMercancia: res.data } })
@@ -179,7 +226,6 @@ export default function MercanciaCreate() {
     }
 
     const clienteId = selectedOption.value
-
     setFormData(prev => ({ ...prev, id_cliente: clienteId }))
 
     try {
@@ -189,19 +235,18 @@ export default function MercanciaCreate() {
         value: String(dir)
       }))
 
-      setDireccionesSugeridas(suggestions);
+      setDireccionesSugeridas(suggestions)
 
       if (suggestions.length > 0) {
-        setFormData(prev => ({ ...prev, id_cliente: clienteId, direccion_entrega: suggestions[0].value }));
+        setFormData(prev => ({ ...prev, id_cliente: clienteId, direccion_entrega: suggestions[0].value }))
       } else {
-        setFormData(prev => ({ ...prev, id_cliente: clienteId, direccion_entrega: '' }));
+        setFormData(prev => ({ ...prev, id_cliente: clienteId, direccion_entrega: '' }))
       }
-
     } catch (err) {
-      console.error("La petición falló:", err);
-      setDireccionesSugeridas([]);
+      console.error("La petición falló:", err)
+      setDireccionesSugeridas([])
     }
-  };
+  }
 
   if (loading) {
     return (
@@ -209,7 +254,7 @@ export default function MercanciaCreate() {
         <Loader2 className="w-10 h-10 animate-spin mb-4 text-indigo-600" />
         <p>Cargando formulario de registro...</p>
       </div>
-    );
+    )
   }
 
   return (
@@ -257,47 +302,76 @@ export default function MercanciaCreate() {
                 <div className="relative z-40">
                   <label htmlFor="cliente" className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
                   <div className="relative">
-                    <div>
-                      <Select
-                        placeholder="Buscar cliente..."
-                        inputId="cliente"
-                        noOptionsMessage={() => "No se encontró el cliente"}
-                        options={clientes.map(c => ({
-                          value: c.id_cliente,
-                          label: `${c.nombre_cliente} (RUT:${c.rut_cliente})`
-                        }))}
-                        value={clientes.find(c => c.id_cliente === formData.id_cliente) ? {
-                          value: formData.id_cliente,
-                          label: clientes.find(c => c.id_cliente === formData.id_cliente).nombre_cliente
-                        } : null}
-                        onChange={handleClienteChange}
-                        isClearable
-                      />
-                    </div>
+                    <Select
+                      placeholder="Buscar cliente..."
+                      inputId="cliente"
+                      noOptionsMessage={() => "No se encontró el cliente"}
+                      options={clientes.map(c => ({
+                        value: c.id_cliente,
+                        label: `${c.nombre_cliente} (RUT:${c.rut_cliente})`
+                      }))}
+                      value={clientes.find(c => c.id_cliente === formData.id_cliente) ? {
+                        value: formData.id_cliente,
+                        label: clientes.find(c => c.id_cliente === formData.id_cliente).nombre_cliente
+                      } : null}
+                      onChange={handleClienteChange}
+                      isClearable
+                    />
                   </div>
                 </div>
 
                 <div className="relative z-40">
                   <label htmlFor="destino" className="block text-sm font-medium text-gray-700 mb-1">Destino</label>
                   <div className="relative">
-                    <div>
+                    <Select
+                      placeholder="Selecciona un destino..."
+                      inputId="destino"
+                      noOptionsMessage={() => "No se encontró el destino"}
+                      options={destinos.map(d => ({
+                        value: d.id_destino,
+                        label: d.nombre_ciudad
+                      }))}
+                      value={destinos.find(d => d.id_destino === formData.id_destino) ? {
+                        value: formData.id_destino,
+                        label: destinos.find(d => d.id_destino === formData.id_destino).nombre_ciudad
+                      } : null}
+                      onChange={(opcion) => {
+                        handleChange({
+                          target: {
+                            name: 'id_destino',
+                            value: opcion ? opcion.value : ''
+                          }
+                        });
+                      }}
+                      isClearable
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="relative z-30">
+                    <label htmlFor="proveedor" className="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
+                    <div className="relative">
                       <Select
-                        placeholder="Selecciona un destino..."
-                        inputId="destino"
-                        noOptionsMessage={() => "No se encontró el destino"}
-                        options={destinos.map(d => ({
-                          value: d.id_destino,
-                          label: d.nombre_ciudad
+                        placeholder="Selecciona un proveedor..."
+                        inputId="proveedor"
+                        noOptionsMessage={() => "No se encontró el proveedor"}
+                        options={proveedores.map(prov => ({
+                          value: prov.id,
+                          label: `${prov.nombre_proveedor} (RUT: ${prov.rut})`
                         }))}
-                        value={destinos.find(d => d.id_destino === formData.id_destino) ? {
-                          value: formData.id_destino,
-                          label: destinos.find(d => d.id_destino === formData.id_destino).nombre_ciudad
+                        value={proveedores.find(prov => Number(prov.id) === Number(formData.id_proveedor)) ? {
+                          value: formData.id_proveedor,
+                          label: (() => {
+                            const p = proveedores.find(prov => Number(prov.id) === Number(formData.id_proveedor));
+                            return `${p.nombre_proveedor} (RUT: ${p.rut})`;
+                          })()
                         } : null}
                         onChange={(opcion) => {
                           handleChange({
                             target: {
-                              name: 'id_destino',
-                              value: opcion ? opcion.value : ''
+                              name: 'id_proveedor',
+                              value: opcion ? Number(opcion.value) : ''
                             }
                           });
                         }}
@@ -306,40 +380,7 @@ export default function MercanciaCreate() {
                     </div>
                   </div>
                 </div>
-                <div>
-                  <div className="relative z-30">
-                    <label htmlFor="proveedor" className="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
-                    <div className="relative">
-                      <div>
-                        <Select
-                          placeholder="Selecciona un proveedor..."
-                          inputId="proveedor"
-                          noOptionsMessage={() => "No se encontró el proveedor"}
-                          options={proveedores.map(prov => ({
-                            value: prov.id,
-                            label: `${prov.nombre_proveedor} (RUT: ${prov.rut})`
-                          }))}
-                          value={proveedores.find(prov => Number(prov.id) === Number(formData.id_proveedor)) ? {
-                            value: formData.id_proveedor,
-                            label: (() => {
-                              const p = proveedores.find(prov => Number(prov.id) === Number(formData.id_proveedor));
-                              return `${p.nombre_proveedor} (RUT: ${p.rut})`;
-                            })()
-                          } : null}
-                          onChange={(opcion) => {
-                            handleChange({
-                              target: {
-                                name: 'id_proveedor',
-                                value: opcion ? Number(opcion.value) : ''
-                              }
-                            });
-                          }}
-                          isClearable
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
+
                 <div className="mb-4">
                   <label className="block text-sm font-bold text-gray-700 mb-1">Dirección de Entrega</label>
                   <CreatableSelect
@@ -360,8 +401,8 @@ export default function MercanciaCreate() {
                 <Package className="w-5 h-5 text-indigo-600" />
                 Detalles de Carga
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-3">
 
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-3">
                 {/* SELECTOR DE TARIFA DEL CLIENTE */}
                 <div className="col-span-1 sm:col-span-3 bg-slate-50 p-3 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
@@ -379,30 +420,30 @@ export default function MercanciaCreate() {
                     className="py-2 px-3 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none transition disabled:opacity-50 min-w-[240px]"
                   >
                     {(() => {
-                      const cliente = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente))
-                      if (!cliente) return <option value="base">Sin cliente seleccionado</option>
+                      const cliente = clientes.find(c => String(c.id_cliente) === String(formData.id_cliente));
+                      if (!cliente) return <option value="base">Sin cliente seleccionado</option>;
 
                       const opciones = [
                         <option key="base" value="base">
                           ${cliente.precio_kg || 0}/Kg ----- ${cliente.precio_m3 || 0}/m³
                         </option>
-                      ]
+                      ];
                       if (cliente.nombre_tarifa_2 || parseFloat(cliente.precio_kg_2) > 0 || parseFloat(cliente.precio_m3_2) > 0) {
                         opciones.push(
                           <option key="tarifa_2" value="tarifa_2">
                             {cliente.nombre_tarifa_2 || 'Tarifa 2'} (${cliente.precio_kg_2 || 0}/Kg - ${cliente.precio_m3_2 || 0}/m³)
                           </option>
-                        )
+                        );
                       }
                       if (cliente.nombre_tarifa_3 || parseFloat(cliente.precio_kg_3) > 0 || parseFloat(cliente.precio_m3_3) > 0) {
                         opciones.push(
                           <option key="tarifa_3" value="tarifa_3">
                             {cliente.nombre_tarifa_3 || 'Tarifa 3'} (${cliente.precio_kg_3 || 0}/Kg - ${cliente.precio_m3_3 || 0}/m³)
                           </option>
-                        )
+                        );
                       }
 
-                      return opciones
+                      return opciones;
                     })()}
                   </select>
                 </div>
@@ -410,7 +451,7 @@ export default function MercanciaCreate() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                 <div>
-                  <label htmlFor="factura" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="tipo_documento_mercancia" className="block text-sm font-medium text-gray-700 mb-1">
                     Tipo de Documento
                   </label>
                   <div className="relative">
@@ -432,6 +473,7 @@ export default function MercanciaCreate() {
                     </select>
                   </div>
                 </div>
+
                 <div>
                   <label htmlFor="factura" className="block text-sm font-medium text-gray-700 mb-1">
                     N° de {formData.tipo_documento_mercancia || 'Documento'}
@@ -453,6 +495,7 @@ export default function MercanciaCreate() {
                     />
                   </div>
                 </div>
+
                 <div>
                   <label htmlFor="tipo" className="block text-sm font-medium text-gray-700 mb-1">
                     Tipo de carga
@@ -470,6 +513,7 @@ export default function MercanciaCreate() {
                     />
                   </div>
                 </div>
+
                 <div>
                   <label htmlFor="cantidad_bultos" className="block text-sm font-medium text-gray-700 mb-1">Cantidad Bultos</label>
                   <div className="relative">
@@ -520,6 +564,7 @@ export default function MercanciaCreate() {
                     />
                   </div>
                 </div>
+
                 <div>
                   <label htmlFor="codigo_interno" className="block text-sm font-medium text-gray-700 mb-1">Código Interno</label>
                   <div className="relative">
@@ -535,6 +580,7 @@ export default function MercanciaCreate() {
                     />
                   </div>
                 </div>
+
                 {/* PRECIO TOTAL */}
                 <div className="col-span-1 md:col-span-2">
                   <label htmlFor="precio_total" className="block text-sm font-bold text-emerald-700 mb-1">
@@ -557,6 +603,7 @@ export default function MercanciaCreate() {
                     * Se calcula automáticamente según las tarifas del cliente, pero puedes editarlo manualmente.
                   </p>
                 </div>
+
                 <div className="flex items-center gap-2 mt-2">
                   <input
                     type="checkbox"
@@ -572,6 +619,63 @@ export default function MercanciaCreate() {
                 </div>
               </div>
 
+              {/* UPLOAD IMAGEN DEL BULTO */}
+              <div className="mt-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Fotografía del Bulto <span className="text-xs text-gray-400 font-normal">(Opcional)</span>
+                </label>
+
+                {!imagenPreview ? (
+                  <label
+                    htmlFor="imagen_mercancia"
+                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer bg-slate-50/70 hover:bg-indigo-50/40 hover:border-indigo-400 transition"
+                  >
+                    <div className="flex flex-col items-center justify-center py-4 text-center px-4">
+                      <ImagePlus className="w-7 h-7 text-indigo-500 mb-1.5" />
+                      <p className="text-sm font-medium text-gray-700">
+                        Haz clic para adjuntar foto del bulto
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        JPG, PNG o WebP
+                      </p>
+                    </div>
+                    <input
+                      ref={fileInputRef}
+                      id="imagen_mercancia"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
+                  </label>
+                ) : (
+                  <div className="flex items-center gap-4 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <img
+                      src={imagenPreview}
+                      alt="Vista previa del bulto"
+                      className="w-24 h-24 object-cover rounded-lg border border-gray-200 shrink-0"
+                    />
+                    <div className="flex-grow min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {imagenArchivo?.name}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {(imagenArchivo?.size / (1024 * 1024)).toFixed(2)} MB
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg transition"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Quitar imagen
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* DESCRIPCIÓN */}
               <div className="mt-6">
                 <label htmlFor="descripcion_carga" className="block text-sm font-medium text-gray-700 mb-1">Descripción / Notas Adicionales</label>
                 <div className="relative">
@@ -624,24 +728,18 @@ export default function MercanciaCreate() {
 
           </form>
         </div>
+
         {showPricing && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden">
-
-              {/* Cabecera */}
               <div className="bg-blue-600 text-white p-5 flex items-center justify-between shrink-0">
                 <h2 className="text-xl font-bold">Tarifas y Precios</h2>
               </div>
 
-              {/* Contenido*/}
               <div className="p-6 space-y-6 overflow-y-auto">
-
-                {/* Valores por Caja */}
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 mb-3">Valores por Caja</h3>
                   <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 divide-y divide-slate-200">
-
-                    {/* Cabecera (Grid de 5 columnas) */}
                     <div className="grid grid-cols-5 gap-2 py-2 first:pt-0 text-[10px] sm:text-xs">
                       <span className="font-bold text-slate-900 text-left text-sm">Destino</span>
                       <span className="font-bold text-slate-900 text-center text-sm">Hasta 5Kg</span>
@@ -668,17 +766,12 @@ export default function MercanciaCreate() {
                         <span className="text-slate-600 text-center text-sm">{fila.p4}</span>
                       </div>
                     ))}
-
                   </div>
                 </div>
 
-                {/* Adicionales por Tipo de Embalaje */}
                 <div>
                   <h3 className="text-lg font-bold text-slate-800 mb-3">Adicionales por Embalaje</h3>
-
                   <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 flex flex-col gap-3">
-
-                    {/* Cajones (Maquinaria) */}
                     <div className="grid grid-cols-4 gap-2">
                       <div className="col-span-1 flex items-center text-slate-900 font-medium text-sm pr-2">
                         Cajones (Maquinaria)
@@ -697,7 +790,6 @@ export default function MercanciaCreate() {
                       </div>
                     </div>
 
-                    {/* Jaulas/Javas */}
                     <div className="grid grid-cols-4 gap-2">
                       <div className="col-span-1 flex items-center text-slate-900 font-medium text-sm pr-2">
                         Jaulas/Javas
@@ -707,7 +799,6 @@ export default function MercanciaCreate() {
                       </div>
                     </div>
 
-                    {/* Bultos largos/indivisibles */}
                     <div className="grid grid-cols-4 gap-2">
                       <div className="col-span-1 flex items-center text-slate-900 font-medium text-sm pr-2 leading-tight">
                         Bultos largos/indivisibles
@@ -725,11 +816,9 @@ export default function MercanciaCreate() {
                         <span className="font-bold text-emerald-600">+60%</span>
                       </div>
                     </div>
-
                   </div>
                 </div>
 
-                {/* Precio Mínimo */}
                 <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl">
                   <h3 className="text-lg font-bold text-amber-900 mb-1">Precio Mínimo</h3>
                   <p className="text-amber-800 mb-2">
@@ -740,7 +829,6 @@ export default function MercanciaCreate() {
                   </p>
                 </div>
 
-                {/* Información Adicional */}
                 <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
                   <h4 className="font-bold text-blue-900 mb-2">Información Adicional</h4>
                   <ul className="text-sm text-blue-800 space-y-1.5">
@@ -750,6 +838,7 @@ export default function MercanciaCreate() {
                   </ul>
                 </div>
               </div>
+
               <div className="bg-slate-50 border-t border-slate-200 p-4 shrink-0">
                 <button
                   type="button"
@@ -759,7 +848,6 @@ export default function MercanciaCreate() {
                   Cerrar
                 </button>
               </div>
-
             </div>
           </div>
         )}

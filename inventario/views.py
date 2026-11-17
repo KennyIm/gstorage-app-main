@@ -63,6 +63,7 @@ from usuarios.models import Empresa, PersonalOperativo
 
 from django.contrib.auth.models import User
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 def get_empresa_from_user(request):
     user = getattr(request, 'user', None)
@@ -168,6 +169,7 @@ JURISDICCION_SUCURSALES = {
 class MercanciaListCreateAPI(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = MercanciasPagination
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
         user = self.request.user
@@ -358,6 +360,7 @@ class MercanciaListCreateAPI(generics.ListCreateAPIView):
 class MercanciaDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = MercanciaWriteSerializer
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
         user = self.request.user

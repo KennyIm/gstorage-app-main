@@ -1,3 +1,4 @@
+import os
 from django.db import models
 import hashlib
 from django.contrib.auth.models import User 
@@ -8,6 +9,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.conf import settings
 from usuarios.models import Empresa, Sucursal
 from django.core.exceptions import ValidationError
+from django.utils.text import slugify
 
 
 def validar_rut_chileno(rut_str):
@@ -33,6 +35,13 @@ def validar_rut_chileno(rut_str):
         raise ValidationError("El RUT contiene caracteres inválidos.")
     
     return rut_limpio
+
+def ruta_imagen_mercancia(instance, filename):
+    ext = os.path.splitext(filename)[1].lower() or '.jpg'
+    cliente_nombre = getattr(instance.id_cliente, 'nombre_cliente', 'sin-cliente')
+    cliente_slug = slugify(cliente_nombre)
+    codigo_slug = slugify(instance.codigo_interno or 'sin-codigo')
+    return f"mercancias/{cliente_slug}_{codigo_slug}{ext}"
 
 # --- Modelos de Catálogo ---
 
@@ -451,6 +460,12 @@ class Mercancia(models.Model):
     id_usuario_creacion = models.ForeignKey(User, related_name='mercancias_creadas', on_delete=models.PROTECT, verbose_name="Usuario Creación", null=True, blank=True)
     id_usuario_ultima_modificacion = models.ForeignKey(User, related_name='mercancias_modificadas', on_delete=models.PROTECT, null=True, blank=True, verbose_name="Usuario Modificación")
     activo = models.BooleanField(default=True, verbose_name="Activo")
+    imagen = models.ImageField(
+        upload_to=ruta_imagen_mercancia,
+        null=True,
+        blank=True,
+        verbose_name="Imagen del Bulto"
+    )
 
     tipo_documento_pago = models.CharField(
         max_length=20, 
